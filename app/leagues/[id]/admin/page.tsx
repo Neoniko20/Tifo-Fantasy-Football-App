@@ -853,6 +853,59 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
             );
           })}
 
+          {/* AUDIT LOG (collapsible) */}
+          <div className="rounded-xl p-4" style={{ background: "#0f0d06", border: "1px solid #2a2010" }}>
+            <button
+              onClick={() => setAuditLogVisible(v => !v)}
+              className="w-full flex items-center justify-between text-[9px] font-black uppercase tracking-widest"
+              style={{ color: "#8a6a40" }}>
+              <span>📜 Admin-Verlauf ({auditLog.length})</span>
+              <span>{auditLogVisible ? "▲" : "▼"}</span>
+            </button>
+            {auditLogVisible && (
+              <div className="mt-3 space-y-1.5">
+                {auditLog.length === 0 && (
+                  <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                    Noch keine Einträge
+                  </p>
+                )}
+                {auditLog.map(entry => (
+                  <div key={entry.id}
+                    className="flex items-start justify-between gap-2 py-1 border-b"
+                    style={{ borderColor: "#1a1208" }}>
+                    <div className="flex-1">
+                      <p className="text-[9px] font-black" style={{ color: "#c8b080" }}>
+                        {actionLabel(entry.action)}{entry.gameweek ? ` · GW${entry.gameweek}` : ""}
+                      </p>
+                      {entry.metadata?.players_imported !== undefined && (
+                        <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                          {entry.metadata.players_imported} Spieler · {entry.metadata.api_calls_used} API-Calls
+                        </p>
+                      )}
+                      {entry.metadata?.error && (
+                        <p className="text-[7px]" style={{ color: "#ff4d6d" }}>
+                          {entry.metadata.error}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-[7px] font-black uppercase"
+                        style={{ color: entry.actor_label === "cron" ? "#00ce7d" : "#f5a623" }}>
+                        {entry.actor_label}
+                      </span>
+                      <span className="text-[7px]" style={{ color: "#5a4020" }}>
+                        {new Date(entry.created_at).toLocaleString("de-DE", {
+                          day: "2-digit", month: "2-digit",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {gameweeks.length === 0 && (
             <p className="text-center text-sm font-black py-8" style={{ color: "#2a2010" }}>
               Noch keine Spieltage
