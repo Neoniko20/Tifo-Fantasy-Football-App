@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 const API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY || "";
 const BASE = "https://v3.football.api-sports.io";
+
+const LEAGUE_KEY_TO_API_ID: Record<string, number> = {
+  bundesliga: 78, premier: 39, laliga: 140, seriea: 135, ligue1: 61,
+};
 const LEAGUE_IDS = [78, 39, 140, 135, 61];
 
 const LEAGUE_META: Record<number, { name: string; flag: string }> = {
@@ -29,6 +34,42 @@ async function afetch(path: string) {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+
+  // ── GW-scoped shortcut: ?leagueId=<uuid>&gameweek=<n> ─────────────
+  const gwLeagueId = searchParams.get("leagueId");
+  const gwGameweek = searchParams.get("gameweek");
+  if (gwLeagueId && gwGameweek) {
+    const { data: gwRow } = await supabase
+      .from("liga_gameweeks")
+      .select("start_date, end_date, active_leagues")
+      .eq("league_id", gwLeagueId)
+      .eq("gameweek", Number(gwGameweek))
+      .maybeSingle();
+
+    if (!gwRow) return NextResponse.json({ fixtures: [] });
+
+    const apiLeagueIds: number[] = ((gwRow.active_leagues || []) as string[])
+      .map((k: string) => LEAGUE_KEY_TO_API_ID[k])
+      .filter(Boolean);
+
+    if (apiLeagueIds.length === 0) return NextResponse.json({ fixtures: [] });
+
+    const allFixtures: any[] = [];
+    await Promise.all(
+      apiLeagueIds.map(async (lid) => {
+        try {
+          const res = await fetch(
+            `${BASE}/fixtures?league=${lid}&season=2026&from=${gwRow.start_date}&to=${gwRow.end_date}`,
+            { headers: { "x-apisports-key": API_KEY }, next: { revalidate: 0 } },
+          );
+          const json = await res.json();
+          allFixtures.push(...(json.response || []));
+        } catch { /* skip failed league */ }
+      }),
+    );
+    return NextResponse.json({ fixtures: allFixtures });
+  }
+
   const dateParam = searchParams.get("date"); // YYYY-MM-DD
   const forceRefresh = searchParams.get("refresh") === "1";
 
