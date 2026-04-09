@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/import-gw-stats",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "functions": {
+    "app/api/cron/import-gw-stats/route.ts": {
+      "maxDuration": 300
+    }
+  }
+}
