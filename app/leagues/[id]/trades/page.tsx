@@ -3,6 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
+import {
+  createTradeProposal,
+  createTradeResponse,
+  createTradeCancelled,
+  markLeagueKindAsRead,
+} from "@/lib/notifications";
 
 const POS_COLOR: Record<string, string> = {
   GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
@@ -32,6 +38,9 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       if (!data.user) { window.location.href = "/auth"; return; }
       setUser(data.user);
       loadAll(data.user.id);
+      markLeagueKindAsRead(data.user.id, leagueId, [
+        "trade_proposed", "trade_accepted", "trade_rejected", "trade_cancelled",
+      ]);
     });
   }, []);
 
@@ -100,15 +109,26 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
   async function proposeTrade() {
     if (!myTeam || !targetTeamId || offerIds.length === 0 || requestIds.length === 0) return;
     setSending(true);
-    const { error } = await supabase.from("liga_trades").insert({
+    const { data: tradeRow, error } = await supabase.from("liga_trades").insert({
       league_id: leagueId,
       proposer_team_id: myTeam.id,
       receiver_team_id: targetTeamId,
       offer_player_ids: offerIds,
       request_player_ids: requestIds,
       status: "pending",
-    });
+    }).select("id").single();
     if (error) { alert("Fehler: " + error.message); setSending(false); return; }
+
+    const receiverTeam = teams.find((t: any) => t.id === targetTeamId);
+    if (tradeRow && receiverTeam?.user_id) {
+      await createTradeProposal({
+        tradeId:          tradeRow.id,
+        leagueId,
+        receiverUserId:   receiverTeam.user_id,
+        proposerTeamName: myTeam.name,
+      });
+    }
+
     setOfferIds([]);
     setRequestIds([]);
     setTargetTeamId("");
@@ -143,6 +163,18 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       .update({ status: accept ? "accepted" : "rejected", updated_at: new Date().toISOString() })
       .eq("id", tradeId);
 
+    const trade = trades.find((t: any) => t.id === tradeId);
+    const proposerUserId = trade?.proposer?.user_id;
+    if (trade && proposerUserId && myTeam) {
+      await createTradeResponse({
+        tradeId,
+        leagueId,
+        proposerUserId,
+        receiverTeamName: myTeam.name,
+        accepted: accept,
+      });
+    }
+
     await loadTrades(user.id);
   }
 
@@ -150,6 +182,18 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
     await supabase.from("liga_trades")
       .update({ status: "cancelled", updated_at: new Date().toISOString() })
       .eq("id", tradeId);
+
+    const trade = trades.find((t: any) => t.id === tradeId);
+    const receiverUserId = trade?.receiver?.user_id;
+    if (trade && receiverUserId && myTeam) {
+      await createTradeCancelled({
+        tradeId,
+        leagueId,
+        receiverUserId,
+        proposerTeamName: myTeam.name,
+      });
+    }
+
     await loadTrades(user.id);
   }
 

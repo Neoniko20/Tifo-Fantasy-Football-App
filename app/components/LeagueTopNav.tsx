@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { NotificationsBell } from "./NotificationsBell";
 
 interface Props {
   leagueId: string;
@@ -62,13 +63,16 @@ export function LeagueTopNav({ leagueId, leagueName, leagueStatus, isOwner }: Pr
             style={{ color: "#5a4020" }}>
             {leagueName || "…"}
           </p>
-          {isOwner ? (
-            <a href={`/leagues/${leagueId}/admin`}
-              className="text-[8px] font-black uppercase tracking-widest"
-              style={{ color: "#3a2a10" }}>
-              Admin
-            </a>
-          ) : <div style={{ minWidth: 36 }} />}
+          <div className="flex items-center gap-2">
+            {isOwner && (
+              <a href={`/leagues/${leagueId}/admin`}
+                className="text-[8px] font-black uppercase tracking-widest"
+                style={{ color: "#3a2a10" }}>
+                Admin
+              </a>
+            )}
+            <NotificationsBell />
+          </div>
         </div>
 
         {/* Tab row */}

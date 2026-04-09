@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useNotifications } from "./NotificationsProvider";
 
 const TABS = [
   { id: "liga",    label: "Liga",    href: "/leagues",
@@ -37,6 +38,8 @@ const TABS = [
 export function BottomNav() {
   const pathname = usePathname();
 
+  const { unreadCount } = useNotifications();
+
   const activeTab =
     pathname.startsWith("/leagues") || pathname.startsWith("/wm") ? "liga" :
     pathname.startsWith("/account") ? "account" :
@@ -56,8 +59,14 @@ export function BottomNav() {
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
                   style={{ background: "#f5a623" }} />
               )}
-              <span style={{ color: isActive ? "#f5a623" : "#9a7a50" }}>
+              <span className="relative" style={{ color: isActive ? "#f5a623" : "#9a7a50" }}>
                 <Icon />
+                {id === "liga" && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-3 h-3 px-0.5 rounded-full flex items-center justify-center text-[7px] font-black"
+                    style={{ background: "#ff4d6d", color: "#0c0900" }}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </span>
               <span className="text-[8px] font-black tracking-widest mt-1"
                 style={{ color: isActive ? "#f5a623" : "#9a7a50" }}>
