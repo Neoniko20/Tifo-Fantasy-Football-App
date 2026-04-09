@@ -1,0 +1,363 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { BottomNav } from "@/app/components/BottomNav";
+import { LEAGUE_META } from "@/lib/league-meta";
+
+export default function GameweekPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: leagueId } = React.use(params);
+
+  const [user, setUser] = useState<any>(null);
+  const [league, setLeague] = useState<any>(null);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [gameweeks, setGameweeks] = useState<any[]>([]);
+  const [selectedGW, setSelectedGW] = useState<number>(1);
+  const [gwPoints, setGwPoints] = useState<any[]>([]);
+  const [matchups, setMatchups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"ranking" | "matchups">("ranking");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) { window.location.href = "/auth"; return; }
+      setUser(data.user);
+      loadAll(data.user.id);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (teams.length > 0) loadGWData(selectedGW);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGW]);
+
+  async function loadAll(userId: string) {
+    const { data: leagueData } = await supabase
+      .from("leagues").select("*").eq("id", leagueId).single();
+    setLeague(leagueData);
+
+    const { data: teamsData } = await supabase
+      .from("teams")
+      .select("id, name, user_id, total_points, profiles(username)")
+      .eq("league_id", leagueId)
+      .order("total_points", { ascending: false });
+    setTeams(teamsData || []);
+
+    const { data: gwData } = await supabase
+      .from("liga_gameweeks")
+      .select("*").eq("league_id", leagueId).order("gameweek");
+    setGameweeks(gwData || []);
+
+    const active = (gwData || []).find((g: any) => g.status === "active")
+      || (gwData || []).find((g: any) => g.status === "finished")
+      || (gwData || [])[0];
+    const gw = active?.gameweek || 1;
+    setSelectedGW(gw);
+
+    await loadGWDataWithTeams(gw, teamsData || []);
+    setLoading(false);
+  }
+
+  async function loadGWData(gw: number) {
+    await loadGWDataWithTeams(gw, teams);
+  }
+
+  async function loadGWDataWithTeams(gw: number, allTeams: any[]) {
+    const teamIds = allTeams.map(t => t.id);
+    if (teamIds.length === 0) return;
+
+    // GW-Punkte aggregiert pro Team
+    const { data: pts } = await supabase
+      .from("liga_gameweek_points")
+      .select("team_id, points")
+      .eq("league_id", leagueId)
+      .eq("gameweek", gw);
+
+    const teamGWPts: Record<string, number> = {};
+    for (const r of (pts || [])) {
+      teamGWPts[r.team_id] = (teamGWPts[r.team_id] || 0) + r.points;
+    }
+
+    const ranked = allTeams
+      .map(t => ({ ...t, gw_points: teamGWPts[t.id] || 0 }))
+      .sort((a, b) => b.gw_points - a.gw_points);
+    setGwPoints(ranked);
+
+    // H2H Matchups
+    const { data: mu } = await supabase
+      .from("liga_matchups")
+      .select("*, home:home_team_id(name, user_id), away:away_team_id(name, user_id)")
+      .eq("league_id", leagueId)
+      .eq("gameweek", gw);
+    setMatchups(mu || []);
+  }
+
+  if (loading) return (
+    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
+      style={{ background: "#0c0900", color: "#2a2010" }}>Lade Spieltag...</main>
+  );
+
+  const isH2H = league?.scoring_type === "h2h";
+  const myTeam = teams.find(t => t.user_id === user?.id);
+
+  return (
+    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
+        style={{ background: "#f5a623" }} />
+
+      {/* Header */}
+      <div className="w-full max-w-md flex justify-between items-center mb-4">
+        <button onClick={() => window.location.href = `/leagues/${leagueId}`}
+          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          ← Liga
+        </button>
+        <div className="text-center">
+          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+            {league?.name}
+          </p>
+          <p className="text-sm font-black" style={{ color: "#f5a623" }}>Spieltage</p>
+        </div>
+        <div style={{ width: 40 }} />
+      </div>
+
+      {/* GW-Auswahl */}
+      {gameweeks.length === 0 ? (
+        <div className="w-full max-w-md rounded-xl p-6 text-center mb-4"
+          style={{ background: "#141008", border: "1px solid #2a2010" }}>
+          <p className="text-sm font-black mb-1" style={{ color: "#5a4020" }}>Noch keine Spieltage</p>
+          {league?.owner_id === user?.id && (
+            <button onClick={() => window.location.href = `/leagues/${leagueId}/admin`}
+              className="mt-3 px-4 py-2 rounded-xl text-[10px] font-black uppercase"
+              style={{ background: "#f5a623", color: "#0c0900" }}>
+              Im Admin anlegen →
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-1.5 w-full max-w-md mb-4 overflow-x-auto pb-1">
+            {gameweeks.map((gw: any) => {
+              const isBreak = (gw.active_leagues || []).length === 0;
+              const hasDouble = (gw.double_gw_leagues || []).length > 0;
+              return (
+                <button key={gw.gameweek} onClick={() => setSelectedGW(gw.gameweek)}
+                  className="relative px-3 py-1.5 rounded-lg text-[9px] font-black whitespace-nowrap flex-shrink-0 transition-all"
+                  style={{
+                    background: selectedGW === gw.gameweek ? "#f5a623" : isBreak ? "#0c0900" : "#141008",
+                    color: selectedGW === gw.gameweek ? "#0c0900" : isBreak ? "#2a2010" : "#5a4020",
+                    border: `1px solid ${selectedGW === gw.gameweek ? "#f5a623"
+                      : gw.status === "active" ? "#3a2a10" : isBreak ? "#1a1208" : "#2a2010"}`,
+                    opacity: isBreak && selectedGW !== gw.gameweek ? 0.5 : 1,
+                  }}>
+                  GW{gw.gameweek}
+                  {gw.status === "active" && <span className="ml-1" style={{ color: selectedGW === gw.gameweek ? "#0c0900" : "#f5a623" }}>●</span>}
+                  {hasDouble && selectedGW !== gw.gameweek && <span className="ml-0.5 text-[7px]" style={{ color: "#ff6b00" }}>×2</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* GW-Info + Liga-Status */}
+          {(() => {
+            const gw = gameweeks.find(g => g.gameweek === selectedGW);
+            if (!gw) return null;
+            const activeLgs: string[] = gw.active_leagues || [];
+            const doubleLgs: string[] = gw.double_gw_leagues || [];
+            const isBreak = activeLgs.length === 0;
+
+            return (
+              <div className="w-full max-w-md rounded-xl p-4 mb-4 space-y-3"
+                style={{ background: "#141008", border: `1px solid ${isBreak ? "#1a0808" : "#2a2010"}` }}>
+                {/* Datum + Status */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-black text-sm" style={{ color: "#c8b080" }}>{gw.label}</p>
+                    {gw.start_date && (
+                      <p className="text-[8px] font-black mt-0.5" style={{ color: "#5a4020" }}>
+                        {new Date(gw.start_date).toLocaleDateString("de-DE", { day: "2-digit", month: "short" })} – {gw.end_date ? new Date(gw.end_date).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" }) : "?"}
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-[9px] font-black px-2 py-1 rounded-full"
+                    style={{
+                      background: gw.status === "active" ? "#1a1208" : gw.status === "finished" ? "#0a1a0a" : "#141008",
+                      color: gw.status === "active" ? "#f5a623" : gw.status === "finished" ? "#00ce7d" : "#2a2010",
+                      border: `1px solid ${gw.status === "active" ? "#f5a623" : gw.status === "finished" ? "#00ce7d" : "#2a2010"}`,
+                    }}>
+                    {gw.status === "active" ? "Aktiv" : gw.status === "finished" ? "Abgeschlossen" : "Bald"}
+                  </span>
+                </div>
+
+                {/* Ligen-Status */}
+                {isBreak ? (
+                  <div className="flex items-center gap-2 py-1">
+                    <span className="text-base">⚠️</span>
+                    <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#ff4d6d" }}>
+                      {gw.notes || "Länderspielpause — keine Liga-Spiele"}
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[7px] font-black uppercase tracking-widest mb-1.5" style={{ color: "#2a2010" }}>
+                      Spielende Ligen
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeLgs.map((key: string) => {
+                        const meta = LEAGUE_META[key];
+                        if (!meta) return null;
+                        const isDouble = doubleLgs.includes(key);
+                        return (
+                          <div key={key} className="flex items-center gap-1 px-2 py-1 rounded-lg"
+                            style={{
+                              background: isDouble ? "#1a0e00" : "#0c0900",
+                              border: `1px solid ${isDouble ? "#ff6b00" : "#2a2010"}`,
+                            }}>
+                            <span className="text-sm">{meta.flag}</span>
+                            <span className="text-[9px] font-black" style={{ color: isDouble ? "#ff6b00" : "#c8b080" }}>
+                              {meta.short}
+                            </span>
+                            {isDouble && (
+                              <span className="text-[8px] font-black" style={{ color: "#ff6b00" }}>×2</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {doubleLgs.length > 0 && (
+                      <p className="text-[8px] font-black mt-1.5" style={{ color: "#ff6b00" }}>
+                        🔥 Doppelspieltag — Spieler dieser Ligen können 2× punkten
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Tabs (nur bei H2H) */}
+          {isH2H && matchups.length > 0 && (
+            <div className="flex gap-1 w-full max-w-md mb-4 p-1 rounded-xl"
+              style={{ background: "#141008", border: "1px solid #2a2010" }}>
+              {([
+                { id: "ranking",  label: "Rangliste" },
+                { id: "matchups", label: "Paarungen" },
+              ] as const).map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
+                  style={{
+                    background: tab === t.id ? "#f5a623" : "transparent",
+                    color: tab === t.id ? "#0c0900" : "#5a4020",
+                  }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* RANGLISTE */}
+          {tab === "ranking" && (
+            <div className="w-full max-w-md space-y-2">
+              {gwPoints.length === 0 ? (
+                <p className="text-center text-sm font-black py-8" style={{ color: "#2a2010" }}>
+                  Noch keine Punkte für GW{selectedGW}
+                </p>
+              ) : gwPoints.map((team, i) => (
+                <div key={team.id} className="flex items-center justify-between p-4 rounded-2xl"
+                  style={{
+                    background: "#141008",
+                    border: `1px solid ${team.user_id === user?.id ? "#3a2a10" : "#2a2010"}`,
+                  }}>
+                  <div className="flex items-center gap-3">
+                    <span className="font-black text-sm w-5 text-center"
+                      style={{ color: i === 0 ? "#f5a623" : i === 1 ? "#c8b080" : i === 2 ? "#a07040" : "#2a2010" }}>
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="font-black text-sm"
+                        style={{ color: team.user_id === user?.id ? "#f5a623" : "#c8b080" }}>
+                        {team.name}
+                      </p>
+                      <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "#5a4020" }}>
+                        {team.profiles?.username || "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-lg"
+                      style={{ color: i === 0 ? "#f5a623" : "#c8b080" }}>
+                      {team.gw_points.toFixed(1)}
+                    </p>
+                    <p className="text-[8px] font-black uppercase" style={{ color: "#2a2010" }}>
+                      GW · {team.total_points?.toFixed(1)} Ges.
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* H2H MATCHUPS */}
+          {tab === "matchups" && (
+            <div className="w-full max-w-md space-y-3">
+              {matchups.length === 0 ? (
+                <p className="text-center text-sm font-black py-8" style={{ color: "#2a2010" }}>
+                  Noch keine Paarungen
+                </p>
+              ) : matchups.map((m: any) => {
+                const isHomeMe = m.home?.user_id === user?.id;
+                const isAwayMe = m.away?.user_id === user?.id;
+                const homeWin = m.winner_id === m.home_team_id;
+                const awayWin = m.winner_id === m.away_team_id;
+                const draw = m.home_points > 0 && !m.winner_id;
+
+                return (
+                  <div key={m.id} className="rounded-2xl p-4"
+                    style={{
+                      background: "#141008",
+                      border: `1px solid ${(isHomeMe || isAwayMe) ? "#3a2a10" : "#2a2010"}`,
+                    }}>
+                    <div className="flex items-center justify-between gap-3">
+                      {/* Home */}
+                      <div className="flex-1 text-right">
+                        <p className="font-black text-sm truncate"
+                          style={{ color: isHomeMe ? "#f5a623" : homeWin ? "#c8b080" : "#5a4020" }}>
+                          {m.home?.name}
+                        </p>
+                        <p className="text-2xl font-black" style={{ color: homeWin ? "#f5a623" : "#c8b080" }}>
+                          {m.home_points.toFixed(1)}
+                        </p>
+                      </div>
+                      {/* VS */}
+                      <div className="flex flex-col items-center">
+                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
+                          style={{
+                            background: draw ? "#1a1208" : "#141008",
+                            color: draw ? "#f5a623" : "#2a2010",
+                            border: "1px solid #2a2010",
+                          }}>
+                          {draw ? "—" : "VS"}
+                        </span>
+                      </div>
+                      {/* Away */}
+                      <div className="flex-1 text-left">
+                        <p className="font-black text-sm truncate"
+                          style={{ color: isAwayMe ? "#f5a623" : awayWin ? "#c8b080" : "#5a4020" }}>
+                          {m.away?.name}
+                        </p>
+                        <p className="text-2xl font-black" style={{ color: awayWin ? "#f5a623" : "#c8b080" }}>
+                          {m.away_points.toFixed(1)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      <BottomNav />
+    </main>
+  );
+}

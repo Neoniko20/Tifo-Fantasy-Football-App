@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Tifo "Stadium Amber" ── */
+  --color-bg:        #0c0900;
+  --color-surface:   #141008;
+  --color-border:    #2a2010;
+  --color-amber:     #f5a623;
+  --color-amber-dim: #a06b10;
+  --color-text:      #c8b080;
+  --color-muted:     #5a4020;
+
+  /* Position badges */
+  --color-gk: #f5a623;
+  --color-df: #4a9eff;
+  --color-mf: #00ce7d;
+  --color-fw: #ff4d6d;
+
+  /* UCL mode */
+  --color-ucl-bg:      #060810;
+  --color-ucl-surface: #080c18;
+  --color-ucl-primary: #7b9fff;
+
+  /* Font */
+  --font-unbounded: var(--font-unbounded);
+}
+
+/* ── Base ─────────────────────────────────────────────── */
+html, body {
+  background-color: #0c0900;
+  color: #c8b080;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-unbounded), system-ui, sans-serif;
+}
+
+/* ── UCL mode ─────────────────────────────────────────── */
+body.ucl {
+  background-color: #060810;
+  color: #c8d4ff;
+}
+body.ucl .tifo-surface  { background-color: #080c18 !important; }
+body.ucl .tifo-border   { border-color: #1a2040 !important; }
+body.ucl .tifo-accent   { color: #7b9fff !important; }
+body.ucl .tifo-btn-primary {
+  background-color: #7b9fff !important;
+  color: #060810 !important;
+}
+
+/* ── Scrollbars ────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── Safe area bottom padding for iOS ─────────────────── */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }

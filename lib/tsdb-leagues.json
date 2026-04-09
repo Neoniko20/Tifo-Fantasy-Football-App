@@ -1,0 +1,57 @@
+{
+  "39": {
+    "tsdb_id": "4328",
+    "name": "English Premier League",
+    "badge": "https://r2.thesportsdb.com/images/media/league/badge/gasy9d1737743125.png",
+    "logo": "https://r2.thesportsdb.com/images/media/league/logo/4c377s1535214890.png",
+    "poster": "https://r2.thesportsdb.com/images/media/league/poster/67al0l1719007596.jpg",
+    "trophy": "https://r2.thesportsdb.com/images/media/league/trophy/9a6kw51689108793.png",
+    "banner": "https://r2.thesportsdb.com/images/media/league/banner/xe1es51638921786.jpg",
+    "fanart1": "https://r2.thesportsdb.com/images/media/league/fanart/odberp1725731801.jpg",
+    "country": "England"
+  },
+  "61": {
+    "tsdb_id": "4334",
+    "name": "French Ligue 1",
+    "badge": "https://r2.thesportsdb.com/images/media/league/badge/9f7z9d1742983155.png",
+    "logo": "https://r2.thesportsdb.com/images/media/league/logo/pp71fp1719637991.png",
+    "poster": "https://r2.thesportsdb.com/images/media/league/poster/wwzq221761291181.jpg",
+    "trophy": "https://r2.thesportsdb.com/images/media/league/trophy/ygfgeq1684416349.png",
+    "banner": "https://r2.thesportsdb.com/images/media/league/banner/4tgvp81598649992.jpg",
+    "fanart1": "https://r2.thesportsdb.com/images/media/league/fanart/aed3181711691515.jpg",
+    "country": "France"
+  },
+  "78": {
+    "tsdb_id": "4331",
+    "name": "German Bundesliga",
+    "badge": "https://r2.thesportsdb.com/images/media/league/badge/teqh1b1679952008.png",
+    "logo": "https://r2.thesportsdb.com/images/media/league/logo/620ayu1534764709.png",
+    "poster": "https://r2.thesportsdb.com/images/media/league/poster/942uzh1636804690.jpg",
+    "trophy": "https://r2.thesportsdb.com/images/media/league/trophy/0o56hs1684416407.png",
+    "banner": "https://r2.thesportsdb.com/images/media/league/banner/uhbja71659859626.jpg",
+    "fanart1": "https://r2.thesportsdb.com/images/media/league/fanart/uststt1422059550.jpg",
+    "country": "Germany"
+  },
+  "135": {
+    "tsdb_id": "4332",
+    "name": "Italian Serie A",
+    "badge": "https://r2.thesportsdb.com/images/media/league/badge/67q3q21679951383.png",
+    "logo": "https://r2.thesportsdb.com/images/media/league/logo/b0hv7o1719640507.png",
+    "poster": "https://r2.thesportsdb.com/images/media/league/poster/6agbm61636804706.jpg",
+    "trophy": "https://r2.thesportsdb.com/images/media/league/trophy/83l94y1684416466.png",
+    "banner": "https://r2.thesportsdb.com/images/media/league/banner/oxmop11580643786.jpg",
+    "fanart1": "https://r2.thesportsdb.com/images/media/league/fanart/spqxtv1425356374.jpg",
+    "country": "Italy"
+  },
+  "140": {
+    "tsdb_id": "4335",
+    "name": "Spanish La Liga",
+    "badge": "https://r2.thesportsdb.com/images/media/league/badge/ja4it51687628717.png",
+    "logo": "https://r2.thesportsdb.com/images/media/league/logo/gq4b1r1687707889.png",
+    "poster": "https://r2.thesportsdb.com/images/media/league/poster/3j1vo11636804719.jpg",
+    "trophy": "https://r2.thesportsdb.com/images/media/league/trophy/vc2z6q1684416521.png",
+    "banner": "https://r2.thesportsdb.com/images/media/league/banner/ua8q901726416940.jpg",
+    "fanart1": "https://r2.thesportsdb.com/images/media/league/fanart/6am8r81707716890.jpg",
+    "country": "Spain"
+  }
+}
