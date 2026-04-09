@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { importGameweekForLeague } from "@/lib/gw-import";
 
 export async function POST(req: NextRequest) {
@@ -12,25 +11,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const apiKey = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "API-Key fehlt" }, { status: 500 });
-    }
-
-    // Behavior matches the previous inline implementation:
-    // prefer SERVICE_ROLE_KEY if present, fall back to ANON_KEY.
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-
-    const result = await importGameweekForLeague(
-      supabase,
-      leagueId,
-      gameweek,
-      apiKey,
-    );
+    const result = await importGameweekForLeague(leagueId, gameweek);
 
     if (!result.ok) {
       return NextResponse.json({ error: result.message }, { status: 400 });

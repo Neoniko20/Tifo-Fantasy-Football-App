@@ -1,9 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createServiceRoleClient } from "@/lib/supabase-server";
 
 /**
  * Shared GW import logic. Used by both:
  *  - POST /api/import-gw-stats (manual admin trigger)
  *  - GET  /api/cron/import-gw-stats (Vercel Cron)
+ *  - GET  /api/live-gw-points (client polling, live mode)
  */
 
 export const AFOOT_BASE = "https://v3.football.api-sports.io";
@@ -36,7 +37,7 @@ export type ImportResult = {
   error?: string;
 };
 
-// ── Punkte-Berechnung (identisch zur bisherigen Logik in route.ts) ─
+// ── Punkte-Berechnung ──────────────────────────────────────────────
 export function calcPoints(
   stats: Record<string, any>,
   position: string,
@@ -94,13 +95,18 @@ export async function afootFetch(path: string, apiKey: string): Promise<any> {
   return res.json();
 }
 
-// ── Main import: one league + one gameweek ────────────────────────
-export async function importGameweekForLeague(
-  supabase: SupabaseClient,
+// ── Core import logic — shared between full import and live mode ───
+export async function computeAndUpsertPoints(
   leagueId: string,
   gameweek: number,
-  apiKey: string,
+  opts?: { markFinished?: boolean },
 ): Promise<ImportResult> {
+  const supabase = createServiceRoleClient();
+  const apiKey = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY;
+  if (!apiKey) {
+    return { ok: false, leagueId, gameweek, apiCallsUsed: 0, playersImported: 0, message: "API-Key fehlt", error: "missing_api_key" };
+  }
+
   // 1. Spieltag-Info laden
   const { data: gw } = await supabase
     .from("liga_gameweeks")
@@ -280,11 +286,13 @@ export async function importGameweekForLeague(
       .eq("id", teamId);
   }
 
-  // 6. GW-Status auf "finished" setzen
-  await supabase.from("liga_gameweeks")
-    .update({ status: "finished" })
-    .eq("league_id", leagueId)
-    .eq("gameweek", gameweek);
+  // 6. GW-Status auf "finished" setzen — nur im Full-Import-Modus
+  if (opts?.markFinished) {
+    await supabase.from("liga_gameweeks")
+      .update({ status: "finished" })
+      .eq("league_id", leagueId)
+      .eq("gameweek", gameweek);
+  }
 
   return {
     ok: true,
@@ -296,6 +304,22 @@ export async function importGameweekForLeague(
   };
 }
 
+// ── Full import (marks GW as finished) ────────────────────────────
+export async function importGameweekForLeague(
+  leagueId: string,
+  gameweek: number,
+): Promise<ImportResult> {
+  return computeAndUpsertPoints(leagueId, gameweek, { markFinished: true });
+}
+
+// ── Live-mode import (same upserts, NEVER flips status) ───────────
+export async function importGameweekLive(
+  leagueId: string,
+  gameweek: number,
+): Promise<ImportResult> {
+  return computeAndUpsertPoints(leagueId, gameweek, { markFinished: false });
+}
+
 // ── Find all GWs that need importing (cron entry point) ───────────
 export type PendingGameweek = {
   league_id: string;
@@ -305,9 +329,9 @@ export type PendingGameweek = {
 };
 
 export async function findGameweeksToImport(
-  supabase: SupabaseClient,
   todayISO: string,
 ): Promise<PendingGameweek[]> {
+  const supabase = createServiceRoleClient();
   const { data, error } = await supabase
     .from("liga_gameweeks")
     .select("league_id, gameweek, end_date, status")

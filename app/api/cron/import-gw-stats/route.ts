@@ -26,32 +26,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "NEXT_PUBLIC_FOOTBALL_API_KEY not set" },
-      { status: 500 },
-    );
-  }
-
-  // 2. Service-role client (bypasses RLS, can read all leagues + write audit log)
+  // 2. Service-role client for audit log writes
   const supabase = createServiceRoleClient();
 
   // 3. Find pending GWs
   const todayISO = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const pending = await findGameweeksToImport(supabase, todayISO);
+  const pending = await findGameweeksToImport(todayISO);
 
   const results: Array<ImportResult & { audit_logged?: boolean }> = [];
 
   // 4. Import each one (per-league try/catch so one failure doesn't kill the whole run)
   for (const p of pending) {
     try {
-      const result = await importGameweekForLeague(
-        supabase,
-        p.league_id,
-        p.gameweek,
-        apiKey,
-      );
+      const result = await importGameweekForLeague(p.league_id, p.gameweek);
 
       // Audit log entry
       await supabase.from("liga_admin_audit_log").insert({
