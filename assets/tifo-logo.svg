@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#0c0900"/>
+  <!-- Flutlicht glow -->
+  <circle cx="512" cy="512" r="380" fill="#f5a623" opacity="0.15"/>
+  <!-- Banner -->
+  <path d="M 220 340 L 804 340 L 740 680 L 284 680 Z" fill="#f5a623"/>
+  <!-- Wordmark "TIFO" -->
+  <text x="512" y="560" text-anchor="middle"
+        font-family="'Arial Black', sans-serif" font-weight="900"
+        font-size="220" fill="#0c0900">TIFO</text>
+</svg>
