@@ -49,6 +49,41 @@ function calcPoints(stats: typeof EMPTY_STATS, position: string, isCaptain: bool
   return isCaptain ? base * 2 : base;
 }
 
+async function logAdminAction(
+  leagueId: string,
+  userId: string,
+  action: string,
+  gameweek: number | null,
+  metadata: Record<string, any> = {},
+) {
+  try {
+    await supabase.from("liga_admin_audit_log").insert({
+      league_id:   leagueId,
+      actor_id:    userId,
+      actor_label: "admin",
+      action,
+      gameweek,
+      metadata,
+    });
+  } catch (e) {
+    // Audit log failures must not break the user flow
+    console.warn("audit log insert failed:", e);
+  }
+}
+
+function actionLabel(action: string): string {
+  switch (action) {
+    case "gw_started":         return "▶ Spieltag gestartet";
+    case "gw_finished":        return "■ Spieltag beendet";
+    case "gw_imported":        return "↓ Stats importiert";
+    case "gw_recalculated":    return "↻ Neu berechnet";
+    case "gw_import_failed":   return "❌ Import fehlgeschlagen";
+    case "gw_status_changed":  return "⇄ Status geändert";
+    case "cron_run":           return "⏰ Cron-Lauf";
+    default:                   return action;
+  }
+}
+
 export default function LigaAdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
 
@@ -68,6 +103,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [importLog, setImportLog] = useState<string[]>([]);
   const [playerCount, setPlayerCount] = useState<number | null>(null);
   const [importStatus, setImportStatus] = useState<any>(null);
+  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [auditLogVisible, setAuditLogVisible] = useState(false);
 
   // Liga-Einstellungen (Basis)
   const [settingsName, setSettingsName] = useState("");
@@ -188,6 +225,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     }
 
     setLoading(false);
+    loadAuditLog();
   }
 
   async function loadStatsForGW(gw: number) {
@@ -282,9 +320,16 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     setAutoGenerating(false);
   }
 
-  async function updateGWStatus(gwId: string, status: string) {
+  async function updateGWStatus(gwId: string, status: string, gwNum?: number) {
     await supabase.from("liga_gameweeks").update({ status }).eq("id", gwId);
     setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, status } : g));
+    if (gwNum !== undefined && user?.id) {
+      const action =
+        status === "active"   ? "gw_started"  :
+        status === "finished" ? "gw_finished" : "gw_status_changed";
+      await logAdminAction(leagueId, user.id, action, gwNum, { new_status: status });
+    }
+    loadAuditLog();
   }
 
   async function saveSettings() {
@@ -382,7 +427,17 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     window.location.href = "/leagues";
   }
 
-  async function importGWStats(gwNum: number) {
+  async function loadAuditLog() {
+    const { data } = await supabase
+      .from("liga_admin_audit_log")
+      .select("*")
+      .eq("league_id", leagueId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setAuditLog(data || []);
+  }
+
+  async function importGWStats(gwNum: number, recalc: boolean = false) {
     setImporting(gwNum);
     setImportResult(null);
     try {
@@ -394,10 +449,27 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Fehler");
       setImportResult(json.message || "Importiert!");
-      // Spieltag-Status aktualisieren
-      setGameweeks(prev => prev.map(g => g.gameweek === gwNum ? { ...g, status: "finished" } : g));
+      setGameweeks(prev =>
+        prev.map(g => g.gameweek === gwNum ? { ...g, status: "finished" } : g),
+      );
+      if (user?.id) {
+        await logAdminAction(
+          leagueId,
+          user.id,
+          recalc ? "gw_recalculated" : "gw_imported",
+          gwNum,
+          {
+            api_calls_used:   json.apiCallsUsed,
+            players_imported: json.playersImported,
+          },
+        );
+      }
+      loadAuditLog();
     } catch (e: any) {
       setImportResult("Fehler: " + e.message);
+      if (user?.id) {
+        await logAdminAction(leagueId, user.id, "gw_import_failed", gwNum, { error: e.message });
+      }
     }
     setImporting(null);
   }
@@ -676,37 +748,63 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-1">
-                    {(["upcoming", "active", "finished"] as const).map(s => (
-                      <button key={s} onClick={() => updateGWStatus(gw.id, s)}
-                        className="px-2 py-1 rounded-lg text-[7px] font-black uppercase transition-all"
-                        style={{
-                          background: gw.status === s
-                            ? s === "active" ? "#f5a623" : s === "finished" ? "#00ce7d" : "#2a2010"
-                            : "#0c0900",
-                          color: gw.status === s
-                            ? s === "active" || s === "finished" ? "#0c0900" : "#c8b080"
-                            : "#5a4020",
-                          border: `1px solid ${gw.status === s ? "transparent" : "#2a2010"}`,
-                        }}>
-                        {s === "upcoming" ? "Bald" : s === "active" ? "Aktiv" : "Fertig"}
-                      </button>
-                    ))}
-                  </div>
+                  {/* Status Badge */}
+                  <span
+                    className="px-2 py-1 rounded-lg text-[7px] font-black uppercase"
+                    style={{
+                      background:
+                        gw.status === "finished" ? "#00ce7d" :
+                        gw.status === "active"   ? "#f5a623" :
+                                                   "#2a2010",
+                      color:
+                        gw.status === "upcoming" ? "#5a4020" : "#0c0900",
+                    }}>
+                    {gw.status === "upcoming" ? "Bald" :
+                     gw.status === "active"   ? "Live" : "Fertig"}
+                  </span>
                 </div>
 
-                {/* Import Button */}
-                <button
-                  onClick={() => importGWStats(gw.gameweek)}
-                  disabled={importing === gw.gameweek}
-                  className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                  style={{
-                    background: importing === gw.gameweek ? "#2a2010" : "#0a1a0a",
-                    color: importing === gw.gameweek ? "#5a4020" : "#00ce7d",
-                    border: "1px solid #00ce7d",
-                  }}>
-                  {importing === gw.gameweek ? "Importiere..." : "↓ Stats von api-football importieren"}
-                </button>
+                {/* 1-Klick Lifecycle Buttons */}
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Start */}
+                  <button
+                    onClick={() => updateGWStatus(gw.id, "active", gw.gameweek)}
+                    disabled={gw.status !== "upcoming"}
+                    className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
+                    style={{
+                      background: gw.status === "upcoming" ? "#1a1208" : "#0c0900",
+                      color:      gw.status === "upcoming" ? "#f5a623" : "#5a4020",
+                      border:     "1px solid #f5a623",
+                    }}>
+                    ▶ Starten
+                  </button>
+
+                  {/* End + Import */}
+                  <button
+                    onClick={() => importGWStats(gw.gameweek, false)}
+                    disabled={importing === gw.gameweek || gw.status === "finished"}
+                    className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
+                    style={{
+                      background: importing === gw.gameweek ? "#2a2010" : "#0a1a0a",
+                      color:      importing === gw.gameweek ? "#5a4020" : "#00ce7d",
+                      border:     "1px solid #00ce7d",
+                    }}>
+                    {importing === gw.gameweek ? "..." : "■ Beenden + Import"}
+                  </button>
+
+                  {/* Recalculate */}
+                  <button
+                    onClick={() => importGWStats(gw.gameweek, true)}
+                    disabled={importing === gw.gameweek || gw.status !== "finished"}
+                    className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
+                    style={{
+                      background: importing === gw.gameweek ? "#2a2010" : "#1a0a08",
+                      color:      importing === gw.gameweek ? "#5a4020" : "#ff8866",
+                      border:     "1px solid #ff8866",
+                    }}>
+                    ↻ Neu rechnen
+                  </button>
+                </div>
 
                 {/* Liga-Toggles */}
                 <div>
