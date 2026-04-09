@@ -525,13 +525,13 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     <div className="flex gap-3 flex-shrink-0 text-right">
                       <div className="w-7">
                         <p className="font-black text-xs"
-                          style={{ color: p.goals > 0 ? "#c8b080" : "#2a2010" }}>
+                          style={{ color: (p.goals ?? 0) > 0 ? "#c8b080" : "#2a2010" }}>
                           {p.goals ?? 0}
                         </p>
                       </div>
                       <div className="w-7">
                         <p className="font-black text-xs"
-                          style={{ color: p.assists > 0 ? "#c8b080" : "#2a2010" }}>
+                          style={{ color: (p.assists ?? 0) > 0 ? "#c8b080" : "#2a2010" }}>
                           {p.assists ?? 0}
                         </p>
                       </div>
