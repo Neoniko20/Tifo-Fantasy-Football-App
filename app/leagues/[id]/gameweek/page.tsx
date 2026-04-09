@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { LEAGUE_META } from "@/lib/league-meta";
+import { LiveMatchupCard } from "@/app/components/LiveMatchupCard";
 
 export default function GameweekPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
@@ -304,52 +305,15 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
                   Noch keine Paarungen
                 </p>
               ) : matchups.map((m: any) => {
-                const isHomeMe = m.home?.user_id === user?.id;
-                const isAwayMe = m.away?.user_id === user?.id;
-                const homeWin = m.winner_id === m.home_team_id;
-                const awayWin = m.winner_id === m.away_team_id;
-                const draw = m.home_points > 0 && !m.winner_id;
-
+                const gwRow = gameweeks.find((g: any) => g.gameweek === selectedGW);
+                const gwIsActive = gwRow?.status === "active";
                 return (
-                  <div key={m.id} className="rounded-2xl p-4"
-                    style={{
-                      background: "#141008",
-                      border: `1px solid ${(isHomeMe || isAwayMe) ? "#3a2a10" : "#2a2010"}`,
-                    }}>
-                    <div className="flex items-center justify-between gap-3">
-                      {/* Home */}
-                      <div className="flex-1 text-right">
-                        <p className="font-black text-sm truncate"
-                          style={{ color: isHomeMe ? "#f5a623" : homeWin ? "#c8b080" : "#5a4020" }}>
-                          {m.home?.name}
-                        </p>
-                        <p className="text-2xl font-black" style={{ color: homeWin ? "#f5a623" : "#c8b080" }}>
-                          {m.home_points.toFixed(1)}
-                        </p>
-                      </div>
-                      {/* VS */}
-                      <div className="flex flex-col items-center">
-                        <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                          style={{
-                            background: draw ? "#1a1208" : "#141008",
-                            color: draw ? "#f5a623" : "#2a2010",
-                            border: "1px solid #2a2010",
-                          }}>
-                          {draw ? "—" : "VS"}
-                        </span>
-                      </div>
-                      {/* Away */}
-                      <div className="flex-1 text-left">
-                        <p className="font-black text-sm truncate"
-                          style={{ color: isAwayMe ? "#f5a623" : awayWin ? "#c8b080" : "#5a4020" }}>
-                          {m.away?.name}
-                        </p>
-                        <p className="text-2xl font-black" style={{ color: awayWin ? "#f5a623" : "#c8b080" }}>
-                          {m.away_points.toFixed(1)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <LiveMatchupCard
+                    key={m.id}
+                    matchup={m}
+                    currentUserId={user?.id}
+                    gwIsActive={gwIsActive}
+                  />
                 );
               })}
             </div>
