@@ -6,6 +6,7 @@ import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
+import { TransactionsFeed } from "@/app/components/TransactionsFeed";
 
 // Helper: club assets by team_name
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
@@ -36,6 +37,8 @@ type Transfer = {
   player_out?: { name: string; position: string };
   created_at: string;
   gameweek?: number;
+  // legacy type — only used for player history tab
+
 };
 
 export default function LigaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +48,6 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
   const [league, setLeague] = useState<any>(null);
   const [ligaSettings, setLigaSettings] = useState<any>(null);
   const [teams, setTeams] = useState<any[]>([]);
-  const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"tabelle" | "info" | "transfers">("tabelle");
@@ -116,38 +118,6 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
 
     const teamsWithStats = (teamsData || []).map((t: any) => ({ ...t, ...(wun[t.id] || {}) }));
     setTeams(teamsWithStats);
-
-    // League-wide transfers
-    if (teamIds.length > 0) {
-      const { data: txData } = await supabase
-        .from("liga_transfers")
-        .select("id, team_id, player_in_id, player_out_id, created_at, gameweek")
-        .in("team_id", teamIds)
-        .order("created_at", { ascending: false })
-        .limit(30);
-
-      if (txData && txData.length > 0) {
-        // Fetch player info separately
-        const playerIds = [
-          ...new Set([
-            ...txData.map((t: any) => t.player_in_id).filter(Boolean),
-            ...txData.map((t: any) => t.player_out_id).filter(Boolean),
-          ])
-        ];
-        const { data: pData } = playerIds.length > 0
-          ? await supabase.from("players").select("id, name, position").in("id", playerIds)
-          : { data: [] };
-        const playerMap = new Map((pData || []).map((p: any) => [p.id, p]));
-
-        const enriched = txData.map((t: any) => ({
-          ...t,
-          teamName: (teamsData || []).find((tm: any) => tm.id === t.team_id)?.name || "Unbekannt",
-          player_in: t.player_in_id ? playerMap.get(t.player_in_id) : null,
-          player_out: t.player_out_id ? playerMap.get(t.player_out_id) : null,
-        }));
-        setTransfers(enriched);
-      }
-    }
 
     setLoading(false);
   }
@@ -293,11 +263,6 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
 
   const isOwner = league?.owner_id === user?.id;
   const isH2H = league?.scoring_type === "h2h";
-
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
-  const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 
   const scoringLabels: Record<string, string> = {
     standard: "Standard",
@@ -484,66 +449,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         {tab === "transfers" && (
-          <>
-            {transfers.length === 0 ? (
-              <div className="text-center py-16" style={{ color: "#2a2010" }}>
-                <p className="text-3xl mb-3">📋</p>
-                <p className="text-[9px] font-black uppercase tracking-widest">
-                  Noch keine Transaktionen
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {transfers.map((t: any) => (
-                  <div key={t.id} className="p-4 rounded-2xl"
-                    style={{ background: "#141008", border: "1px solid #2a2010" }}>
-
-                    {/* Team name + date */}
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-[8px] font-black uppercase tracking-widest"
-                        style={{ color: "#f5a623" }}>
-                        {t.teamName}
-                      </p>
-                      <p className="text-[7px] font-black" style={{ color: "#2a2010" }}>
-                        {formatDate(t.created_at)} {formatTime(t.created_at)}
-                        {t.gameweek && <span> · GW{t.gameweek}</span>}
-                      </p>
-                    </div>
-
-                    {/* Transfer detail */}
-                    <div className="space-y-1">
-                      {t.player_out && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-[7px] font-black px-1.5 py-0.5 rounded flex-shrink-0"
-                            style={{ background: "#1a0808", color: "#ff4d6d" }}>▼ RAUS</span>
-                          <span className="text-xs font-black" style={{ color: "#c8b080" }}>
-                            {t.player_out.name}
-                          </span>
-                          <span className="text-[8px] font-black ml-auto"
-                            style={{ color: POS_COLOR[t.player_out.position] || "#5a4020" }}>
-                            {t.player_out.position}
-                          </span>
-                        </div>
-                      )}
-                      {t.player_in && (
-                        <div className="flex items-center gap-2">
-                          <span className="text-[7px] font-black px-1.5 py-0.5 rounded flex-shrink-0"
-                            style={{ background: "#0a1a0a", color: "#00ce7d" }}>▲ REIN</span>
-                          <span className="text-xs font-black" style={{ color: "#c8b080" }}>
-                            {t.player_in.name}
-                          </span>
-                          <span className="text-[8px] font-black ml-auto"
-                            style={{ color: POS_COLOR[t.player_in.position] || "#5a4020" }}>
-                            {t.player_in.position}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+          <TransactionsFeed leagueId={leagueId} />
         )}
       </div>
 
