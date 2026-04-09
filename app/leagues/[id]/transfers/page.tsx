@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
+import { TransactionsFeed } from "@/app/components/TransactionsFeed";
 
 const POS_COLOR: Record<string, string> = {
   GK: "#f5a623",
@@ -36,8 +37,7 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [transferHistory, setTransferHistory] = useState<any[]>([]);
-  const [tab, setTab] = useState<"transfer" | "history">("transfer");
+  const [tab, setTab] = useState<"meine" | "feed" | "verlauf">("meine");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -82,14 +82,6 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
       ]);
       setTakenPlayerIds(takenIds);
 
-      // Transfer history for my team
-      const { data: history } = await supabase
-        .from("liga_transfers")
-        .select("*, player_in:player_in_id(name, position, team_name), player_out:player_out_id(name, position, team_name)")
-        .eq("team_id", teamData.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-      setTransferHistory(history || []);
     }
 
     // Load free agents (search handled on demand)
@@ -187,20 +179,24 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
 
       {/* Tabs */}
       <div className="w-full max-w-md flex gap-2 mb-4">
-        {(["transfer", "history"] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className="flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-colors"
+        {([
+          { id: "meine",   label: "Meine Transfers" },
+          { id: "feed",    label: "Aktivitäten" },
+          { id: "verlauf", label: "Mein Verlauf" },
+        ] as const).map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            className="flex-1 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-colors"
             style={{
-              background: tab === t ? "#f5a623" : "#141008",
-              color: tab === t ? "#0c0900" : "#5a4020",
-              border: `1px solid ${tab === t ? "#f5a623" : "#2a2010"}`,
+              background: tab === t.id ? "#f5a623" : "#141008",
+              color:      tab === t.id ? "#0c0900" : "#5a4020",
+              border: `1px solid ${tab === t.id ? "#f5a623" : "#2a2010"}`,
             }}>
-            {t === "transfer" ? "Transfer" : "Verlauf"}
+            {t.label}
           </button>
         ))}
       </div>
 
-      {tab === "transfer" && (
+      {tab === "meine" && (
         <>
           {/* Transfer summary bar */}
           {(playerOut || playerIn) && (
@@ -358,48 +354,16 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
         </>
       )}
 
-      {tab === "history" && (
+      {tab === "feed" && (
         <div className="w-full max-w-md">
-          {transferHistory.length === 0 ? (
-            <div className="text-center py-12" style={{ color: "#2a2010" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest">Noch keine Transfers</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {transferHistory.map((t: any) => (
-                <div key={t.id} className="p-4 rounded-2xl"
-                  style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
-                          style={{ background: "#1a0808", color: "#ff4d6d" }}>▼ RAUS</span>
-                        <span className="text-xs font-black" style={{ color: "#c8b080" }}>
-                          {t.player_out?.name}
-                        </span>
-                        <span className="text-[8px]" style={{ color: "#5a4020" }}>
-                          {t.player_out?.position}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
-                          style={{ background: "#0a1a0a", color: "#00ce7d" }}>▲ REIN</span>
-                        <span className="text-xs font-black" style={{ color: "#c8b080" }}>
-                          {t.player_in?.name}
-                        </span>
-                        <span className="text-[8px]" style={{ color: "#5a4020" }}>
-                          {t.player_in?.position}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-[8px] font-black" style={{ color: "#2a2010" }}>
-                      {new Date(t.created_at).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <TransactionsFeed key="feed-all" leagueId={leagueId} />
+        </div>
+      )}
+
+      {tab === "verlauf" && myTeam && (
+        <div className="w-full max-w-md">
+          <TransactionsFeed key="feed-mine" leagueId={leagueId} onlyTeamId={myTeam.id}
+            emptyLabel="Noch keine Transaktionen in deinem Team" />
         </div>
       )}
 
