@@ -1,4 +1,5 @@
 import { createServiceRoleClient } from "@/lib/supabase-server";
+import { calcPoints, mergeRules } from "@/lib/scoring";
 
 /**
  * Shared GW import logic. Used by both:
@@ -37,52 +38,6 @@ export type ImportResult = {
   error?: string;
 };
 
-// ── Punkte-Berechnung ──────────────────────────────────────────────
-export function calcPoints(
-  stats: Record<string, any>,
-  position: string,
-  isCaptain: boolean,
-): number {
-  let p = 0;
-  const goals    = stats.goals    || 0;
-  const assists  = stats.assists  || 0;
-  const minutes  = stats.minutes  || 0;
-  const shotsOn  = stats.shots_on || 0;
-  const keyPass  = stats.key_passes || 0;
-  const passAcc  = stats.pass_accuracy || 0;
-  const dribbles = stats.dribbles || 0;
-  const tackles  = stats.tackles  || 0;
-  const intercep = stats.interceptions || 0;
-  const saves    = stats.saves    || 0;
-  const yellow   = stats.yellow_cards || 0;
-  const red      = stats.red_cards    || 0;
-  const cs       = stats.clean_sheet  || false;
-
-  if      (position === "GK" || position === "DF") p += goals * 6;
-  else if (position === "MF")                       p += goals * 5;
-  else                                              p += goals * 4;
-
-  p += assists * 3;
-  if (cs) {
-    if      (position === "GK" || position === "DF") p += 4;
-    else if (position === "MF")                       p += 1;
-  }
-  if (position === "GK") p += saves * 1.5;
-  p += shotsOn  * 0.5;
-  p += keyPass  * 0.8;
-  p += (passAcc / 100) * 0.5;
-  p += dribbles * 0.2;
-  p += tackles  * 0.6;
-  p += intercep * 0.6;
-  p -= yellow   * 1;
-  p -= red      * 3;
-  if      (minutes >= 60) p += 1;
-  else if (minutes  >  0) p += 0.4;
-
-  const base = Math.round(p * 10) / 10;
-  return isCaptain ? base * 2 : base;
-}
-
 // ── api-football helper ────────────────────────────────────────────
 export async function afootFetch(path: string, apiKey: string): Promise<any> {
   const res = await fetch(`${AFOOT_BASE}${path}`, {
@@ -106,6 +61,14 @@ export async function computeAndUpsertPoints(
   if (!apiKey) {
     return { ok: false, leagueId, gameweek, apiCallsUsed: 0, playersImported: 0, message: "API-Key fehlt", error: "missing_api_key" };
   }
+
+  // 0. Liga-Punkteschema laden
+  const { data: ls } = await supabase
+    .from("liga_settings")
+    .select("scoring_rules")
+    .eq("league_id", leagueId)
+    .maybeSingle();
+  const scoringRules = mergeRules(ls?.scoring_rules);
 
   // 1. Spieltag-Info laden
   const { data: gw } = await supabase
@@ -258,7 +221,7 @@ export async function computeAndUpsertPoints(
 
     const teams = playerTeamMap[pid] || [];
     for (const { teamId, isCaptain } of teams) {
-      const pts = calcPoints(statsFlat, position, isCaptain);
+      const pts = calcPoints(statsFlat, position, isCaptain, scoringRules);
 
       await supabase.from("liga_gameweek_points").upsert({
         team_id:    teamId,

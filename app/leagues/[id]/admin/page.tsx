@@ -4,6 +4,10 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
+import {
+  calcPoints, DEFAULT_SCORING_RULES, mergeRules, RULE_GROUPS,
+  type ScoringRules,
+} from "@/lib/scoring";
 import { LEAGUE_META, ALL_LEAGUES, calcActiveLeagues } from "@/lib/league-meta";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
 
@@ -24,31 +28,6 @@ const EMPTY_STATS = {
   pass_accuracy: 0, dribbles: 0, tackles: 0, interceptions: 0,
   saves: 0, clean_sheet: false, yellow_cards: 0, red_cards: 0,
 };
-
-function calcPoints(stats: typeof EMPTY_STATS, position: string, isCaptain: boolean) {
-  let p = 0;
-  if (position === "GK" || position === "DF") p += stats.goals * 6;
-  else if (position === "MF") p += stats.goals * 5;
-  else p += stats.goals * 4;
-  p += stats.assists * 3;
-  if (stats.clean_sheet) {
-    if (position === "GK" || position === "DF") p += 4;
-    else if (position === "MF") p += 1;
-  }
-  if (position === "GK") p += stats.saves * 1.5;
-  p += stats.shots_on * 0.5;
-  p += stats.key_passes * 0.8;
-  p += (stats.pass_accuracy / 100) * 0.5;
-  p += stats.dribbles * 0.2;
-  p += stats.tackles * 0.6;
-  p += stats.interceptions * 0.6;
-  p -= stats.yellow_cards * 1;
-  p -= stats.red_cards * 3;
-  if (stats.minutes >= 60) p += 1;
-  else if (stats.minutes > 0) p += 0.4;
-  const base = Math.round(p * 10) / 10;
-  return isCaptain ? base * 2 : base;
-}
 
 async function logAdminAction(
   leagueId: string,
@@ -119,6 +98,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   // Liga-Settings (erweitert)
   const [ligaSettings, setLigaSettings] = useState<any>(null);
   const [initializing, setInitializing] = useState(false);
+  const [scoringRules, setScoringRules] = useState<ScoringRules>(DEFAULT_SCORING_RULES);
+  const [scoringSaved, setScoringSaved] = useState(false);
   const [squadSize, setSquadSize] = useState(15);
   const [benchSize, setBenchSize] = useState(4);
   const [irSpots, setIrSpots] = useState(0);
@@ -197,6 +178,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       setMaxPerClub(ls.max_players_per_club ?? 3);
       if (ls.position_limits) setPosLimits(ls.position_limits);
       if (ls.allowed_formations) setAllowedFormations(ls.allowed_formations);
+      setScoringRules(mergeRules(ls.scoring_rules));
     }
 
     const { data: gwData } = await supabase
@@ -459,6 +441,19 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     setInitializing(false);
   }
 
+  async function saveScoringRules() {
+    setSaving(true);
+    await supabase.from("liga_settings")
+      .upsert({ league_id: leagueId, scoring_rules: scoringRules, updated_at: new Date().toISOString() }, { onConflict: "league_id" });
+    setScoringSaved(true);
+    setTimeout(() => setScoringSaved(false), 3000);
+    setSaving(false);
+  }
+
+  async function resetScoringRules() {
+    setScoringRules(DEFAULT_SCORING_RULES);
+  }
+
   async function toggleWaiverWindow(gwId: string, open: boolean) {
     await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
     const { data: gwData } = await supabase
@@ -537,7 +532,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           if (!player) continue;
           const stats = getStat(playerId);
           const isCaptain = playerId === captainId;
-          const pts = calcPoints(stats, player.position, isCaptain);
+          const pts = calcPoints(stats, player.position, isCaptain, scoringRules);
 
           await supabase.from("liga_gameweek_points").upsert({
             team_id: teamId,
@@ -1000,7 +995,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 {squadPlayers.map(({ player_id, players: p }) => {
                   if (!p) return null;
                   const s = getStat(player_id);
-                  const pts = calcPoints(s, p.position, false);
+                  const pts = calcPoints(s, p.position, false, scoringRules);
                   return (
                     <div key={player_id} className="rounded-xl p-3"
                       style={{ background: "#141008", border: "1px solid #2a2010" }}>
@@ -1478,6 +1473,62 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Punkteschema */}
+          <div className="rounded-xl p-4 space-y-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                Punkteschema
+              </p>
+              <button onClick={resetScoringRules}
+                className="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-lg"
+                style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#5a4020" }}>
+                Reset
+              </button>
+            </div>
+
+            {RULE_GROUPS.map(group => (
+              <div key={group.label}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-2"
+                  style={{ color: group.color + "aa" }}>
+                  {group.label}
+                </p>
+                <div className="grid gap-2"
+                  style={{ gridTemplateColumns: `repeat(${Math.min(group.fields.length, 4)}, 1fr)` }}>
+                  {group.fields.map(f => (
+                    <div key={f.key}>
+                      <p className="text-[7px] font-black uppercase mb-1" style={{ color: "#5a4020" }}>
+                        {f.label}
+                      </p>
+                      <input
+                        type="number"
+                        step={f.step}
+                        min={f.min}
+                        max={f.max}
+                        value={scoringRules[f.key]}
+                        onChange={e => setScoringRules(prev => ({
+                          ...prev,
+                          [f.key]: parseFloat(e.target.value) || 0,
+                        }))}
+                        className="w-full p-2 rounded-lg text-xs font-black text-center focus:outline-none"
+                        style={{
+                          background: "#0c0900",
+                          border: `1px solid ${scoringRules[f.key] !== DEFAULT_SCORING_RULES[f.key] ? group.color + "88" : "#2a2010"}`,
+                          color: scoringRules[f.key] !== DEFAULT_SCORING_RULES[f.key] ? group.color : "#c8b080",
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <button onClick={saveScoringRules} disabled={saving}
+              className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+              style={{ background: saving ? "#2a2010" : scoringSaved ? "#00ce7d" : "#f5a623", color: "#0c0900" }}>
+              {saving ? "Speichern..." : scoringSaved ? "✓ Punkteschema gespeichert" : "Punkteschema speichern"}
+            </button>
           </div>
 
           {/* Liga löschen */}
