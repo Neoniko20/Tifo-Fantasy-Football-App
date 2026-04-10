@@ -116,6 +116,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
   // Liga-Settings (erweitert)
   const [ligaSettings, setLigaSettings] = useState<any>(null);
+  const [initializing, setInitializing] = useState(false);
   const [squadSize, setSquadSize] = useState(15);
   const [benchSize, setBenchSize] = useState(4);
   const [irSpots, setIrSpots] = useState(0);
@@ -435,6 +436,33 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       .order("created_at", { ascending: false })
       .limit(20);
     setAuditLog(data || []);
+  }
+
+  async function updateSetting(key: string, value: unknown) {
+    await supabase.from("liga_settings")
+      .upsert({ league_id: leagueId, [key]: value, updated_at: new Date().toISOString() }, { onConflict: "league_id" });
+    setLigaSettings((prev: any) => ({ ...(prev || {}), [key]: value }));
+  }
+
+  async function initWaiverWire() {
+    setInitializing(true);
+    const res = await fetch("/api/waiver-init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leagueId }),
+    });
+    const json = await res.json();
+    alert(json.ok
+      ? `✅ ${json.inserted} Spieler auf Waiver Wire geschrieben`
+      : `Fehler: ${json.error}`);
+    setInitializing(false);
+  }
+
+  async function toggleWaiverWindow(gwId: string, open: boolean) {
+    await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
+    const { data: gwData } = await supabase
+      .from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
+    setGameweeks(gwData || []);
   }
 
   async function importGWStats(gwNum: number, recalc: boolean = false) {
@@ -805,6 +833,19 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     ↻ Neu rechnen
                   </button>
                 </div>
+
+                {/* Waiver Window Toggle */}
+                {ligaSettings?.waiver_enabled && (
+                  <button onClick={() => toggleWaiverWindow(gw.id, !gw.waiver_window_open)}
+                    className="w-full py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                    style={{
+                      background: gw.waiver_window_open ? "#1a1a08" : "#141008",
+                      color:      gw.waiver_window_open ? "#f5a623" : "#5a4020",
+                      border: `1px solid ${gw.waiver_window_open ? "#f5a623" : "#2a2010"}`,
+                    }}>
+                    Waiver {gw.waiver_window_open ? "schließen" : "öffnen"}
+                  </button>
+                )}
 
                 {/* Liga-Toggles */}
                 <div>
@@ -1374,6 +1415,69 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
             style={{ background: saving ? "#2a2010" : settingsSaved ? "#00ce7d" : "#f5a623", color: "#0c0900" }}>
             {saving ? "Speichern..." : settingsSaved ? "✓ Kader-Einstellungen gespeichert" : "Kader-Einstellungen speichern"}
           </button>
+
+          {/* Waiver Wire */}
+          <div className="w-full mt-2 p-4 rounded-2xl"
+            style={{ background: "#141008", border: "1px solid #2a2010" }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#f5a623" }}>
+                Waiver Wire
+              </p>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox"
+                  checked={!!ligaSettings?.waiver_enabled}
+                  onChange={e => updateSetting("waiver_enabled", e.target.checked)}
+                  className="sr-only peer" />
+                <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#f5a623]" />
+              </label>
+            </div>
+
+            {ligaSettings?.waiver_enabled && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>Startet ab GW</span>
+                  <input type="number" min="1" max="38"
+                    value={ligaSettings.waiver_mode_starts_gameweek || 4}
+                    onChange={e => updateSetting("waiver_mode_starts_gameweek", Number(e.target.value))}
+                    className="w-16 px-2 py-1 rounded text-xs font-black text-right"
+                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>FAAB-Budget</span>
+                  <label className="inline-flex items-center cursor-pointer">
+                    <input type="checkbox"
+                      checked={!!ligaSettings.waiver_budget_enabled}
+                      onChange={e => updateSetting("waiver_budget_enabled", e.target.checked)}
+                      className="sr-only peer" />
+                    <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#f5a623]" />
+                  </label>
+                </div>
+                {ligaSettings.waiver_budget_enabled && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>Start-Bucks</span>
+                    <input type="number" min="1" max="1000"
+                      value={ligaSettings.waiver_budget_starting || 100}
+                      onChange={e => updateSetting("waiver_budget_starting", Number(e.target.value))}
+                      className="w-20 px-2 py-1 rounded text-xs font-black text-right"
+                      style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>Max. Claims / GW</span>
+                  <input type="number" min="1" max="20"
+                    value={ligaSettings.waiver_max_claims_per_gameweek || 3}
+                    onChange={e => updateSetting("waiver_max_claims_per_gameweek", Number(e.target.value))}
+                    className="w-16 px-2 py-1 rounded text-xs font-black text-right"
+                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                </div>
+                <button onClick={initWaiverWire} disabled={initializing}
+                  className="w-full mt-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  style={{ background: initializing ? "#2a2010" : "#f5a623", color: "#0c0900" }}>
+                  {initializing ? "Lade Waiver Wire..." : "Waiver Wire initialisieren"}
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Liga löschen */}
           <div className="rounded-xl p-4 space-y-3"

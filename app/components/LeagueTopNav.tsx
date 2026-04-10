@@ -8,9 +8,10 @@ interface Props {
   leagueName?: string;
   leagueStatus?: string;
   isOwner?: boolean;
+  waiversEnabled?: boolean;
 }
 
-export function LeagueTopNav({ leagueId, leagueName, leagueStatus, isOwner }: Props) {
+export function LeagueTopNav({ leagueId, leagueName, leagueStatus, isOwner, waiversEnabled }: Props) {
   const pathname = usePathname();
 
   const isDraft = leagueStatus === "drafting";
@@ -46,6 +47,12 @@ export function LeagueTopNav({ leagueId, leagueName, leagueStatus, isOwner }: Pr
       href: `/leagues/${leagueId}/liga`,
       active: pathname.startsWith(`/leagues/${leagueId}/liga`),
     },
+    ...(waiversEnabled ? [{
+      id: "waiver",
+      label: "Waiver",
+      href: `/leagues/${leagueId}/waiver`,
+      active: pathname.startsWith(`/leagues/${leagueId}/waiver`),
+    }] : []),
   ];
 
   return (

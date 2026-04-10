@@ -279,6 +279,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
         leagueName={league?.name}
         leagueStatus={league?.status}
         isOwner={isOwner}
+        waiversEnabled={!!ligaSettings?.waiver_enabled}
       />
 
       <div className="w-full max-w-md px-4 pt-4">
