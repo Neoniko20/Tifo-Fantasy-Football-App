@@ -84,6 +84,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [modalData, setModalData] = useState<ModalData | null>(null);
   const [squadSort, setSquadSort] = useState<"fpts" | "position" | "name" | "club">("fpts");
   const [dropping, setDropping] = useState<number | null>(null);
+  const [taxiSquad, setTaxiSquad] = useState<Player[]>([]);
+  const [selectingTaxi, setSelectingTaxi] = useState(false);
   const { toast } = useToast();
 
   // Player card detail states
@@ -191,41 +193,54 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     if (!team) { setLoading(false); return; }
 
     const { data: picks } = await supabase
-      .from("squad_players").select("player_id").eq("team_id", team.id);
+      .from("squad_players").select("player_id, is_taxi").eq("team_id", team.id);
 
     let playersData: Player[] = [];
+    let taxiData: Player[] = [];
     if (picks && picks.length > 0) {
+      const allIds = picks.map((p: any) => p.player_id);
+      const taxiIds = new Set(picks.filter((p: any) => p.is_taxi).map((p: any) => p.player_id));
       const { data: fetched } = await supabase
         .from("players")
         .select("id, name, photo_url, position, team_name, api_team_id, fpts, goals, assists, minutes, shots_on, key_passes, tackles, interceptions, yellow_cards, red_cards, saves")
-        .in("id", picks.map((p: any) => p.player_id));
-      playersData = (fetched || []) as Player[];
+        .in("id", allIds);
+      const all = (fetched || []) as Player[];
+      taxiData    = all.filter(p => taxiIds.has(p.id));
+      playersData = all.filter(p => !taxiIds.has(p.id));
+      setTaxiSquad(taxiData);
       setDraftPicks(playersData);
     }
 
-    checkSquadWarnings(playersData, ls);
+    checkSquadWarnings(playersData, ls, taxiData);
     await loadLineupWithPlayers(team.id, gw, playersData, ls);
     await loadIRSlots(team.id, playersData);
     await loadGWPoints(team.id, gw);
     setLoading(false);
   }
 
-  function checkSquadWarnings(players: Player[], settings: any) {
+  function checkSquadWarnings(players: Player[], settings: any, taxi?: Player[]) {
     const warnings: { type: string; message: string }[] = [];
     const squadSize = settings?.squad_size || 15;
     const benchSize = settings?.bench_size || 4;
     const irSpots   = settings?.ir_spots   || 0;
     const taxiSpots = settings?.taxi_spots || 0;
-    const maxTotal  = squadSize + benchSize + irSpots + taxiSpots;
+    const taxiCount = taxi !== undefined ? taxi.length : taxiSquad.length;
+    const maxTotal  = squadSize + benchSize + irSpots;
 
     if (players.length > maxTotal) {
       warnings.push({
         type: "overflow",
         message:
           `Dein Kader hat ${players.length} Spieler, aber nur ${maxTotal} Plätze ` +
-          `(${squadSize} Kader + ${benchSize} Bank${irSpots ? ` + ${irSpots} IR` : ""}` +
-          `${taxiSpots ? ` + ${taxiSpots} Taxi` : ""}). ` +
+          `(${squadSize} Kader + ${benchSize} Bank${irSpots ? ` + ${irSpots} IR` : ""}). ` +
           `Bitte ${players.length - maxTotal} Spieler abgeben.`,
+      });
+    }
+
+    if (taxiSpots > 0 && taxiCount > taxiSpots) {
+      warnings.push({
+        type: "taxi",
+        message: `Zu viele Taxi-Spieler: ${taxiCount} (Max: ${taxiSpots}). Bitte ${taxiCount - taxiSpots} befördern oder entlassen.`,
       });
     }
 
@@ -283,11 +298,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       .eq("team_id", myTeam.id)
       .eq("player_id", playerId);
     const updated = draftPicks.filter(p => p.id !== playerId);
+    const updatedTaxi = taxiSquad.filter(p => p.id !== playerId);
     setDraftPicks(updated);
+    setTaxiSquad(updatedTaxi);
     setStartingXI(prev => prev.map(p => p?.id === playerId ? null : p));
     setBench(prev => prev.filter(p => p.id !== playerId));
     setIrSlots(prev => prev.filter(s => s.player_id !== playerId));
-    checkSquadWarnings(updated, ligaSettings);
+    checkSquadWarnings(updated, ligaSettings, updatedTaxi);
     setModalData(null);
     setDropping(null);
   }
@@ -318,6 +335,36 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       .update({ returned_at_gw: activeGW })
       .eq("id", slot.id);
     await loadIRSlots(myTeam.id, draftPicks);
+  }
+
+  async function moveToTaxi(player: Player) {
+    if (!myTeam) return;
+    await supabase.from("squad_players")
+      .update({ is_taxi: true })
+      .eq("team_id", myTeam.id)
+      .eq("player_id", player.id);
+    setStartingXI(prev => prev.map(p => p?.id === player.id ? null : p));
+    setBench(prev => prev.filter(p => p.id !== player.id));
+    const updated = draftPicks.filter(p => p.id !== player.id);
+    const updatedTaxi = [...taxiSquad, player];
+    setDraftPicks(updated);
+    setTaxiSquad(updatedTaxi);
+    checkSquadWarnings(updated, ligaSettings, updatedTaxi);
+    setSelectingTaxi(false);
+    setModalData(null);
+  }
+
+  async function promoteFromTaxi(player: Player) {
+    if (!myTeam) return;
+    await supabase.from("squad_players")
+      .update({ is_taxi: false })
+      .eq("team_id", myTeam.id)
+      .eq("player_id", player.id);
+    const updatedTaxi = taxiSquad.filter(p => p.id !== player.id);
+    const updated = [...draftPicks, player];
+    setTaxiSquad(updatedTaxi);
+    setDraftPicks(updated);
+    checkSquadWarnings(updated, ligaSettings, updatedTaxi);
   }
 
   async function loadLineup(gw: number) {
@@ -515,16 +562,17 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   );
 
   const config = FORMATIONS[formation];
-  const irPlayerIds = new Set(irSlots.map(s => s.player_id));
+  const irPlayerIds   = new Set(irSlots.map(s => s.player_id));
+  const taxiPlayerIds = new Set(taxiSquad.map(p => p.id));
 
-  // Für den Selektor: alle Spieler außer IR und dem aktuellen Slot-Inhaber
+  // Für den Selektor: alle Spieler außer IR, Taxi und dem aktuellen Slot-Inhaber
   const currentSlotPlayerId = selectedSlot
     ? (selectedSlot.type === "xi"
         ? startingXI[selectedSlot.index]?.id
         : bench[selectedSlot.index]?.id)
     : undefined;
   const selectorCandidates = draftPicks.filter(p =>
-    !irPlayerIds.has(p.id) && p.id !== currentSlotPlayerId
+    !irPlayerIds.has(p.id) && !taxiPlayerIds.has(p.id) && p.id !== currentSlotPlayerId
   );
 
   // Status-Helper für Selektor-Badges
@@ -646,7 +694,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
           { id: "squad",   label: "Kader" },
           { id: "matches", label: "Spieltag" },
         ] as const).map(tab => (
-          <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSelectedSlot(null); setSelectingIR(false); }}
+          <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSelectedSlot(null); setSelectingIR(false); setSelectingTaxi(false); }}
             className="flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all"
             style={{
               background: activeTab === tab.id ? "#f5a623" : "#141008",
@@ -936,6 +984,99 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             </div>
           )}
 
+          {/* Taxi Squad */}
+          {(ligaSettings?.taxi_spots || 0) > 0 && (
+            <div className="w-full max-w-md mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
+                    style={{ background: "#1a1a08", border: "1px solid #c8b080", color: "#c8b080" }}>U21</span>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                    Taxi Squad · {taxiSquad.length}/{ligaSettings.taxi_spots}
+                  </p>
+                </div>
+                {taxiSquad.length < ligaSettings.taxi_spots && (
+                  <button
+                    onClick={() => { setSelectingTaxi(v => !v); setSelectedSlot(null); setSelectingIR(false); }}
+                    className="text-[8px] font-black px-2 py-1 rounded-lg transition-all"
+                    style={{
+                      background: selectingTaxi ? "#c8b080" : "#1a1a08",
+                      color: selectingTaxi ? "#0c0900" : "#c8b080",
+                      border: "1px solid #c8b080",
+                    }}>
+                    {selectingTaxi ? "Abbrechen" : "+ Spieler"}
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {taxiSquad.map((player) => (
+                  <div key={player.id} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
+                    style={{ background: "#1a1a08", border: "1px solid #3a3010" }}>
+                    {player.photo_url ? (
+                      <img src={player.photo_url} className="w-9 h-9 rounded-full object-cover"
+                        style={{ border: "2px solid #c8b08040" }} alt="" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center"
+                        style={{ border: "2px solid #3a3010", background: "#0c0900" }}>
+                        <span className="text-[8px] font-black" style={{ color: "#c8b080" }}>
+                          {player.position}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-[7px] font-black text-center mt-1 truncate w-full leading-tight"
+                      style={{ color: "#c8b080" }}>
+                      {player.name.split(" ").pop() || "—"}
+                    </p>
+                    <p className="text-[7px] text-center" style={{ color: "#5a4020" }}>
+                      {player.fpts?.toFixed(0)} pts
+                    </p>
+                    <button onClick={() => promoteFromTaxi(player)}
+                      className="text-[7px] font-black mt-1 px-1.5 py-0.5 rounded transition-all"
+                      style={{
+                        background: "#2a2010",
+                        color: "#f5a623",
+                        border: "1px solid #3a3010",
+                      }}>
+                      ↑ Befördern
+                    </button>
+                  </div>
+                ))}
+                {Array.from({ length: Math.max(0, ligaSettings.taxi_spots - taxiSquad.length) }).map((_, i) => (
+                  <div key={`empty-taxi-${i}`} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
+                    style={{ background: "#1a1a08", border: "1px solid #2a2a10" }}>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center"
+                      style={{ border: "2px solid #2a2a10", background: "#0c0900" }}>
+                      <span className="text-[9px] font-black" style={{ color: "#3a3010" }}>U21</span>
+                    </div>
+                    <p className="text-[7px] font-black text-center mt-1" style={{ color: "#3a3010" }}>Leer</p>
+                  </div>
+                ))}
+              </div>
+              {selectingTaxi && (
+                <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "#5a4020" }}>
+                    Spieler auf Taxi Squad setzen (kann nicht aufgestellt werden)
+                  </p>
+                  {draftPicks.filter(p => !irPlayerIds.has(p.id)).map(p => (
+                    <div key={p.id} onClick={() => moveToTaxi(p)}
+                      className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
+                      style={{ background: "#1a1a08", border: "1px solid #2a2a10" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "#c8b080"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "#2a2a10"}>
+                      <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
+                        style={{ border: `1px solid ${POS_COLOR[p.position]}40` }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>{p.name}</p>
+                        <p className="text-[7px]" style={{ color: "#5a4020" }}>{p.position} · {p.team_name}</p>
+                      </div>
+                      <span className="text-[8px] font-black" style={{ color: "#c8b080" }}>+ U21</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Spieler-Auswahl Panel (wenn Slot selektiert) */}
           {selectedSlot && (
             <div className="w-full max-w-md">
@@ -1060,10 +1201,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
           {/* Kader-Stats */}
           <div className="flex gap-2 mb-3">
             {[
-              { label: "Gesamt", value: draftPicks.length },
-              { label: "XI", value: startingXI.filter(Boolean).length },
-              { label: "Bank", value: bench.length },
-              { label: "IR", value: irSlots.length },
+              { label: "Gesamt", value: draftPicks.length + taxiSquad.length },
+              { label: "XI",     value: startingXI.filter(Boolean).length },
+              { label: "Bank",   value: bench.length },
+              { label: "IR",     value: irSlots.length },
+              ...(taxiSquad.length > 0 || (ligaSettings?.taxi_spots || 0) > 0
+                ? [{ label: "Taxi", value: taxiSquad.length }]
+                : []),
             ].map(item => (
               <div key={item.label} className="flex-1 rounded-xl p-2 text-center"
                 style={{ background: "#141008", border: "1px solid #2a2010" }}>
@@ -1078,8 +1222,10 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             const inXI    = new Set(startingXI.filter(Boolean).map(p => p!.id));
             const inBench = new Set(bench.map(p => p.id));
             const inIR    = new Set(irSlots.map(s => s.player_id));
+            const inTaxi  = new Set(taxiSquad.map(p => p.id));
 
-            const sorted = [...draftPicks].sort((a, b) => {
+            const allPlayers = [...draftPicks, ...taxiSquad];
+            const sorted = [...allPlayers].sort((a, b) => {
               if (squadSort === "fpts")     return (b.fpts || 0) - (a.fpts || 0);
               if (squadSort === "position") {
                 const ord: Record<string, number> = { GK: 0, DF: 1, MF: 2, FW: 3 };
@@ -1094,7 +1240,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               <div className="space-y-1.5">
                 {sorted.map(p => {
                   const posColor = POS_COLOR[p.position] || "#c8b080";
-                  const status   = inXI.has(p.id) ? "XI" : inBench.has(p.id) ? "Bank" : inIR.has(p.id) ? "IR" : "—";
+                  const status   = inXI.has(p.id) ? "XI" : inBench.has(p.id) ? "Bank" : inIR.has(p.id) ? "IR" : inTaxi.has(p.id) ? "Taxi" : "—";
                   const gwPts    = gwPoints[p.id];
                   const isCap    = captainId === p.id;
                   const isVC     = viceCaptainId === p.id;
@@ -1145,8 +1291,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                           style={{ background: posColor + "20", color: posColor }}>{p.position}</span>
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
                           style={{
-                            background: status === "XI" ? "#00ce7d20" : status === "Bank" ? "#4a9eff20" : status === "IR" ? "#ff4d6d20" : "#2a2010",
-                            color: status === "XI" ? "#00ce7d" : status === "Bank" ? "#4a9eff" : status === "IR" ? "#ff4d6d" : "#5a4020",
+                            background: status === "XI" ? "#00ce7d20" : status === "Bank" ? "#4a9eff20" : status === "IR" ? "#ff4d6d20" : status === "Taxi" ? "#c8b08020" : "#2a2010",
+                            color:      status === "XI" ? "#00ce7d"   : status === "Bank" ? "#4a9eff"   : status === "IR" ? "#ff4d6d"   : status === "Taxi" ? "#c8b080"   : "#5a4020",
                           }}>
                           {status}
                         </span>
@@ -1371,6 +1517,23 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                       ← Herausnehmen
                     </button>
                   </>
+                )}
+                {/* Taxi Squad actions */}
+                {(ligaSettings?.taxi_spots || 0) > 0 && (
+                  taxiPlayerIds.has(p.id) ? (
+                    <button onClick={() => promoteFromTaxi(p)}
+                      className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
+                      style={{ background: "#1a1a08", color: "#c8b080", border: "1px solid #c8b08040" }}>
+                      ↑ Aus Taxi befördern
+                    </button>
+                  ) : (
+                    <button onClick={() => moveToTaxi(p)}
+                      disabled={taxiSquad.length >= (ligaSettings?.taxi_spots || 0)}
+                      className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-40"
+                      style={{ background: "#1a1a08", color: "#c8b080", border: "1px solid #c8b08040" }}>
+                      → Taxi Squad
+                    </button>
+                  )
                 )}
                 <button onClick={() => dropPlayer(p.id)} disabled={dropping === p.id}
                   className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-50"
