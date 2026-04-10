@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { calculateWMGameweekPoints } from "@/lib/wm-points";
 import type { WMNation, WMGameweek, WMLeagueSettings } from "@/lib/wm-types";
 import type { GWStats } from "@/lib/wm-points";
+import { useToast } from "@/app/components/ToastProvider";
 
 const PHASE_LABEL: Record<string, string> = {
   group:        "Gruppenphase",
@@ -43,6 +44,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const [playerStats, setPlayerStats] = useState<Record<number, Omit<GWStats, "position">>>({});
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<"points" | "nations" | "gameweeks">("points");
+  const { toast } = useToast();
   const [eliminateNation, setEliminateNation] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
@@ -212,9 +214,9 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
         await supabase.from("teams").update({ total_points: Math.round(total * 10) / 10 }).eq("id", teamId);
       }
 
-      alert(`GW ${selectedGW} Punkte gespeichert!`);
+      toast(`GW ${selectedGW} Punkte gespeichert!`, "success");
     } catch (e: any) {
-      alert("Fehler: " + e.message);
+      toast("Fehler: " + e.message, "error");
     }
     setSaving(false);
   }

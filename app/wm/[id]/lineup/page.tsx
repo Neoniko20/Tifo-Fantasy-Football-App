@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { FORMATIONS } from "@/lib/wm-formations";
 import { validateFormation } from "@/lib/wm-formations";
 import type { Position } from "@/lib/wm-types";
+import { useToast } from "@/app/components/ToastProvider";
 
 const POS_COLOR: Record<string, string> = {
   GK: "#f5a623",
@@ -39,6 +40,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const [saved, setSaved] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ type: "xi" | "bench"; index: number } | null>(null);
   const [gameweek, setGameweek] = useState(1);
+  const { toast } = useToast();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -116,7 +118,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       const slot = formationConfig.layout[selectedSlot.index];
       // Position-Check
       if (slot && slot.position !== player.position) {
-        alert(`Dieser Slot benötigt ${slot.position}, Spieler ist ${player.position}`);
+        toast(`Dieser Slot benötigt ${slot.position}, Spieler ist ${player.position}`, "error");
         return;
       }
       const newXI = [...startingXI];
@@ -168,10 +170,10 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   async function saveLineup() {
     if (!myTeam) return;
     const xi = startingXI.filter(Boolean) as Player[];
-    if (xi.length < 11) { alert("Startelf nicht vollständig (11 Spieler benötigt)"); return; }
+    if (xi.length < 11) { toast("Startelf nicht vollständig (11 Spieler benötigt)", "error"); return; }
 
     const validation = validateFormation(xi.map(p => p.position), formation);
-    if (!validation.valid) { alert(`Formation nicht erfüllt:\n${validation.errors.join("\n")}`); return; }
+    if (!validation.valid) { toast(`Formation nicht erfüllt: ${validation.errors.join(", ")}`, "error"); return; }
 
     setSaving(true);
     await supabase.from("team_lineups").upsert({

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
+import { useToast } from "@/app/components/ToastProvider";
 import { LEAGUE_META, ALL_LEAGUES, calcActiveLeagues } from "@/lib/league-meta";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
 
@@ -113,6 +114,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [settingsStatus, setSettingsStatus] = useState("setup");
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const { toast } = useToast();
 
   // Liga-Settings (erweitert)
   const [ligaSettings, setLigaSettings] = useState<any>(null);
@@ -267,7 +269,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   }
 
   async function createGameweek() {
-    if (!newGWLabel.trim()) { alert("Label eingeben"); return; }
+    if (!newGWLabel.trim()) { toast("Label eingeben", "error"); return; }
     const { error } = await supabase.from("liga_gameweeks").insert({
       league_id: leagueId,
       gameweek: newGWNum,
@@ -276,7 +278,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       end_date: newGWEnd || null,
       status: "upcoming",
     });
-    if (error) { alert("Fehler: " + error.message); return; }
+    if (error) { toast("Fehler: " + error.message, "error"); return; }
     const { data } = await supabase.from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
     setGameweeks(data || []);
     setNewGWNum(prev => prev + 1);
@@ -286,7 +288,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   }
 
   async function autoGenerateGameweeks() {
-    if (!autoStart) { alert("Startdatum eingeben"); return; }
+    if (!autoStart) { toast("Startdatum eingeben", "error"); return; }
     if (gameweeks.length > 0) {
       if (!confirm(`Es gibt bereits ${gameweeks.length} Spieltage. Trotzdem generieren?`)) return;
     }
@@ -314,7 +316,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       });
     }
     const { error } = await supabase.from("liga_gameweeks").upsert(rows, { onConflict: "league_id,gameweek" });
-    if (error) { alert("Fehler: " + error.message); setAutoGenerating(false); return; }
+    if (error) { toast("Fehler: " + error.message, "error"); setAutoGenerating(false); return; }
     const { data } = await supabase.from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
     setGameweeks(data || []);
     setNewGWNum((data?.length || 0) + 1);
@@ -341,7 +343,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       scoring_type: settingsScoringType,
       status: settingsStatus,
     }).eq("id", leagueId);
-    if (error) { alert("Fehler: " + error.message); setSaving(false); return; }
+    if (error) { toast("Fehler: " + error.message, "error"); setSaving(false); return; }
     setLeague((prev: any) => ({ ...prev, name: settingsName.trim(), max_teams: settingsMaxTeams, scoring_type: settingsScoringType, status: settingsStatus }));
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 3000);
@@ -364,7 +366,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     const { error } = await supabase
       .from("liga_settings")
       .upsert(payload, { onConflict: "league_id" });
-    if (error) { alert("Fehler: " + error.message); setSaving(false); return; }
+    if (error) { toast("Fehler: " + error.message, "error"); setSaving(false); return; }
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 3000);
     setSaving(false);
@@ -416,12 +418,12 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       .eq("owner_id", user.id); // Sicherheit: nur eigene Liga
 
     if (error) {
-      alert("Fehler beim Löschen: " + error.message);
+      toast("Fehler beim Löschen: " + error.message, "error");
       setDeleteConfirm(false);
       return;
     }
     if (count === 0) {
-      alert("Liga konnte nicht gelöscht werden. Fehlende Berechtigung?\n\nBitte in Supabase ausführen:\nCREATE POLICY \"Owner can delete own league\" ON leagues FOR DELETE TO authenticated USING (owner_id = auth.uid());");
+      toast("Liga konnte nicht gelöscht werden. Fehlende Berechtigung?", "error");
       setDeleteConfirm(false);
       return;
     }
@@ -452,9 +454,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       body: JSON.stringify({ leagueId }),
     });
     const json = await res.json();
-    alert(json.ok
-      ? `✅ ${json.inserted} Spieler auf Waiver Wire geschrieben`
-      : `Fehler: ${json.error}`);
+    if (json.ok) toast(`${json.inserted} Spieler auf Waiver Wire geschrieben`, "success");
+    else toast(`Fehler: ${json.error}`, "error");
     setInitializing(false);
   }
 
@@ -562,8 +563,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       // H2H: Matchup-Ergebnisse berechnen
       if (league?.scoring_type === "h2h") await calcH2H(teamIds);
 
-      alert(`GW${selectedGW} Punkte gespeichert!`);
-    } catch (e: any) { alert("Fehler: " + e.message); }
+      toast(`GW${selectedGW} Punkte gespeichert!`, "success");
+    } catch (e: any) { toast("Fehler: " + e.message, "error"); }
     setSaving(false);
   }
 

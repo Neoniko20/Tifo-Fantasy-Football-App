@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { UserBadge } from "@/app/components/UserBadge";
 import type { WMLeagueSettings } from "@/lib/wm-types";
+import { useToast } from "@/app/components/ToastProvider";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -55,6 +56,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const [view, setView] = useState<"board" | "list">("board");
   const [draftType, setDraftType] = useState<"snake" | "linear">("snake");
   const [timerSeconds, setTimerSeconds] = useState(60);
+  const { toast } = useToast();
 
   const channelRef = useRef<any>(null);
   const botTimerRef = useRef<any>(null);
@@ -315,7 +317,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   }, [timeLeft]);
 
   async function startDraft() {
-    if (teams.length < 1) { alert("Mindestens 1 Team!"); return; }
+    if (teams.length < 1) { toast("Mindestens 1 Team!", "error"); return; }
 
     let allTeams = [...teams];
     const botCount = (league?.max_teams || 8) - teams.length;

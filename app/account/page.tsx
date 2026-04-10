@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
+import { useToast } from "@/app/components/ToastProvider";
 
 type NotifSettings = {
   draftStart: boolean;
@@ -44,7 +45,7 @@ export default function AccountPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const { toast } = useToast();
 
   // Avatar
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -76,8 +77,7 @@ export default function AccountPage() {
   }, []);
 
   function flash(text: string, ok = true) {
-    setMsg({ text, ok });
-    setTimeout(() => setMsg(null), 3500);
+    toast(text, ok ? "success" : "error");
   }
 
   // ── Avatar upload ──────────────────────────────────────
@@ -190,7 +190,7 @@ export default function AccountPage() {
   // ── Sub-sections ──────────────────────────────────────
 
   if (section === "username") return (
-    <SubSection title="Benutzername" onBack={() => setSection("main")} msg={msg}>
+    <SubSection title="Benutzername" onBack={() => setSection("main")}>
       <p className="text-[8px] font-black uppercase tracking-widest mb-4" style={{ color: "#3a2a10" }}>
         Wird in der App und als Teamname angezeigt
       </p>
@@ -208,7 +208,7 @@ export default function AccountPage() {
   );
 
   if (section === "email") return (
-    <SubSection title="E-Mail ändern" onBack={() => setSection("main")} msg={msg}>
+    <SubSection title="E-Mail ändern" onBack={() => setSection("main")}>
       <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "#3a2a10" }}>
         Aktuelle E-Mail
       </p>
@@ -230,7 +230,7 @@ export default function AccountPage() {
   );
 
   if (section === "password") return (
-    <SubSection title="Passwort ändern" onBack={() => setSection("main")} msg={msg}>
+    <SubSection title="Passwort ändern" onBack={() => setSection("main")}>
       {[
         { val: newPassword,     set: setNewPassword,     label: "Neues Passwort",      placeholder: "Mindestens 6 Zeichen" },
         { val: confirmPassword, set: setConfirmPassword,  label: "Passwort bestätigen", placeholder: "Wiederholen" },
@@ -253,7 +253,7 @@ export default function AccountPage() {
   );
 
   if (section === "notifications") return (
-    <SubSection title="Benachrichtigungen" onBack={() => setSection("main")} msg={msg}>
+    <SubSection title="Benachrichtigungen" onBack={() => setSection("main")}>
       {/* Push permission banner */}
       {notifPermission !== "granted" && (
         <div className="rounded-2xl p-4 mb-4"
@@ -319,18 +319,6 @@ export default function AccountPage() {
   // ── Main account view ─────────────────────────────────
   return (
     <main className="flex min-h-screen flex-col pb-24" style={{ background: "#0c0900", paddingTop: 16 }}>
-
-      {/* Flash message */}
-      {msg && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg"
-          style={{
-            background: msg.ok ? "#0a1a0a" : "#1a0808",
-            color: msg.ok ? "#00ce7d" : "#ff4d6d",
-            border: `1px solid ${msg.ok ? "#00ce7d40" : "#ff4d6d40"}`,
-          }}>
-          {msg.text}
-        </div>
-      )}
 
       <div className="max-w-[480px] mx-auto w-full px-4">
 
@@ -441,25 +429,14 @@ export default function AccountPage() {
 // ── Helper components ─────────────────────────────────────
 
 function SubSection({
-  title, onBack, msg, children,
+  title, onBack, children,
 }: {
   title: string;
   onBack: () => void;
-  msg: { text: string; ok: boolean } | null;
   children: React.ReactNode;
 }) {
   return (
     <main className="flex min-h-screen flex-col pb-24" style={{ background: "#0c0900" }}>
-      {msg && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg"
-          style={{
-            background: msg.ok ? "#0a1a0a" : "#1a0808",
-            color: msg.ok ? "#00ce7d" : "#ff4d6d",
-            border: `1px solid ${msg.ok ? "#00ce7d40" : "#ff4d6d40"}`,
-          }}>
-          {msg.text}
-        </div>
-      )}
       <div className="max-w-[480px] mx-auto w-full px-4 pt-4">
         <div className="flex items-center gap-3 mb-6">
           <button onClick={onBack}

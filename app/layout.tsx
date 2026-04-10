@@ -3,6 +3,7 @@ import { Unbounded } from "next/font/google";
 import "./globals.css";
 import { InstallPrompt } from "@/app/components/InstallPrompt";
 import { NotificationsProvider } from "@/app/components/NotificationsProvider";
+import { ToastProvider } from "@/app/components/ToastProvider";
 
 const unbounded = Unbounded({
   subsets: ["latin"],
@@ -59,10 +60,12 @@ export default function RootLayout({
               href="/splash/apple-splash-ipad-pro-13.png" />
       </head>
       <body className="min-h-full flex flex-col antialiased">
-        <NotificationsProvider>
-          {children}
-          <InstallPrompt />
-        </NotificationsProvider>
+        <ToastProvider>
+          <NotificationsProvider>
+            {children}
+            <InstallPrompt />
+          </NotificationsProvider>
+        </ToastProvider>
       </body>
     </html>
   );

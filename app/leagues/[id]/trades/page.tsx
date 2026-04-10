@@ -9,6 +9,7 @@ import {
   createTradeCancelled,
   markLeagueKindAsRead,
 } from "@/lib/notifications";
+import { useToast } from "@/app/components/ToastProvider";
 
 const POS_COLOR: Record<string, string> = {
   GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
@@ -32,6 +33,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
   const [requestIds, setRequestIds]     = useState<number[]>([]);
   const [sending, setSending]           = useState(false);
   const [loading, setLoading]           = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -117,7 +119,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       request_player_ids: requestIds,
       status: "pending",
     }).select("id").single();
-    if (error) { alert("Fehler: " + error.message); setSending(false); return; }
+    if (error) { toast("Fehler: " + error.message, "error"); setSending(false); return; }
 
     const receiverTeam = teams.find((t: any) => t.id === targetTeamId);
     if (tradeRow && receiverTeam?.user_id) {

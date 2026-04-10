@@ -6,6 +6,7 @@ import { UserBadge } from "@/app/components/UserBadge";
 import { BottomNav } from "@/app/components/BottomNav";
 import { DEFAULT_WM_SETTINGS } from "@/lib/wm-types";
 import { FORMATION_KEYS } from "@/lib/wm-formations";
+import { useToast } from "@/app/components/ToastProvider";
 
 type League = {
   id: string;
@@ -31,7 +32,7 @@ export default function LeaguesPage() {
   const [leagueMode, setLeagueMode] = useState<"liga" | "wm">("liga");
   const [joinCode, setJoinCode] = useState("");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const { toast } = useToast();
 
   // WM-spezifische Settings
   const [wmSquadSize, setWmSquadSize] = useState(DEFAULT_WM_SETTINGS.squad_size);
@@ -78,7 +79,6 @@ export default function LeaguesPage() {
   async function createLeague() {
     if (!newLeagueName.trim()) return;
     setSaving(true);
-    setMessage(null);
 
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -98,7 +98,7 @@ export default function LeaguesPage() {
 
     if (error || !league) {
       console.error("Create league error:", error?.message, error?.details, error?.hint, error?.code);
-      setMessage({ text: `Fehler: ${error?.message || "Unbekannt"}`, ok: false });
+      toast(`Fehler: ${error?.message || "Unbekannt"}`, "error");
       setSaving(false);
       return;
     }
@@ -144,7 +144,7 @@ export default function LeaguesPage() {
       }
     }
 
-    setMessage({ text: `Liga erstellt! Code: ${league.invite_code}`, ok: true });
+    toast(`Liga erstellt! Code: ${league.invite_code}`, "success");
     setNewLeagueName("");
     loadLeagues(user.id);
     setSaving(false);
@@ -154,7 +154,6 @@ export default function LeaguesPage() {
   async function joinLeague() {
     if (!joinCode.trim()) return;
     setSaving(true);
-    setMessage(null);
 
     const { data: league } = await supabase
       .from("leagues")
@@ -163,7 +162,7 @@ export default function LeaguesPage() {
       .single();
 
     if (!league) {
-      setMessage({ text: "Liga nicht gefunden. Code prüfen!", ok: false });
+      toast("Liga nicht gefunden. Code prüfen!", "error");
       setSaving(false);
       return;
     }
@@ -172,7 +171,7 @@ export default function LeaguesPage() {
       .from("teams").select("id").eq("league_id", league.id);
 
     if ((existingTeams?.length || 0) >= league.max_teams) {
-      setMessage({ text: "Liga ist bereits voll!", ok: false });
+      toast("Liga ist bereits voll!", "error");
       setSaving(false);
       return;
     }
@@ -182,7 +181,7 @@ export default function LeaguesPage() {
       .eq("league_id", league.id).eq("user_id", user.id).maybeSingle();
 
     if (alreadyIn) {
-      setMessage({ text: "Du bist bereits in dieser Liga!", ok: false });
+      toast("Du bist bereits in dieser Liga!", "error");
       setSaving(false);
       return;
     }
@@ -193,7 +192,7 @@ export default function LeaguesPage() {
       name: "Mein Team",
     });
 
-    setMessage({ text: `Beigetreten: ${league.name}!`, ok: true });
+    toast(`Beigetreten: ${league.name}!`, "success");
     setJoinCode("");
     loadLeagues(user.id);
     setSaving(false);
@@ -228,7 +227,7 @@ export default function LeaguesPage() {
       {/* Tabs */}
       <div className="flex gap-2 w-full max-w-md mb-5 p-1 rounded-xl" style={{ background: "#141008", border: "1px solid #2a2010" }}>
         {[{ id: "overview", label: "Übersicht" }, { id: "create", label: "Erstellen" }, { id: "join", label: "Beitreten" }].map((t) => (
-          <button key={t.id} onClick={() => { setView(t.id as any); setMessage(null); }}
+          <button key={t.id} onClick={() => { setView(t.id as any); }}
             className="flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
             style={{
               background: view === t.id ? "#f5a623" : "transparent",
@@ -238,18 +237,6 @@ export default function LeaguesPage() {
           </button>
         ))}
       </div>
-
-      {/* Message */}
-      {message && (
-        <div className="w-full max-w-md mb-4 p-3 rounded-xl text-xs font-black text-center"
-          style={{
-            background: message.ok ? "#1a1a08" : "#1a0808",
-            border: `1px solid ${message.ok ? "#f5a623" : "#ff4d6d"}`,
-            color: message.ok ? "#f5a623" : "#ff4d6d",
-          }}>
-          {message.text}
-        </div>
-      )}
 
       {/* OVERVIEW */}
       {view === "overview" && (

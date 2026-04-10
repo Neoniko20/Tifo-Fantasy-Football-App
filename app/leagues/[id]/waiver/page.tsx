@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
+import { useToast } from "@/app/components/ToastProvider";
 
 const POS_COLOR: Record<string, string> = {
   GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
@@ -38,7 +39,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
   const [playerOut, setPlayerOut]         = useState<number | null>(null);
   const [bidAmount, setBidAmount]         = useState(0);
   const [submitting, setSubmitting]       = useState(false);
-  const [message, setMessage]             = useState<{ text: string; ok: boolean } | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -115,11 +116,11 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
   async function submitClaim() {
     if (!selectedPlayer || !myTeam) return;
-    if (!windowOpen) { setMessage({ text: "Waiver-Fenster ist geschlossen", ok: false }); return; }
+    if (!windowOpen) { toast("Waiver-Fenster ist geschlossen", "error"); return; }
 
     const maxClaims = settings?.waiver_max_claims_per_gameweek || 3;
     if (settings?.waiver_claims_limit_enabled && myClaims.filter(c => c.status === "pending").length >= maxClaims) {
-      setMessage({ text: `Max. ${maxClaims} Claims pro GW erreicht`, ok: false });
+      toast(`Max. ${maxClaims} Claims pro GW erreicht`, "error");
       return;
     }
 
@@ -137,9 +138,9 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
     setSubmitting(false);
     if (error) {
-      setMessage({ text: "Fehler: " + error.message, ok: false });
+      toast("Fehler: " + error.message, "error");
     } else {
-      setMessage({ text: `Claim für ${selectedPlayer.name} eingereicht!`, ok: true });
+      toast(`Claim für ${selectedPlayer.name} eingereicht!`, "success");
       setSelectedPlayer(null);
       setPlayerOut(null);
       setBidAmount(0);
@@ -237,18 +238,6 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
               </div>
               <div className="w-16" />
             </div>
-
-            {/* Message */}
-            {message && (
-              <div className="w-full max-w-md mb-3 p-3 rounded-xl text-xs font-black text-center"
-                style={{
-                  background: message.ok ? "#1a1a08" : "#1a0808",
-                  border: `1px solid ${message.ok ? "#f5a623" : "#ff4d6d"}`,
-                  color: message.ok ? "#f5a623" : "#ff4d6d",
-                }}>
-                {message.text}
-              </div>
-            )}
 
             {/* Offene Claims */}
             {pendingClaims.length > 0 && (

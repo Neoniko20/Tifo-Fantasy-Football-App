@@ -7,6 +7,7 @@ import type { Position } from "@/lib/wm-types";
 import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
+import { useToast } from "@/app/components/ToastProvider";
 
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
 
@@ -83,6 +84,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [modalData, setModalData] = useState<ModalData | null>(null);
   const [squadSort, setSquadSort] = useState<"fpts" | "position" | "name" | "club">("fpts");
   const [dropping, setDropping] = useState<number | null>(null);
+  const { toast } = useToast();
 
   // Player card detail states
   const [tsdbPlayer, setTsdbPlayer] = useState<any>(null);
@@ -309,7 +311,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   async function returnFromIR(slot: IRSlotData) {
     if (!myTeam) return;
     if (activeGW < slot.min_return_gw) {
-      alert(`Frühestens ab GW${slot.min_return_gw} reaktivierbar.`);
+      toast(`Frühestens ab GW${slot.min_return_gw} reaktivierbar.`, "info");
       return;
     }
     await supabase.from("liga_ir_slots")
@@ -382,7 +384,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     if (selectedSlot.type === "xi") {
       const targetSlot = config.layout[selectedSlot.index];
       if (targetSlot && targetSlot.position !== player.position) {
-        alert(`Slot benötigt ${targetSlot.position}, Spieler ist ${player.position}`);
+        toast(`Slot benötigt ${targetSlot.position}, Spieler ist ${player.position}`, "error");
         return;
       }
 
@@ -483,9 +485,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   async function saveLineup() {
     if (!myTeam) return;
     const xi = startingXI.filter(Boolean) as Player[];
-    if (xi.length < 11) { alert("11 Spieler für die Startelf benötigt"); return; }
+    if (xi.length < 11) { toast("11 Spieler für die Startelf benötigt", "error"); return; }
     const validation = validateFormation(xi.map(p => p.position as Position), formation);
-    if (!validation.valid) { alert(`Formation nicht erfüllt:\n${validation.errors.join("\n")}`); return; }
+    if (!validation.valid) { toast(`Formation nicht erfüllt: ${validation.errors.join(", ")}`, "error"); return; }
 
     setSaving(true);
     await supabase.from("liga_lineups").upsert({

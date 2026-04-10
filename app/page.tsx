@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { UserBadge } from "@/app/components/UserBadge";
 import { BottomNav } from "@/app/components/BottomNav";
 import { TifoIcon } from "@/app/components/TifoLogo";
+import { useToast } from "@/app/components/ToastProvider";
 
 const LEAGUES = [
   { id: 0, name: "Alle Ligen", flag: "🌍" },
@@ -83,6 +84,7 @@ function HomeInner() {
   const [mySquad, setMySquad] = useState<PlayerItem[]>([]);
   const [captainId, setCaptainId] = useState<number | null>(null);
   const [savingPlayer, setSavingPlayer] = useState<number | null>(null);
+  const { toast } = useToast();
 
   const activeTab = tabParam === "squad" ? "squad" : "home";
 
@@ -292,7 +294,7 @@ function HomeInner() {
       setMySquad(mySquad.filter((p) => p.player.id !== playerItem.player.id));
       if (captainId === playerItem.player.id) setCaptainId(null);
     } else {
-      if (mySquad.length >= 11) { alert("Roster ist voll (11)"); setSavingPlayer(null); return; }
+      if (mySquad.length >= 11) { toast("Roster ist voll (11)", "error"); setSavingPlayer(null); return; }
       const stats = Array.isArray(playerItem.statistics) ? playerItem.statistics[0] : playerItem.statistics;
       await supabase.from("players").upsert({
         id: playerItem.player.id, name: playerItem.player.name,
