@@ -117,6 +117,12 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     ["4-3-3","4-4-2","3-5-2","5-3-2","3-4-3","4-5-1","5-4-1","5-2-3","3-6-1"]
   );
   const [lineupLockMode, setLineupLockMode] = useState<"locked" | "pre_sub" | "live_swap">("locked");
+
+  // Dynasty-Modus
+  const [dynastyMode, setDynastyMode] = useState(false);
+  const [dynastyRookieRounds, setDynastyRookieRounds] = useState(5);
+  const [dynastySeasonHistory, setDynastySeasonHistory] = useState<any[]>([]);
+  const [rollingOver, setRollingOver] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Auto-Generieren
@@ -184,6 +190,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       if (ls.allowed_formations) setAllowedFormations(ls.allowed_formations);
       setScoringRules(mergeRules(ls.scoring_rules));
       if (ls.lineup_lock_mode) setLineupLockMode(ls.lineup_lock_mode);
+      setDynastyMode(ls.dynasty_mode || false);
+      setDynastyRookieRounds(ls.dynasty_rookie_rounds || 5);
     }
 
     const { data: gwData } = await supabase
@@ -217,6 +225,15 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       await loadIROverview(teamIds);
     }
 
+    // Dynasty: Saison-Historie laden
+    const { data: history } = await supabase
+      .from("team_season_history")
+      .select("*, teams(name)")
+      .eq("league_id", leagueId)
+      .order("season", { ascending: false })
+      .order("final_rank");
+    setDynastySeasonHistory(history || []);
+
     setLoading(false);
     loadAuditLog();
   }
@@ -242,6 +259,93 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       .eq("id", irSlotId);
     toast("Spieler von IR befreit", "success");
     await loadIROverview();
+  }
+
+  // ── F-33: Dynasty Season Rollover ─────────────────────────────────
+  async function startNewSeason() {
+    const currentSeason = league?.current_season ?? 1;
+    const nextSeason    = currentSeason + 1;
+
+    setRollingOver(true);
+    try {
+      // 1. Alle Teams laden (für Ranking + Reset)
+      const { data: allTeams } = await supabase
+        .from("teams")
+        .select("id, name, total_points, wins, losses, draws")
+        .eq("league_id", leagueId)
+        .order("total_points", { ascending: false });
+
+      if (!allTeams || allTeams.length === 0) {
+        toast("Keine Teams gefunden", "error"); setRollingOver(false); return;
+      }
+
+      // 2. Saison-Statistiken speichern (bester zuerst = Rang 1)
+      for (let i = 0; i < allTeams.length; i++) {
+        const t = allTeams[i];
+        await supabase.from("team_season_history").upsert({
+          league_id:    leagueId,
+          team_id:      t.id,
+          season:       currentSeason,
+          total_points: t.total_points || 0,
+          wins:         t.wins    || 0,
+          losses:       t.losses  || 0,
+          draws:        t.draws   || 0,
+          final_rank:   i + 1,
+        }, { onConflict: "team_id,season" });
+      }
+
+      // 3. Team-Stats zurücksetzen
+      for (const t of allTeams) {
+        await supabase.from("teams")
+          .update({ total_points: 0, wins: 0, losses: 0, draws: 0 })
+          .eq("id", t.id);
+      }
+
+      // 4. Neue Saison-Nummer hochsetzen
+      await supabase.from("leagues")
+        .update({ current_season: nextSeason, status: "active" })
+        .eq("id", leagueId);
+
+      // 5. Draft Order = schlechteste Saison → erste Pick (umgekehrte Standings)
+      const draftOrder = [...allTeams].reverse().map(t => t.id);
+      const rookieRounds = dynastyRookieRounds;
+      const totalPicks   = draftOrder.length * rookieRounds;
+
+      // Alten Draft löschen, neuen anlegen
+      await supabase.from("draft_sessions").delete().eq("league_id", leagueId);
+      await supabase.from("draft_sessions").insert({
+        league_id:       leagueId,
+        status:          "pending",
+        draft_type:      "dynasty",
+        season:          nextSeason,
+        draft_order:     draftOrder,
+        current_pick:    0,
+        total_picks:     totalPicks,
+        seconds_per_pick: 86400, // 24h default
+      });
+
+      // 6. Spieltage der alten Saison archivieren (Status setzen)
+      await supabase.from("liga_gameweeks")
+        .update({ status: "finished" })
+        .eq("league_id", leagueId)
+        .neq("status", "finished");
+
+      setLeague((prev: any) => ({ ...prev, current_season: nextSeason, status: "active" }));
+
+      // Saison-Historie neu laden
+      const { data: history } = await supabase
+        .from("team_season_history")
+        .select("*, teams(name)")
+        .eq("league_id", leagueId)
+        .order("season", { ascending: false })
+        .order("final_rank");
+      setDynastySeasonHistory(history || []);
+
+      toast(`✅ Saison ${nextSeason} gestartet! Rookie-Draft bereit.`, "success");
+    } catch (e: any) {
+      toast("Fehler: " + e.message, "error");
+    }
+    setRollingOver(false);
   }
 
   async function loadStatsForGW(gw: number) {
@@ -376,6 +480,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       position_limits: posLimits,
       allowed_formations: allowedFormations,
       lineup_lock_mode: lineupLockMode,
+      dynasty_mode: dynastyMode,
+      dynasty_rookie_rounds: dynastyRookieRounds,
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase
@@ -1362,6 +1468,35 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
             </div>
 
+            {/* Dynasty-Modus Toggle */}
+            <div>
+              <p className="text-[8px] font-black uppercase mb-2" style={{ color: "#8a6a40" }}>
+                Liga-Modus
+              </p>
+              <button onClick={() => setDynastyMode(v => !v)}
+                className="w-full flex items-center justify-between p-2.5 rounded-xl transition-all"
+                style={{
+                  background: dynastyMode ? "#0a0e1a" : "#0c0900",
+                  border: `1px solid ${dynastyMode ? "#4a9eff" : "#2a2010"}`,
+                }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">👑</span>
+                  <div className="text-left">
+                    <p className="text-[9px] font-black uppercase tracking-widest"
+                      style={{ color: dynastyMode ? "#4a9eff" : "#8a6a40" }}>
+                      Dynasty-Modus
+                    </p>
+                    <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                      Spieler bleiben zwischen Saisons. Rookie-Draft jede Saison.
+                    </p>
+                  </div>
+                </div>
+                <div className={`w-10 h-5 rounded-full transition-all ${dynastyMode ? "bg-[#4a9eff]" : "bg-[#2a2010]"}`}>
+                  <div className={`w-5 h-5 rounded-full bg-white shadow transition-all ${dynastyMode ? "translate-x-5" : "translate-x-0"}`} />
+                </div>
+              </button>
+            </div>
+
             {/* Aufstellungs-Lock-Modus */}
             <div>
               <p className="text-[8px] font-black uppercase mb-2" style={{ color: "#8a6a40" }}>
@@ -1645,6 +1780,93 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* ── F-33: Dynasty-Einstellungen ── */}
+          {dynastyMode && (
+            <div className="rounded-xl p-4 space-y-4" style={{ background: "#0a0e1a", border: "1px solid #4a9eff30" }}>
+              <div className="flex items-center gap-2">
+                <span className="text-base">👑</span>
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#4a9eff" }}>
+                  Dynasty — Saison {league?.current_season ?? 1}
+                </p>
+              </div>
+
+              {/* Rookie-Draft Runden */}
+              <div>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#5a7a8a" }}>
+                  Rookie-Draft Runden
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setDynastyRookieRounds(r => Math.max(1, r - 1))}
+                    className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center"
+                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>−</button>
+                  <span className="flex-1 text-center font-black text-sm" style={{ color: "#4a9eff" }}>
+                    {dynastyRookieRounds}
+                  </span>
+                  <button onClick={() => setDynastyRookieRounds(r => Math.min(15, r + 1))}
+                    className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center"
+                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>+</button>
+                </div>
+              </div>
+
+              {/* Neue Saison starten */}
+              <div className="rounded-xl p-3" style={{ background: "#060a10", border: "1px solid #4a9eff20" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "#4a9eff" }}>
+                  Neue Saison starten
+                </p>
+                <p className="text-[8px] leading-relaxed mb-3" style={{ color: "#5a4020" }}>
+                  Speichert Saisonstatistiken. Setzt Punkte zurück. Erstellt Rookie-Draft (schlechteste Mannschaft wählt zuerst). Alle Spieler bleiben im Kader.
+                </p>
+                <button onClick={startNewSeason} disabled={rollingOver}
+                  className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
+                  style={{ background: "#0d1a2a", border: "1px solid #4a9eff60", color: "#4a9eff" }}>
+                  {rollingOver ? "Wird verarbeitet..." : `→ Saison ${(league?.current_season ?? 1) + 1} starten`}
+                </button>
+              </div>
+
+              {/* Saison-Historik */}
+              {dynastySeasonHistory.length > 0 && (() => {
+                const seasons = [...new Set(dynastySeasonHistory.map((r: any) => r.season))].sort((a, b) => b - a);
+                return (
+                  <div>
+                    <p className="text-[8px] font-black uppercase mb-2" style={{ color: "#5a7a8a" }}>
+                      Saison-Historie
+                    </p>
+                    {seasons.map(s => {
+                      const rows = dynastySeasonHistory.filter((r: any) => r.season === s);
+                      return (
+                        <div key={s} className="mb-3 rounded-xl overflow-hidden"
+                          style={{ border: "1px solid #1a2a3a" }}>
+                          <div className="px-3 py-1.5" style={{ background: "#0c1620" }}>
+                            <p className="text-[8px] font-black uppercase" style={{ color: "#4a9eff" }}>
+                              Saison {s}
+                            </p>
+                          </div>
+                          {rows.map((r: any) => (
+                            <div key={r.id} className="flex items-center justify-between px-3 py-1.5"
+                              style={{ background: "#060c14", borderTop: "1px solid #0d1a24" }}>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[8px] font-black w-4 text-center"
+                                  style={{ color: r.final_rank <= 3 ? "#f5a623" : "#5a4020" }}>
+                                  #{r.final_rank}
+                                </span>
+                                <span className="text-[9px] font-black" style={{ color: "#c8b080" }}>
+                                  {r.teams?.name}
+                                </span>
+                              </div>
+                              <span className="text-[9px] font-black" style={{ color: "#f5a623" }}>
+                                {r.total_points?.toFixed(1)} pts
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

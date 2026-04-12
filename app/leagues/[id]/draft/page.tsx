@@ -105,8 +105,19 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     const myT = (teamsData || []).find((t: any) => t.user_id === userId);
     setMyTeam(myT);
 
-    const { data: session } = await supabase
-      .from("draft_sessions").select("*").eq("league_id", leagueId).maybeSingle();
+    // In Dynasty-Ligen: aktuellste Session (nach Saison gefiltert)
+    const currentSeason = leagueData?.current_season ?? 1;
+    const sessionQuery  = supabase
+      .from("draft_sessions").select("*").eq("league_id", leagueId);
+    // Wenn Saison-Spalte existiert, filtere danach; sonst nimm letzte
+    const { data: sessionData } = await sessionQuery
+      .eq("season", currentSeason).maybeSingle();
+    // Fallback: kein season-Filter (alter Datensatz ohne Spalte)
+    const { data: sessionFallback } = !sessionData
+      ? await supabase.from("draft_sessions").select("*").eq("league_id", leagueId)
+          .order("created_at", { ascending: false }).limit(1).maybeSingle()
+      : { data: null };
+    const session = sessionData || sessionFallback;
 
     if (session) {
       setDraftSession(session);
@@ -119,7 +130,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
       }
     }
 
-    loadPlayers();
+    loadPlayers(session);
   }
 
   async function loadPicks(sessionId: string) {
@@ -133,13 +144,29 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     return picks || [];
   }
 
-  async function loadPlayers() {
+  async function loadPlayers(session?: any) {
     const { data } = await supabase
       .from("players").select("*").order("fpts", { ascending: false });
-    if (data) {
-      setPlayers(data);
-      playersRef.current = data;
+    if (!data) return;
+
+    // Dynasty Rookie-Draft: nur Spieler die in KEINEM Kader dieser Liga sind
+    if (session?.draft_type === "dynasty") {
+      const { data: teamsData } = await supabase
+        .from("teams").select("id").eq("league_id", leagueId);
+      const teamIds = (teamsData || []).map((t: any) => t.id);
+      if (teamIds.length > 0) {
+        const { data: squadRows } = await supabase
+          .from("squad_players").select("player_id").in("team_id", teamIds);
+        const inSquad = new Set((squadRows || []).map((r: any) => r.player_id));
+        const rookies = data.filter(p => !inSquad.has(p.id));
+        setPlayers(rookies);
+        playersRef.current = rookies;
+        return;
+      }
     }
+
+    setPlayers(data);
+    playersRef.current = data;
   }
 
   function startPolling(sessionId: string) {
@@ -191,7 +218,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     const pick = session.current_pick;
     const round = Math.floor(pick / n);
     const posInRound = pick % n;
-    const isSnake = session.draft_type !== "linear";
+    const isSnake = session.draft_type === "snake";
     const idx = (isSnake && round % 2 !== 0) ? (n - 1 - posInRound) : posInRound;
     return allTeams.find((t: any) => t.id === order[idx]);
   }
@@ -457,7 +484,11 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
   const isMyTurn = currentTeam?.user_id === user?.id;
   const pickedIds = new Set(draftPicks.map((p: any) => p.player_id));
   const myPicks = draftPicks.filter((p: any) => p.team_id === myTeam?.id);
-  const totalRounds = 15;
+  const isDynasty = draftSession?.draft_type === "dynasty";
+  // In Dynasty: Runden = total_picks / teams. Sonst: 15
+  const totalRounds = draftSession && teams.length > 0
+    ? Math.ceil((draftSession.total_picks || 15 * teams.length) / Math.max(teams.length, 1))
+    : 15;
   const noLimit = (draftSession?.seconds_per_pick || 0) === 0;
 
   const timerColor = noLimit ? "#f5a623"
@@ -478,7 +509,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     const n = order.length;
     if (n === 0) return [];
     const rows: any[][] = [];
-    const isSnake = draftSession.draft_type !== "linear";
+    const isSnake = draftSession.draft_type === "snake";
     for (let round = 0; round < totalRounds; round++) {
       const row: any[] = [];
       for (let i = 0; i < n; i++) {
@@ -594,7 +625,9 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
   /* ── ACTIVE DRAFT SCREEN ────────────────────────────── */
   const draftN = draftSession.draft_order?.length || 1;
   const currentRound = Math.floor(draftSession.current_pick / draftN) + 1;
-  const draftTypeLabel = draftSession.draft_type === "linear" ? "Dynasty" : "Snake";
+  const draftTypeLabel = draftSession.draft_type === "dynasty"
+    ? `👑 Dynasty S${draftSession.season ?? "?"}`
+    : draftSession.draft_type === "linear" ? "Dynasty" : "Snake";
 
   return (
     <main className="flex flex-col overflow-hidden" style={{ background: "#0c0900", height: "100dvh" }}>
