@@ -565,6 +565,11 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const irPlayerIds   = new Set(irSlots.map(s => s.player_id));
   const taxiPlayerIds = new Set(taxiSquad.map(p => p.id));
 
+  // ── F-37: Lineup Lock ───────────────────────────────────────────────
+  const activeGWData  = gameweeks.find((g: any) => g.gameweek === activeGW);
+  const activeGWStatus = activeGWData?.status as string | undefined;
+  const isLocked = activeGWStatus === "active" || activeGWStatus === "finished";
+
   // Für den Selektor: alle Spieler außer IR, Taxi und dem aktuellen Slot-Inhaber
   const currentSlotPlayerId = selectedSlot
     ? (selectedSlot.type === "xi"
@@ -680,10 +685,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             {myTeam?.name || "Mein Team"}
           </p>
         </div>
-        <button onClick={saveLineup} disabled={saving || activeTab !== "lineup"}
+        <button onClick={saveLineup} disabled={saving || activeTab !== "lineup" || isLocked}
           className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
-          style={{ background: saved ? "#00ce7d" : activeTab === "lineup" ? "#f5a623" : "#1a1208", color: "#0c0900" }}>
-          {saving ? "..." : saved ? "✓" : "Speichern"}
+          style={{
+            background: isLocked ? "#1a1208" : saved ? "#00ce7d" : activeTab === "lineup" ? "#f5a623" : "#1a1208",
+            color: isLocked ? "#5a4020" : "#0c0900",
+          }}>
+          {isLocked ? "🔒" : saving ? "..." : saved ? "✓" : "Speichern"}
         </button>
       </div>
 
@@ -756,6 +764,28 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       ════════════════════════════════ */}
       {activeTab === "lineup" && (
         <>
+          {/* F-37: Lock-Banner */}
+          {isLocked && (
+            <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
+              style={{
+                background: activeGWStatus === "finished" ? "#0a1a0a" : "#1a1208",
+                border: `1px solid ${activeGWStatus === "finished" ? "#00ce7d40" : "#f5a62340"}`,
+              }}>
+              <span className="text-base">{activeGWStatus === "finished" ? "✅" : "⚡"}</span>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest"
+                  style={{ color: activeGWStatus === "finished" ? "#00ce7d" : "#f5a623" }}>
+                  {activeGWStatus === "finished" ? "Spieltag abgeschlossen" : "Live — Aufstellung gesperrt"}
+                </p>
+                <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                  {activeGWStatus === "finished"
+                    ? "Punkte wurden berechnet. Live-Subs wurden angewendet."
+                    : "Spieltag läuft. Aufstellung kann nicht mehr geändert werden."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Punkte-Vorschau */}
           <div className="w-full max-w-md flex items-center justify-between mb-3 px-1">
             <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
@@ -772,8 +802,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               Object.keys(FORMATIONS).filter(f => !FORMATIONS[f].rare)
             ).map((f: string) => (
               FORMATIONS[f] && (
-                <button key={f} onClick={() => changeFormation(f)}
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
+                <button key={f} onClick={() => { if (!isLocked) changeFormation(f); }}
+                  disabled={isLocked}
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all disabled:opacity-30"
                   style={{
                     background: formation === f ? "#f5a623" : "#141008",
                     color: formation === f ? "#0c0900" : "#5a4020",
@@ -806,6 +837,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     return (
                       <div key={slotIndex}
                         onClick={() => {
+                          if (isLocked) return;
                           if (player) {
                             setSelectedSlot(null);
                             setModalData({ player, slotType: "xi", slotIndex });
@@ -813,8 +845,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                             setSelectedSlot(isSelected ? null : { type: "xi", index: slotIndex });
                           }
                         }}
-                        className="flex flex-col items-center cursor-pointer transition-all"
-                        style={{ width: 60 }}>
+                        className="flex flex-col items-center transition-all"
+                        style={{ width: 60, cursor: isLocked ? "default" : "pointer" }}>
                         <PlayerCircle
                           player={player} posColor={posColor}
                           selected={isSelected} posLabel={position}
@@ -857,6 +889,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     return (
                       <div key={i}
                         onClick={() => {
+                          if (isLocked) return;
                           if (player) {
                             setSelectedSlot(null);
                             setModalData({ player, slotType: "bench", slotIndex: i });
@@ -864,8 +897,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                             setSelectedSlot(isSelected ? null : { type: "bench", index: i });
                           }
                         }}
-                        className="flex flex-col items-center p-2 rounded-xl cursor-pointer transition-all"
+                        className="flex flex-col items-center p-2 rounded-xl transition-all"
                         style={{
+                          cursor: isLocked ? "default" : "pointer",
                           width: "calc(25% - 6px)", minWidth: 64,
                           background: isOverflow ? "#1a0808" : isSelected ? "#1a1208" : "#141008",
                           border: `1px solid ${isOverflow ? "#ff4d6d40" : isSelected ? "#f5a623" : "#2a2010"}`,

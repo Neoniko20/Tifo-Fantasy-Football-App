@@ -1,5 +1,6 @@
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { calcPoints, mergeRules } from "@/lib/scoring";
+import { applyLiveSubs } from "@/lib/live-sub";
 
 /**
  * Shared GW import logic. Used by both:
@@ -101,21 +102,35 @@ export async function computeAndUpsertPoints(
 
   const { data: lineups } = await supabase
     .from("liga_lineups")
-    .select("team_id, starting_xi, captain_id")
+    .select("team_id, starting_xi, bench, captain_id")
     .eq("league_id", leagueId)
     .eq("gameweek", gameweek)
     .in("team_id", teamIds);
 
-  const playerTeamMap: Record<number, { teamId: string; isCaptain: boolean }[]> = {};
+  // Collect all relevant player IDs (XI + bench) so we fetch stats for potential subs
+  type LineupMeta = {
+    teamId: string;
+    startingXI: number[];
+    bench: number[];
+    captainId: number | null;
+  };
+  const lineupMetas: LineupMeta[] = [];
+  const allRelevantIds = new Set<number>();
+
   for (const lu of (lineups || [])) {
-    const xi: number[] = lu.starting_xi || [];
-    for (const pid of xi) {
-      if (!playerTeamMap[pid]) playerTeamMap[pid] = [];
-      playerTeamMap[pid].push({ teamId: lu.team_id, isCaptain: pid === lu.captain_id });
-    }
+    const xi: number[]    = lu.starting_xi || [];
+    const bench: number[] = lu.bench       || [];
+    lineupMetas.push({
+      teamId:    lu.team_id,
+      startingXI: xi,
+      bench,
+      captainId: lu.captain_id ?? null,
+    });
+    xi.forEach(pid    => allRelevantIds.add(pid));
+    bench.forEach(pid => allRelevantIds.add(pid));
   }
 
-  const relevantPlayerIds = Object.keys(playerTeamMap).map(Number);
+  const relevantPlayerIds = Array.from(allRelevantIds);
   if (relevantPlayerIds.length === 0) {
     return {
       ok: true, leagueId, gameweek, apiCallsUsed: 0, playersImported: 0,
@@ -198,6 +213,27 @@ export async function computeAndUpsertPoints(
           if (cs) agg.clean_sheet = true;
         }
       }
+    }
+  }
+
+  // 3b. Build player-minutes map for live-sub logic
+  const playerMinutes: Record<number, number> = {};
+  for (const [pidStr, agg] of Object.entries(playerStats)) {
+    playerMinutes[Number(pidStr)] = agg.minutes;
+  }
+
+  // 3c. Apply live subs → build effective playerTeamMap
+  const playerTeamMap: Record<number, { teamId: string; isCaptain: boolean }[]> = {};
+  for (const meta of lineupMetas) {
+    const { effectiveXI } = applyLiveSubs(
+      meta.startingXI,
+      meta.bench,
+      playerMinutes,
+      playerPositionMap,
+    );
+    for (const pid of effectiveXI) {
+      if (!playerTeamMap[pid]) playerTeamMap[pid] = [];
+      playerTeamMap[pid].push({ teamId: meta.teamId, isCaptain: pid === meta.captainId });
     }
   }
 
