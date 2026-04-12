@@ -11,10 +11,10 @@ const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamN
 const leagueAsset = (apId: number) => (tsdbLeagues as Record<string, any>)[String(apId)] || null;
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623",
-  DF: "#4a9eff",
-  MF: "#00ce7d",
-  FW: "#ff4d6d",
+  GK: "var(--color-primary)",
+  DF: "var(--color-info)",
+  MF: "var(--color-success)",
+  FW: "var(--color-error)",
 };
 
 const POS_LABEL: Record<string, string> = {
@@ -344,7 +344,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "#0c0900", color: "#2a2010" }}>
+      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
       Lade...
     </main>
   );
@@ -353,7 +353,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
 
   return (
     <main className="flex min-h-screen flex-col items-center pb-24"
-      style={{ background: "#0c0900", paddingTop: 80 }}>
+      style={{ background: "var(--bg-page)", paddingTop: 80 }}>
 
       <LeagueTopNav
         leagueId={leagueId}
@@ -367,7 +367,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
         {/* Success message */}
         {savedMsg && (
           <div className="mb-3 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center"
-            style={{ background: "#0a1a0a", color: "#00ce7d", border: "1px solid #00ce7d40" }}>
+            style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)", border: "1px solid var(--color-success)40" }}>
             {savedMsg}
           </div>
         )}
@@ -378,9 +378,9 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
             <button key={m} onClick={() => setViewMode(m)}
               className="flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
               style={{
-                background: viewMode === m ? "#f5a623" : "#141008",
-                color: viewMode === m ? "#0c0900" : "#5a4020",
-                border: `1px solid ${viewMode === m ? "#f5a623" : "#2a2010"}`,
+                background: viewMode === m ? "var(--color-primary)" : "var(--bg-card)",
+                color: viewMode === m ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${viewMode === m ? "var(--color-primary)" : "var(--color-border)"}`,
               }}>
               {m === "available" ? "Verfügbar" : "Alle Spieler"}
             </button>
@@ -395,12 +395,12 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-full px-3 py-2 rounded-xl text-xs font-black outline-none"
-            style={{ background: "#141008", border: "1px solid #2a2010", color: "#c8b080" }}
+            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
           />
           {search && (
             <button onClick={() => setSearch("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-sm"
-              style={{ color: "#5a4020" }}>✕</button>
+              style={{ color: "var(--color-muted)" }}>✕</button>
           )}
         </div>
 
@@ -410,9 +410,9 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
             <button key={pos} onClick={() => setPosFilter(pos)}
               className="flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all"
               style={{
-                background: posFilter === pos ? "#f5a623" : "#141008",
-                color: posFilter === pos ? "#0c0900" : "#5a4020",
-                border: `1px solid ${posFilter === pos ? "#f5a623" : "#2a2010"}`,
+                background: posFilter === pos ? "var(--color-primary)" : "var(--bg-card)",
+                color: posFilter === pos ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${posFilter === pos ? "var(--color-primary)" : "var(--color-border)"}`,
               }}>
               {pos === "ALL" ? "Alle" : pos === "GK" ? "TW" : pos === "DF" ? "ABW" : pos}
             </button>
@@ -430,9 +430,9 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
             <button key={key} onClick={() => setSortBy(key)}
               className="flex-1 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all"
               style={{
-                background: sortBy === key ? "#1a1208" : "transparent",
-                color: sortBy === key ? "#f5a623" : "#3a2a10",
-                border: `1px solid ${sortBy === key ? "#f5a62340" : "transparent"}`,
+                background: sortBy === key ? "var(--bg-elevated)" : "transparent",
+                color: sortBy === key ? "var(--color-primary)" : "var(--color-border-subtle)",
+                border: `1px solid ${sortBy === key ? "var(--color-primary)40" : "transparent"}`,
               }}>
               {sortBy === key ? "▾ " : ""}{label}
             </button>
@@ -441,7 +441,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
 
         {/* Empty state — only for "all" with no filter */}
         {viewMode === "all" && search.length < 2 && posFilter === "ALL" ? (
-          <div className="text-center py-12" style={{ color: "#2a2010" }}>
+          <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
             <p className="text-3xl mb-3">🔍</p>
             <p className="text-[9px] font-black uppercase tracking-widest">
               Name eingeben oder Position wählen
@@ -449,9 +449,9 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
           </div>
         ) : searching ? (
           <div className="text-center py-8 text-[9px] font-black uppercase tracking-widest animate-pulse"
-            style={{ color: "#2a2010" }}>Suche...</div>
+            style={{ color: "var(--color-border)" }}>Suche...</div>
         ) : players.length === 0 ? (
-          <div className="text-center py-12" style={{ color: "#2a2010" }}>
+          <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
             <p className="text-[9px] font-black uppercase tracking-widest">Keine Spieler gefunden</p>
           </div>
         ) : (
@@ -462,11 +462,11 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
               <div className="flex-1" />
               <div className="flex gap-3 flex-shrink-0 text-right">
                 <span className="text-[7px] font-black uppercase w-7"
-                  style={{ color: sortBy === "goals" ? "#f5a623" : "#2a2010" }}>Tore</span>
+                  style={{ color: sortBy === "goals" ? "var(--color-primary)" : "var(--color-border)" }}>Tore</span>
                 <span className="text-[7px] font-black uppercase w-7"
-                  style={{ color: sortBy === "assists" ? "#f5a623" : "#2a2010" }}>Ass</span>
+                  style={{ color: sortBy === "assists" ? "var(--color-primary)" : "var(--color-border)" }}>Ass</span>
                 <span className="text-[7px] font-black uppercase w-10"
-                  style={{ color: sortBy === "fpts" ? "#f5a623" : "#2a2010" }}>FPTS</span>
+                  style={{ color: sortBy === "fpts" ? "var(--color-primary)" : "var(--color-border)" }}>FPTS</span>
               </div>
               <div className="w-5 flex-shrink-0" />
             </div>
@@ -484,8 +484,8 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     }}
                     className="w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left"
                     style={{
-                      background: isMine ? "#0f1a0a" : isTaken ? "#0d0d0d" : "#141008",
-                      border: `1px solid ${isMine ? "#00ce7d40" : "#2a2010"}`,
+                      background: isMine ? "color-mix(in srgb, var(--color-success) 8%, var(--bg-page))" : isTaken ? "var(--bg-elevated)" : "var(--bg-card)",
+                      border: `1px solid ${isMine ? "var(--color-success)40" : "var(--color-border)"}`,
                       opacity: isTaken ? 0.55 : 1,
                     }}>
 
@@ -493,13 +493,13 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     <div className="relative flex-shrink-0">
                       <img src={p.photo_url || "/player-placeholder.png"} alt={p.name}
                         className="w-10 h-10 rounded-full object-cover"
-                        style={{ border: `2px solid ${POS_COLOR[p.position] || "#2a2010"}` }} />
+                        style={{ border: `2px solid ${POS_COLOR[p.position] || "var(--color-border)"}` }} />
                       {p.api_team_id && (
                         <img
                           src={`https://media.api-sports.io/football/teams/${p.api_team_id}.png`}
                           alt=""
                           className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full object-contain"
-                          style={{ background: "#0c0900", padding: 1 }}
+                          style={{ background: "var(--bg-page)", padding: 1 }}
                         />
                       )}
                     </div>
@@ -507,15 +507,15 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {/* Name + club */}
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-xs truncate"
-                        style={{ color: isMine ? "#00ce7d" : isTaken ? "#5a4020" : "#c8b080" }}>
+                        style={{ color: isMine ? "var(--color-success)" : isTaken ? "var(--color-muted)" : "var(--color-text)" }}>
                         {p.name}
                       </p>
-                      <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                      <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                         <span style={{ color: POS_COLOR[p.position] }}>{POS_LABEL[p.position] || p.position}</span>
                         {" · "}{p.team_name}
                       </p>
                       {isTaken && p.ownerTeamName && (
-                        <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "#3a2a10" }}>
+                        <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-border-subtle)" }}>
                           @ {p.ownerTeamName}
                         </p>
                       )}
@@ -525,19 +525,19 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     <div className="flex gap-3 flex-shrink-0 text-right">
                       <div className="w-7">
                         <p className="font-black text-xs"
-                          style={{ color: (p.goals ?? 0) > 0 ? "#c8b080" : "#2a2010" }}>
+                          style={{ color: (p.goals ?? 0) > 0 ? "var(--color-text)" : "var(--color-border)" }}>
                           {p.goals ?? 0}
                         </p>
                       </div>
                       <div className="w-7">
                         <p className="font-black text-xs"
-                          style={{ color: (p.assists ?? 0) > 0 ? "#c8b080" : "#2a2010" }}>
+                          style={{ color: (p.assists ?? 0) > 0 ? "var(--color-text)" : "var(--color-border)" }}>
                           {p.assists ?? 0}
                         </p>
                       </div>
                       <div className="w-10">
                         <p className="font-black text-xs"
-                          style={{ color: "#c8b080" }}>
+                          style={{ color: "var(--color-text)" }}>
                           {p.fpts?.toFixed(1)}
                         </p>
                       </div>
@@ -547,13 +547,13 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     <div className="flex-shrink-0">
                       {isMine ? (
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
-                          style={{ background: "#00ce7d20", color: "#00ce7d" }}>✓</span>
+                          style={{ background: "var(--color-success)20", color: "var(--color-success)" }}>✓</span>
                       ) : isTaken ? (
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
-                          style={{ background: "#2a2010", color: "#3a2a10" }}>•</span>
+                          style={{ background: "var(--color-border)", color: "var(--color-border-subtle)" }}>•</span>
                       ) : (
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
-                          style={{ background: "#0a1a0a", color: "#00ce7d" }}>+</span>
+                          style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)" }}>+</span>
                       )}
                     </div>
                   </button>
@@ -566,7 +566,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
 
       {/* Full Player Card Overlay */}
       {actionPlayer && (() => {
-        const posColor = POS_COLOR[actionPlayer.position] || "#c8b080";
+        const posColor = POS_COLOR[actionPlayer.position] || "var(--color-text)";
         const club = clubAsset(actionPlayer.team_name);
         const c1 = club?.colour1 || null;
         const heroBg = c1
@@ -584,11 +584,11 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
             style={{ zIndex: 60, background: "rgba(0,0,0,0.7)" }}
             onClick={e => { if (e.target === e.currentTarget) { setActionPlayer(null); setPlayerOut(null); setActionMode(null); } }}>
             <div className="w-full max-w-md rounded-t-3xl flex flex-col"
-              style={{ background: "#0f0d08", maxHeight: "90vh" }}>
+              style={{ background: "var(--bg-page)", maxHeight: "90vh" }}>
 
               {/* Drag handle */}
               <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
-                <div className="w-10 h-1 rounded-full" style={{ background: "#2a2010" }} />
+                <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
               </div>
 
               {/* Hero */}
@@ -611,20 +611,20 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {club?.badge && (
                       <img src={club.badge} alt={actionPlayer.team_name} className="w-4 h-4 object-contain flex-shrink-0" />
                     )}
-                    <p className="text-[8px] font-black uppercase tracking-widest truncate" style={{ color: c1 || "#5a4020" }}>
+                    <p className="text-[8px] font-black uppercase tracking-widest truncate" style={{ color: c1 || "var(--color-muted)" }}>
                       {actionPlayer.team_name}
                     </p>
                   </div>
-                  <p className="text-xl font-black leading-tight" style={{ color: "#f5f0e8" }}>
+                  <p className="text-xl font-black leading-tight" style={{ color: "var(--color-text)" }}>
                     {actionPlayer.name}
                   </p>
                   <div className="flex items-center gap-2 mt-1.5">
                     <span className="text-[8px] font-black px-2 py-0.5 rounded"
-                      style={{ background: posColor, color: "#0c0900" }}>
+                      style={{ background: posColor, color: "var(--bg-page)" }}>
                       {actionPlayer.position}
                     </span>
                     {(playerDetail?.nationality || tsdbPlayer?.nationality) && (
-                      <span className="text-[8px] font-black uppercase" style={{ color: "#3a2a10" }}>
+                      <span className="text-[8px] font-black uppercase" style={{ color: "var(--color-border-subtle)" }}>
                         {playerDetail?.nationality || tsdbPlayer?.nationality}
                       </span>
                     )}
@@ -635,23 +635,23 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                 </div>
                 <button onClick={() => { setActionPlayer(null); setPlayerOut(null); setActionMode(null); }}
                   className="absolute top-3 right-4 w-7 h-7 flex items-center justify-center rounded-full z-10"
-                  style={{ background: "#1a1208", color: "#5a4020" }}>✕</button>
+                  style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}>✕</button>
               </div>
 
               {/* Action band */}
               <div className="mx-5 mb-3 px-3 py-2.5 rounded-xl flex-shrink-0"
-                style={{ background: "#141008", border: `1px solid ${actionPlayer.isMine ? "#f5a62340" : actionPlayer.ownerTeamId ? "#2a2010" : "#00ce7d30"}` }}>
+                style={{ background: "var(--bg-card)", border: `1px solid ${actionPlayer.isMine ? "var(--color-primary)40" : actionPlayer.ownerTeamId ? "var(--color-border)" : "var(--color-success)30"}` }}>
                 {/* Taken by another team */}
                 {actionPlayer.ownerTeamId && !actionPlayer.isMine && (
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>Vergeben an</p>
-                      <p className="text-xs font-black" style={{ color: "#c8b080" }}>{actionPlayer.ownerTeamName}</p>
+                      <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Vergeben an</p>
+                      <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{actionPlayer.ownerTeamName}</p>
                     </div>
                     {myTeam && (
                       <a href={`/leagues/${leagueId}/trades?target=${actionPlayer.ownerTeamId}&player=${actionPlayer.id}`}
                         className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase"
-                        style={{ background: "#2a1a00", color: "#f5a623", border: "1px solid #f5a62330" }}>
+                        style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", color: "var(--color-primary)", border: "1px solid var(--color-primary)30" }}>
                         Trade anfragen
                       </a>
                     )}
@@ -662,12 +662,12 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                 {actionPlayer.isMine && (
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>Status</p>
-                      <p className="text-xs font-black" style={{ color: "#f5a623" }}>Mein Spieler</p>
+                      <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Status</p>
+                      <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>Mein Spieler</p>
                     </div>
                     <button onClick={() => dropPlayerDirect(actionPlayer.id)} disabled={saving}
                       className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all disabled:opacity-50"
-                      style={{ background: "#1a0808", color: "#ff4d6d", border: "1px solid #ff4d6d40" }}>
+                      style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", color: "var(--color-error)", border: "1px solid var(--color-error)40" }}>
                       {saving ? "..." : "✕ Entfernen"}
                     </button>
                   </div>
@@ -678,14 +678,14 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>Status</p>
-                        <p className="text-xs font-black" style={{ color: "#00ce7d" }}>Freier Spieler</p>
+                        <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Status</p>
+                        <p className="text-xs font-black" style={{ color: "var(--color-success)" }}>Freier Spieler</p>
                       </div>
                       <div className="flex gap-2">
                         {!squadFull && (
                           <button onClick={() => addPlayer(actionPlayer)} disabled={saving}
                             className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all disabled:opacity-50"
-                            style={{ background: "#0a1a0a", color: "#00ce7d", border: "1px solid #00ce7d40" }}>
+                            style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)", border: "1px solid var(--color-success)40" }}>
                             {saving ? "..." : "▲ Hinzufügen"}
                           </button>
                         )}
@@ -693,9 +693,9 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                           <button onClick={() => setShowSwap(v => !v)} disabled={saving}
                             className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all disabled:opacity-50"
                             style={{
-                              background: showSwap ? "#2a1a00" : "#1a1208",
-                              color: showSwap ? "#f5a623" : "#c8b080",
-                              border: `1px solid ${showSwap ? "#f5a62340" : "#2a2010"}`,
+                              background: showSwap ? "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))" : "var(--bg-elevated)",
+                              color: showSwap ? "var(--color-primary)" : "var(--color-text)",
+                              border: `1px solid ${showSwap ? "var(--color-primary)40" : "var(--color-border)"}`,
                             }}>
                             ⇄ Austauschen
                           </button>
@@ -704,8 +704,8 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     </div>
                     {showSwap && mySquad.length > 0 && (
                       <div className="space-y-1 max-h-40 overflow-y-auto pt-1"
-                        style={{ borderTop: "1px solid #2a2010" }}>
-                        <p className="text-[7px] font-black uppercase tracking-widest pt-1 pb-0.5" style={{ color: "#2a2010" }}>
+                        style={{ borderTop: "1px solid var(--color-border)" }}>
+                        <p className="text-[7px] font-black uppercase tracking-widest pt-1 pb-0.5" style={{ color: "var(--color-border)" }}>
                           Wen möchtest du rausnehmen?
                         </p>
                         {mySquad.map(sq => (
@@ -714,19 +714,19 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                             disabled={saving}
                             className="w-full flex items-center gap-3 p-2 rounded-xl text-left transition-all"
                             style={{
-                              background: playerOut?.id === sq.id ? "#1a0808" : "#1a1208",
-                              border: `1px solid ${playerOut?.id === sq.id ? "#ff4d6d" : "#2a2010"}`,
+                              background: playerOut?.id === sq.id ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "var(--bg-elevated)",
+                              border: `1px solid ${playerOut?.id === sq.id ? "var(--color-error)" : "var(--color-border)"}`,
                             }}>
                             <img src={sq.photo_url || "/player-placeholder.png"} alt={sq.name}
                               className="w-7 h-7 rounded-full object-cover flex-shrink-0"
                               style={{ border: `1px solid ${POS_COLOR[sq.position]}` }} />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>{sq.name}</p>
-                              <p className="text-[7px] font-black uppercase" style={{ color: "#5a4020" }}>
+                              <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{sq.name}</p>
+                              <p className="text-[7px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                                 {POS_LABEL[sq.position] || sq.position} · {sq.fpts?.toFixed(1)} pts
                               </p>
                             </div>
-                            <span className="text-[8px] font-black flex-shrink-0" style={{ color: "#ff4d6d" }}>▼ Raus</span>
+                            <span className="text-[8px] font-black flex-shrink-0" style={{ color: "var(--color-error)" }}>▼ Raus</span>
                           </button>
                         ))}
                       </div>
@@ -736,17 +736,17 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
 
                 {/* No team (spectator) */}
                 {!myTeam && !actionPlayer.ownerTeamId && (
-                  <p className="text-xs font-black" style={{ color: "#00ce7d" }}>Freier Spieler</p>
+                  <p className="text-xs font-black" style={{ color: "var(--color-success)" }}>Freier Spieler</p>
                 )}
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b flex-shrink-0" style={{ borderColor: "#1a1208" }}>
+              <div className="flex border-b flex-shrink-0" style={{ borderColor: "var(--bg-elevated)" }}>
                 {(["summary", "gamelog", "history", "news"] as const).map(t => (
                   <button key={t} onClick={() => setPlayerTab(t)}
                     className="flex-1 py-2.5 text-[8px] font-black uppercase tracking-widest transition-all"
                     style={{
-                      color: playerTab === t ? posColor : "#2a2010",
+                      color: playerTab === t ? posColor : "var(--color-border)",
                       borderBottom: playerTab === t ? `2px solid ${posColor}` : "2px solid transparent",
                     }}>
                     {t === "summary" ? "Übersicht" : t === "gamelog" ? "Log" : t === "history" ? "Historie" : "News"}
@@ -758,7 +758,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
               <div className="overflow-y-auto flex-1 pb-6">
                 {playerDetailLoading ? (
                   <div className="flex items-center justify-center py-12 text-[9px] font-black uppercase tracking-widest animate-pulse"
-                    style={{ color: "#2a2010" }}>Lade...</div>
+                    style={{ color: "var(--color-border)" }}>Lade...</div>
                 ) : (
                   <>
                     {/* ÜBERSICHT */}
@@ -774,14 +774,14 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                             { label: "Minuten", value: playerGameLog.reduce((s, g) => s + (g.minutes || 0), 0) },
                           ].map(({ label, value, hi }) => (
                             <div key={label} className="p-3 rounded-xl text-center"
-                              style={{ background: "#141008", border: `1px solid ${hi ? posColor + "40" : "#2a2010"}` }}>
-                              <p className="text-lg font-black" style={{ color: hi ? posColor : "#c8b080" }}>{value}</p>
-                              <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "#2a2010" }}>{label}</p>
+                              style={{ background: "var(--bg-card)", border: `1px solid ${hi ? posColor + "40" : "var(--color-border)"}` }}>
+                              <p className="text-lg font-black" style={{ color: hi ? posColor : "var(--color-text)" }}>{value}</p>
+                              <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-border)" }}>{label}</p>
                             </div>
                           ))}
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                          <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "#2a2010" }}>
+                        <div className="rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                          <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-border)" }}>
                             Saison-Statistiken
                           </p>
                           <div className="grid grid-cols-2 gap-y-2">
@@ -796,8 +796,8 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                               ["Clean Sheets", playerGameLog.filter(g=>g.clean_sheet).length],
                             ].map(([label, val]) => (
                               <div key={String(label)} className="flex items-center justify-between">
-                                <span className="text-[9px]" style={{ color: "#5a4020" }}>{label}</span>
-                                <span className="text-sm font-black" style={{ color: "#c8b080" }}>{val}</span>
+                                <span className="text-[9px]" style={{ color: "var(--color-muted)" }}>{label}</span>
+                                <span className="text-sm font-black" style={{ color: "var(--color-text)" }}>{val}</span>
                               </div>
                             ))}
                           </div>
@@ -809,29 +809,29 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {playerTab === "gamelog" && (
                       <div className="p-4 space-y-2">
                         {playerGameLog.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                             Noch keine Spieltag-Daten
                           </p>
                         ) : playerGameLog.map(g => (
                           <div key={g.id} className="rounded-xl overflow-hidden"
-                            style={{ background: "#141008", border: "1px solid #2a2010" }}>
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
                             <div className="px-3 py-1.5 flex items-center justify-between"
-                              style={{ borderBottom: "1px solid #1a1208" }}>
+                              style={{ borderBottom: "1px solid var(--bg-elevated)" }}>
                               <span className="text-[9px] font-black" style={{ color: posColor }}>GW{g.gameweek}</span>
                               <span className="text-sm font-black" style={{ color: posColor }}>{g.points?.toFixed(1) || "0.0"} Pts</span>
                             </div>
                             <div className="grid grid-cols-5 gap-1 px-3 py-2">
                               {[["TOR", g.goals||0], ["ASS", g.assists||0], ["MIN", g.minutes||0], ["CS", g.clean_sheet?"✓":"—"], ["KP", g.key_passes||0]].map(([l, v]) => (
                                 <div key={String(l)} className="text-center">
-                                  <p className="text-[7px] uppercase" style={{ color: "#2a2010" }}>{l}</p>
-                                  <p className="text-xs font-black" style={{ color: "#c8b080" }}>{v}</p>
+                                  <p className="text-[7px] uppercase" style={{ color: "var(--color-border)" }}>{l}</p>
+                                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{v}</p>
                                 </div>
                               ))}
                             </div>
                             {g.is_captain && (
                               <div className="px-3 pb-2">
                                 <span className="text-[7px] font-black px-2 py-0.5 rounded-full"
-                                  style={{ background: "#f5a62320", color: "#f5a623" }}>C Kapitän ×2</span>
+                                  style={{ background: "var(--color-primary)20", color: "var(--color-primary)" }}>C Kapitän ×2</span>
                               </div>
                             )}
                           </div>
@@ -843,28 +843,28 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {playerTab === "history" && (
                       <div className="p-4">
                         {playerHistory.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                             Keine Historie vorhanden
                           </p>
                         ) : (
                           <div className="relative pl-5">
-                            <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "#2a2010" }} />
+                            <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "var(--color-border)" }} />
                             {playerHistory.map((h, i) => {
-                              const hColor = { draft: "#f5a623", transfer_in: "#00ce7d", transfer_out: "#ff4d6d", trade: "#4a9eff" }[h.type as string] || "#c8b080";
+                              const hColor = { draft: "var(--color-primary)", transfer_in: "var(--color-success)", transfer_out: "var(--color-error)", trade: "var(--color-info)" }[h.type as string] || "var(--color-text)";
                               const hIcon = { draft: "🏈", transfer_in: "▲", transfer_out: "▼", trade: "⇄" }[h.type as string] || "·";
                               return (
                                 <div key={i} className="relative mb-3">
                                   <div className="absolute -left-3 top-3 w-2.5 h-2.5 rounded-full"
                                     style={{ background: hColor }} />
                                   <div className="p-3 rounded-xl ml-2"
-                                    style={{ background: "#141008", border: `1px solid ${hColor}25` }}>
+                                    style={{ background: "var(--bg-card)", border: `1px solid ${hColor}25` }}>
                                     <div className="flex items-center justify-between mb-0.5">
                                       <span className="text-[9px] font-black uppercase" style={{ color: hColor }}>
                                         {hIcon} {h.detail}
                                       </span>
-                                      <span className="text-[7px]" style={{ color: "#2a2010" }}>{formatD(h.date)}</span>
+                                      <span className="text-[7px]" style={{ color: "var(--color-border)" }}>{formatD(h.date)}</span>
                                     </div>
-                                    <p className="text-xs font-black" style={{ color: "#c8b080" }}>{h.team}</p>
+                                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{h.team}</p>
                                   </div>
                                 </div>
                               );
@@ -878,16 +878,16 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {playerTab === "news" && (
                       <div className="p-4 space-y-2">
                         {playerNewsLoading ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "#2a2010" }}>Lade News...</p>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "var(--color-border)" }}>Lade News...</p>
                         ) : playerNews.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>Keine News gefunden</p>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine News gefunden</p>
                         ) : playerNews.slice(0, 5).map((n: any, i: number) => (
                           <a key={i} href={n.link || "#"} target="_blank" rel="noopener noreferrer"
                             className="block p-3 rounded-xl transition-opacity hover:opacity-80"
-                            style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                            <p className="text-xs font-black leading-snug" style={{ color: "#c8b080" }}>{n.title}</p>
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                            <p className="text-xs font-black leading-snug" style={{ color: "var(--color-text)" }}>{n.title}</p>
                             {n.pubDate && (
-                              <p className="text-[7px] font-black uppercase mt-1" style={{ color: "#3a2a10" }}>
+                              <p className="text-[7px] font-black uppercase mt-1" style={{ color: "var(--color-border-subtle)" }}>
                                 {new Date(n.pubDate).toLocaleDateString("de-DE", { day: "2-digit", month: "short" })}
                               </p>
                             )}

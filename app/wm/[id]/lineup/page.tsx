@@ -8,10 +8,10 @@ import type { Position } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623",
-  DF: "#4a9eff",
-  MF: "#00ce7d",
-  FW: "#ff4d6d",
+  GK: "var(--color-primary)",
+  DF: "var(--color-info)",
+  MF: "var(--color-success)",
+  FW: "var(--color-error)",
 };
 
 type Player = {
@@ -216,20 +216,20 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
     : [];
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#f5a623" }} />
+        style={{ background: "var(--color-primary)" }} />
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-4">
         <button onClick={() => window.location.href = `/wm/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
           ← WM
         </button>
-        <p className="text-sm font-black" style={{ color: "#f5a623" }}>Aufstellung</p>
+        <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>Aufstellung</p>
         <button onClick={saveLineup} disabled={saving}
           className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all"
-          style={{ background: saved ? "#00ce7d" : "#f5a623", color: "#0c0900" }}>
+          style={{ background: saved ? "var(--color-success)" : "var(--color-primary)", color: "var(--bg-page)" }}>
           {saving ? "..." : saved ? "✓ Gespeichert" : "Speichern"}
         </button>
       </div>
@@ -241,9 +241,9 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
             <button key={f} onClick={() => changeFormation(f)}
               className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
               style={{
-                background: formation === f ? "#f5a623" : "#141008",
-                color: formation === f ? "#0c0900" : "#5a4020",
-                border: `1px solid ${formation === f ? "#f5a623" : "#2a2010"}`,
+                background: formation === f ? "var(--color-primary)" : "var(--bg-card)",
+                color: formation === f ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${formation === f ? "var(--color-primary)" : "var(--color-border)"}`,
               }}>
               {f}
             </button>
@@ -253,20 +253,20 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
 
       {/* Spielfeld */}
       <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4"
-        style={{ background: "#0a1a0a", border: "1px solid #1a2a1a", minHeight: 360 }}>
+        style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid #1a2a1a", minHeight: 360 }}>
         {/* Feld-Markierungen */}
         <div className="relative p-3" style={{ background: "linear-gradient(180deg, #0a1a0a 0%, #081408 100%)" }}>
           {/* Mittellinie */}
-          <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "#00ce7d" }} />
+          <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "var(--color-success)" }} />
           <div className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full border opacity-10 -translate-x-1/2 -translate-y-1/2"
-            style={{ borderColor: "#00ce7d" }} />
+            style={{ borderColor: "var(--color-success)" }} />
 
           {rows.map(({ row, slots }) => (
             <div key={row} className="flex justify-center gap-2 mb-3">
               {slots.map(({ position, slotIndex }) => {
                 const player = startingXI[slotIndex];
                 const isSelected = selectedSlot?.type === "xi" && selectedSlot.index === slotIndex;
-                const posColor = POS_COLOR[position] || "#c8b080";
+                const posColor = POS_COLOR[position] || "var(--color-text)";
                 const isCap = player?.id === captainId;
                 const isVC = player?.id === viceCaptainId;
 
@@ -278,39 +278,39 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                     {/* Avatar */}
                     <div className="w-12 h-12 rounded-full flex items-center justify-center relative"
                       style={{
-                        border: `2px solid ${isSelected ? "#f5a623" : player ? posColor : "#2a2010"}`,
-                        background: player ? "#141008" : "#0c1a0c",
+                        border: `2px solid ${isSelected ? "var(--color-primary)" : player ? posColor : "var(--color-border)"}`,
+                        background: player ? "var(--bg-card)" : "var(--bg-page)",
                         boxShadow: isSelected ? `0 0 12px ${posColor}60` : undefined,
                       }}>
                       {player?.photo_url ? (
                         <img src={player.photo_url} className="w-full h-full rounded-full object-cover" alt="" />
                       ) : (
-                        <span className="text-lg" style={{ color: isSelected ? "#f5a623" : "#2a2010" }}>
+                        <span className="text-lg" style={{ color: isSelected ? "var(--color-primary)" : "var(--color-border)" }}>
                           {isSelected ? "+" : position}
                         </span>
                       )}
                       {/* Captain-Badge */}
                       {isCap && (
                         <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center"
-                          style={{ background: "#f5a623", color: "#0c0900" }}>C</span>
+                          style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>C</span>
                       )}
                       {isVC && !isCap && (
                         <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center"
-                          style={{ background: "#5a4020", color: "#f5a623" }}>V</span>
+                          style={{ background: "var(--color-muted)", color: "var(--color-primary)" }}>V</span>
                       )}
                     </div>
                     {/* Name */}
                     <p className="text-[8px] font-black text-center leading-tight mt-1 truncate w-full"
-                      style={{ color: player ? "#c8b080" : "#2a2010" }}>
+                      style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
                       {player ? player.name.split(" ").pop() : position}
                     </p>
                     {player && (
                       <div className="flex gap-1 mt-0.5">
-                        <span className="text-[7px] font-black" style={{ color: "#f5a623" }}>
+                        <span className="text-[7px] font-black" style={{ color: "var(--color-primary)" }}>
                           {player.fpts?.toFixed(0)}
                         </span>
                         <button onClick={e => { e.stopPropagation(); removeFromSlot("xi", slotIndex); }}
-                          className="text-[7px] font-black" style={{ color: "#5a4020" }}>✕</button>
+                          className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>✕</button>
                       </div>
                     )}
                   </div>
@@ -323,7 +323,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
 
       {/* Bank */}
       <div className="w-full max-w-md mb-4">
-        <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#5a4020" }}>
+        <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
           Bank · {bench.filter(Boolean).length}/{maxBench}
         </p>
         <div className="flex gap-2">
@@ -335,29 +335,29 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                 onClick={() => setSelectedSlot(isSelected ? null : { type: "bench", index: i })}
                 className="flex-1 flex flex-col items-center p-2 rounded-xl cursor-pointer transition-all"
                 style={{
-                  background: isSelected ? "#1a1208" : "#141008",
-                  border: `1px solid ${isSelected ? "#f5a623" : "#2a2010"}`,
+                  background: isSelected ? "var(--bg-elevated)" : "var(--bg-card)",
+                  border: `1px solid ${isSelected ? "var(--color-primary)" : "var(--color-border)"}`,
                 }}>
                 <div className="w-9 h-9 rounded-full flex items-center justify-center"
                   style={{
-                    border: `2px solid ${player ? (POS_COLOR[player.position] || "#c8b080") : "#2a2010"}`,
-                    background: "#0c0900",
+                    border: `2px solid ${player ? (POS_COLOR[player.position] || "var(--color-text)") : "var(--color-border)"}`,
+                    background: "var(--bg-page)",
                   }}>
                   {player?.photo_url ? (
                     <img src={player.photo_url} className="w-full h-full rounded-full object-cover" alt="" />
                   ) : (
-                    <span className="text-[10px]" style={{ color: isSelected ? "#f5a623" : "#2a2010" }}>
+                    <span className="text-[10px]" style={{ color: isSelected ? "var(--color-primary)" : "var(--color-border)" }}>
                       {isSelected ? "+" : i + 1}
                     </span>
                   )}
                 </div>
                 <p className="text-[7px] font-black text-center truncate w-full mt-1"
-                  style={{ color: player ? "#c8b080" : "#2a2010" }}>
+                  style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
                   {player ? player.name.split(" ").pop() : "—"}
                 </p>
                 {player && (
                   <button onClick={e => { e.stopPropagation(); removeFromSlot("bench", i); }}
-                    className="text-[7px]" style={{ color: "#5a4020" }}>✕</button>
+                    className="text-[7px]" style={{ color: "var(--color-muted)" }}>✕</button>
                 )}
               </div>
             );
@@ -368,7 +368,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       {/* Spieler-Pool (unassigned) */}
       {selectedSlot && (
         <div className="w-full max-w-md">
-          <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#f5a623" }}>
+          <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-primary)" }}>
             Spieler auswählen für {selectedSlot.type === "xi"
               ? formationConfig?.layout[selectedSlot.index]?.position || "Slot"
               : `Bank ${selectedSlot.index + 1}`}
@@ -379,21 +379,21 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                 !formationConfig?.layout[selectedSlot.index] ||
                 p.position === formationConfig.layout[selectedSlot.index].position)
               .map(player => {
-                const posColor = POS_COLOR[player.position] || "#c8b080";
+                const posColor = POS_COLOR[player.position] || "var(--color-text)";
                 return (
                   <div key={player.id} onClick={() => assignPlayer(player)}
                     className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                    style={{ background: "#141008", border: "1px solid #2a2010" }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = "#f5a623")}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#2a2010")}>
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--color-primary)")}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--color-border)")}>
                     <img src={player.photo_url} className="w-8 h-8 rounded-full flex-shrink-0"
                       style={{ border: `2px solid ${posColor}` }} alt="" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>{player.name}</p>
-                      <p className="text-[8px] truncate" style={{ color: "#5a4020" }}>{player.team_name}</p>
+                      <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{player.name}</p>
+                      <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-black" style={{ color: "#f5a623" }}>{player.fpts?.toFixed(0)}</p>
+                      <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{player.fpts?.toFixed(0)}</p>
                       <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
                         style={{ background: posColor + "30", color: posColor }}>
                         {player.position}
@@ -407,7 +407,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
               !formationConfig?.layout[selectedSlot.index] ||
               p.position === formationConfig.layout[selectedSlot.index].position
             ).length === 0 && (
-              <p className="text-center py-4 text-xs" style={{ color: "#5a4020" }}>
+              <p className="text-center py-4 text-xs" style={{ color: "var(--color-muted)" }}>
                 Keine verfügbaren Spieler für diese Position
               </p>
             )}
@@ -418,7 +418,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       {/* Kapitän setzen (wenn kein Slot ausgewählt) */}
       {!selectedSlot && startingXI.filter(Boolean).length > 0 && (
         <div className="w-full max-w-md mt-2">
-          <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#5a4020" }}>
+          <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
             Kapitän & Vize-Kapitän
           </p>
           <div className="flex gap-1.5 flex-wrap">
@@ -436,16 +436,16 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                   }}
                   className="px-2.5 py-1.5 rounded-lg text-[9px] font-black transition-all"
                   style={{
-                    background: isCap ? "#f5a623" : isVC ? "#5a4020" : "#141008",
-                    color: isCap ? "#0c0900" : isVC ? "#f5a623" : "#5a4020",
-                    border: `1px solid ${isCap ? "#f5a623" : isVC ? "#5a4020" : "#2a2010"}`,
+                    background: isCap ? "var(--color-primary)" : isVC ? "var(--color-muted)" : "var(--bg-card)",
+                    color: isCap ? "var(--bg-page)" : isVC ? "var(--color-primary)" : "var(--color-muted)",
+                    border: `1px solid ${isCap ? "var(--color-primary)" : isVC ? "var(--color-muted)" : "var(--color-border)"}`,
                   }}>
                   {isCap ? "© " : isVC ? "V " : ""}{player!.name.split(" ").pop()}
                 </button>
               );
             })}
           </div>
-          <p className="text-[8px] mt-1" style={{ color: "#2a2010" }}>
+          <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>
             Tippe zweimal für Vize-Kapitän · Kapitän × 2 Punkte · Vize × 1.5
           </p>
         </div>

@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
+  GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
 };
 
 const STAT_LABELS: { key: string; label: string; short: string }[] = [
@@ -174,18 +174,18 @@ export default function PlayerDetailPage({
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "#0c0900", color: "#2a2010" }}>
+      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
       Lade Spieler...
     </main>
   );
 
   if (!player) return (
-    <main className="flex min-h-screen items-center justify-center" style={{ background: "#0c0900", color: "#5a4020" }}>
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)", color: "var(--color-muted)" }}>
       Spieler nicht gefunden.
     </main>
   );
 
-  const posColor = POS_COLOR[player.position] || "#c8b080";
+  const posColor = POS_COLOR[player.position] || "var(--color-text)";
   const isMine = ownerTeam?.user_id === user?.id;
   const seasonPts = gameLog.reduce((s, g) => s + (g.points || 0), 0);
   const avgPts = gameLog.length > 0 ? seasonPts / gameLog.length : 0;
@@ -199,18 +199,18 @@ export default function PlayerDetailPage({
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center pb-28" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center pb-28" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-96 h-48 rounded-full blur-3xl opacity-10 pointer-events-none"
         style={{ background: posColor }} />
 
       {/* Header mit Spieler-Bild */}
       <div className="w-full max-w-md relative overflow-hidden"
-        style={{ background: `linear-gradient(180deg, ${posColor}15 0%, #0c0900 100%)` }}>
+        style={{ background: `linear-gradient(180deg, ${posColor}15 0%, var(--bg-page) 100%)` }}>
         <div className="flex items-end gap-4 p-4 pt-6">
           {/* Zurück */}
           <button onClick={() => window.history.back()}
             className="absolute top-4 left-4 text-[9px] font-black uppercase tracking-widest z-10"
-            style={{ color: "#5a4020" }}>
+            style={{ color: "var(--color-muted)" }}>
             ←
           </button>
 
@@ -223,14 +223,14 @@ export default function PlayerDetailPage({
               style={{ border: `2px solid ${posColor}40` }}
             />
             <span className="absolute -bottom-1 -right-1 text-[9px] font-black px-2 py-0.5 rounded-full"
-              style={{ background: posColor, color: "#0c0900" }}>
+              style={{ background: posColor, color: "var(--bg-page)" }}>
               {player.position}
             </span>
           </div>
 
           {/* Info */}
           <div className="flex-1 pb-1">
-            <p className="text-xl font-black leading-tight" style={{ color: "#f5f0e8" }}>
+            <p className="text-xl font-black leading-tight" style={{ color: "var(--color-text)" }}>
               {player.name}
             </p>
             <p className="text-sm font-black mt-0.5" style={{ color: posColor }}>
@@ -238,12 +238,12 @@ export default function PlayerDetailPage({
             </p>
             <div className="flex gap-3 mt-1.5">
               {player.nationality && (
-                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                   {player.nationality}
                 </span>
               )}
               {player.rating > 0 && (
-                <span className="text-[9px] font-black" style={{ color: "#f5a623" }}>
+                <span className="text-[9px] font-black" style={{ color: "var(--color-primary)" }}>
                   ★ {player.rating?.toFixed(1)}
                 </span>
               )}
@@ -253,14 +253,14 @@ export default function PlayerDetailPage({
 
         {/* Besitzer-Band */}
         <div className="mx-4 mb-4 px-3 py-2 rounded-xl flex items-center justify-between"
-          style={{ background: "#141008", border: `1px solid ${isMine ? "#f5a623" : "#2a2010"}` }}>
+          style={{ background: "var(--bg-card)", border: `1px solid ${isMine ? "var(--color-primary)" : "var(--color-border)"}` }}>
           {ownerTeam ? (
             <>
               <div>
-                <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                   Besitzer
                 </p>
-                <p className="text-xs font-black" style={{ color: isMine ? "#f5a623" : "#c8b080" }}>
+                <p className="text-xs font-black" style={{ color: isMine ? "var(--color-primary)" : "var(--color-text)" }}>
                   {ownerTeam.name} {isMine && "· Mein Team"}
                 </p>
               </div>
@@ -268,7 +268,7 @@ export default function PlayerDetailPage({
                 <button
                   onClick={() => window.location.href = `/leagues/${leagueId}/transfers`}
                   className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"
-                  style={{ background: "#2a2010", color: "#c8b080" }}>
+                  style={{ background: "var(--color-border)", color: "var(--color-text)" }}>
                   Transfer
                 </button>
               )}
@@ -276,7 +276,7 @@ export default function PlayerDetailPage({
                 <button
                   onClick={() => window.location.href = `/leagues/${leagueId}/trades?target=${ownerTeam.id}&player=${player.id}`}
                   className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"
-                  style={{ background: "#141008", border: "1px solid #2a2010", color: "#5a4020" }}>
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
                   Trade anfragen
                 </button>
               )}
@@ -284,13 +284,13 @@ export default function PlayerDetailPage({
           ) : (
             <div className="flex items-center justify-between w-full">
               <div>
-                <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>Status</p>
-                <p className="text-xs font-black" style={{ color: "#00ce7d" }}>Freier Spieler</p>
+                <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Status</p>
+                <p className="text-xs font-black" style={{ color: "var(--color-success)" }}>Freier Spieler</p>
               </div>
               <button
                 onClick={() => window.location.href = `/leagues/${leagueId}/transfers`}
                 className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"
-                style={{ background: "#0a1a0a", border: "1px solid #00ce7d", color: "#00ce7d" }}>
+                style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid var(--color-success)", color: "var(--color-success)" }}>
                 Verpflichten
               </button>
             </div>
@@ -299,12 +299,12 @@ export default function PlayerDetailPage({
       </div>
 
       {/* Tabs */}
-      <div className="flex w-full max-w-md border-b px-4" style={{ borderColor: "#2a2010" }}>
+      <div className="flex w-full max-w-md border-b px-4" style={{ borderColor: "var(--color-border)" }}>
         {(["summary", "gamelog", "history", "news"] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className="flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all"
             style={{
-              color: tab === t ? posColor : "#2a2010",
+              color: tab === t ? posColor : "var(--color-border)",
               borderBottom: tab === t ? `2px solid ${posColor}` : "2px solid transparent",
             }}>
             {t === "summary" ? "Übersicht" : t === "gamelog" ? "Game Log" : t === "history" ? "Historie" : "News"}
@@ -328,16 +328,16 @@ export default function PlayerDetailPage({
                 { label: "Minuten", value: gameLog.reduce((s, g) => s + (g.minutes || 0), 0) },
               ].map(({ label, value, highlight }) => (
                 <div key={label} className="p-3 rounded-xl text-center"
-                  style={{ background: "#141008", border: `1px solid ${highlight ? posColor + "40" : "#2a2010"}` }}>
-                  <p className="text-xl font-black" style={{ color: highlight ? posColor : "#c8b080" }}>{value}</p>
-                  <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "#2a2010" }}>{label}</p>
+                  style={{ background: "var(--bg-card)", border: `1px solid ${highlight ? posColor + "40" : "var(--color-border)"}` }}>
+                  <p className="text-xl font-black" style={{ color: highlight ? posColor : "var(--color-text)" }}>{value}</p>
+                  <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-border)" }}>{label}</p>
                 </div>
               ))}
             </div>
 
             {/* Detaillierte Stats */}
-            <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#2a2010" }}>
+            <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-border)" }}>
                 Saison-Statistiken
               </p>
               <div className="grid grid-cols-2 gap-y-2">
@@ -352,8 +352,8 @@ export default function PlayerDetailPage({
                   { label: "Clean Sheets", val: gameLog.filter(g => g.clean_sheet).length },
                 ].map(({ label, val }) => (
                   <div key={label} className="flex items-center justify-between">
-                    <span className="text-[9px]" style={{ color: "#5a4020" }}>{label}</span>
-                    <span className="text-sm font-black" style={{ color: "#c8b080" }}>{val}</span>
+                    <span className="text-[9px]" style={{ color: "var(--color-muted)" }}>{label}</span>
+                    <span className="text-sm font-black" style={{ color: "var(--color-text)" }}>{val}</span>
                   </div>
                 ))}
               </div>
@@ -366,7 +366,7 @@ export default function PlayerDetailPage({
           <div className="space-y-2">
             {gameLog.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                   Noch keine Spieltag-Daten
                 </p>
               </div>
@@ -374,24 +374,24 @@ export default function PlayerDetailPage({
               <>
                 {/* Header */}
                 <div className="grid grid-cols-6 gap-1 px-2 pb-1"
-                  style={{ borderBottom: "1px solid #2a2010" }}>
+                  style={{ borderBottom: "1px solid var(--color-border)" }}>
                   {["GW","TOR","ASS","MIN","CS","PTS"].map(h => (
-                    <p key={h} className="text-[8px] font-black uppercase text-center" style={{ color: "#2a2010" }}>{h}</p>
+                    <p key={h} className="text-[8px] font-black uppercase text-center" style={{ color: "var(--color-border)" }}>{h}</p>
                   ))}
                 </div>
                 {gameLog.map(g => {
                   const gwInfo = gameweeks[g.gameweek];
                   return (
                     <div key={g.id} className="rounded-xl overflow-hidden"
-                      style={{ background: "#141008", border: "1px solid #2a2010" }}>
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
                       {/* GW Label */}
                       <div className="px-3 py-1.5 flex items-center justify-between"
-                        style={{ borderBottom: "1px solid #1a1208" }}>
+                        style={{ borderBottom: "1px solid var(--bg-elevated)" }}>
                         <span className="text-[9px] font-black" style={{ color: posColor }}>
                           GW{g.gameweek} {gwInfo?.label ? `· ${gwInfo.label}` : ""}
                         </span>
                         {gwInfo?.start_date && (
-                          <span className="text-[8px]" style={{ color: "#2a2010" }}>
+                          <span className="text-[8px]" style={{ color: "var(--color-border)" }}>
                             {new Date(gwInfo.start_date).toLocaleDateString("de-DE", { day: "2-digit", month: "short" })}
                           </span>
                         )}
@@ -407,7 +407,7 @@ export default function PlayerDetailPage({
                           { val: g.points?.toFixed(1) || "0.0", key: "points", highlight: true },
                         ].map(({ val, key, highlight }) => (
                           <p key={key} className="text-center text-xs font-black"
-                            style={{ color: highlight ? posColor : "#c8b080" }}>
+                            style={{ color: highlight ? posColor : "var(--color-text)" }}>
                             {val}
                           </p>
                         ))}
@@ -421,15 +421,15 @@ export default function PlayerDetailPage({
                           { label: "INT", val: g.interceptions || 0 },
                         ].map(({ label, val }) => (
                           <div key={label} className="text-center">
-                            <p className="text-[7px] uppercase" style={{ color: "#2a2010" }}>{label}</p>
-                            <p className="text-[10px] font-black" style={{ color: "#5a4020" }}>{val}</p>
+                            <p className="text-[7px] uppercase" style={{ color: "var(--color-border)" }}>{label}</p>
+                            <p className="text-[10px] font-black" style={{ color: "var(--color-muted)" }}>{val}</p>
                           </div>
                         ))}
                       </div>
                       {g.is_captain && (
                         <div className="px-3 pb-2">
                           <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                            style={{ background: "#f5a62320", color: "#f5a623" }}>
+                            style={{ background: "var(--color-primary)20", color: "var(--color-primary)" }}>
                             C Kapitän × 2 gewertet
                           </span>
                         </div>
@@ -447,20 +447,20 @@ export default function PlayerDetailPage({
           <div className="space-y-2">
             {history.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                   Keine Historie vorhanden
                 </p>
               </div>
             ) : (
               <div className="relative pl-5">
                 {/* Timeline Linie */}
-                <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "#2a2010" }} />
+                <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "var(--color-border)" }} />
                 {history.map((h, i) => {
                   const colors: Record<string, string> = {
-                    draft: "#f5a623",
-                    transfer_in: "#00ce7d",
-                    transfer_out: "#ff4d6d",
-                    trade: "#4a9eff",
+                    draft: "var(--color-primary)",
+                    transfer_in: "var(--color-success)",
+                    transfer_out: "var(--color-error)",
+                    trade: "var(--color-info)",
                   };
                   const icons: Record<string, string> = {
                     draft: "🏈",
@@ -468,24 +468,24 @@ export default function PlayerDetailPage({
                     transfer_out: "▼",
                     trade: "⇄",
                   };
-                  const col = colors[h.type] || "#c8b080";
+                  const col = colors[h.type] || "var(--color-text)";
                   return (
                     <div key={i} className="relative mb-4">
                       {/* Dot */}
                       <div className="absolute -left-3 top-3 w-3 h-3 rounded-full flex items-center justify-center text-[7px]"
-                        style={{ background: col, color: "#0c0900" }}>
+                        style={{ background: col, color: "var(--bg-page)" }}>
                       </div>
                       <div className="p-3 rounded-xl ml-2"
-                        style={{ background: "#141008", border: `1px solid ${col}30` }}>
+                        style={{ background: "var(--bg-card)", border: `1px solid ${col}30` }}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: col }}>
                             {icons[h.type]} {h.detail}
                           </span>
-                          <span className="text-[8px]" style={{ color: "#2a2010" }}>
+                          <span className="text-[8px]" style={{ color: "var(--color-border)" }}>
                             {formatDate(h.date)}
                           </span>
                         </div>
-                        <p className="text-xs font-black" style={{ color: "#c8b080" }}>{h.team}</p>
+                        <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{h.team}</p>
                       </div>
                     </div>
                   );
@@ -500,16 +500,16 @@ export default function PlayerDetailPage({
           <div className="space-y-3">
             {newsLoading ? (
               <div className="text-center py-12 animate-pulse">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                   Lade News...
                 </p>
               </div>
             ) : news.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                   Keine aktuellen News gefunden
                 </p>
-                <p className="text-[8px] mt-2" style={{ color: "#1a1208" }}>
+                <p className="text-[8px] mt-2" style={{ color: "var(--bg-elevated)" }}>
                   Google News · {player.name}
                 </p>
               </div>
@@ -517,15 +517,15 @@ export default function PlayerDetailPage({
               news.map((item, i) => (
                 <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"
                   className="block p-4 rounded-xl transition-all"
-                  style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                  <p className="text-sm font-black leading-snug mb-2" style={{ color: "#c8b080" }}>
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  <p className="text-sm font-black leading-snug mb-2" style={{ color: "var(--color-text)" }}>
                     {item.title}
                   </p>
                   <div className="flex items-center justify-between">
-                    <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                    <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                       {item.source}
                     </span>
-                    <span className="text-[8px]" style={{ color: "#2a2010" }}>
+                    <span className="text-[8px]" style={{ color: "var(--color-border)" }}>
                       {formatNewsDate(item.pubDate)}
                     </span>
                   </div>

@@ -7,7 +7,7 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
+  GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
 };
 
 type Player = {
@@ -174,18 +174,18 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
         waiversEnabled={!!settings?.waiver_enabled}
       />
       <main className="flex min-h-screen flex-col items-center p-4 pt-24 pb-28"
-        style={{ background: "#0c0900" }}>
+        style={{ background: "var(--bg-page)" }}>
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-          style={{ background: "#f5a623" }} />
+          style={{ background: "var(--color-primary)" }} />
 
         {/* Waivers disabled state */}
         {!settings?.waiver_enabled && (
           <div className="text-center py-12">
             <p className="text-4xl mb-2">📋</p>
-            <p className="text-sm font-black" style={{ color: "#5a4020" }}>
+            <p className="text-sm font-black" style={{ color: "var(--color-muted)" }}>
               Waiver Wire ist für diese Liga noch nicht aktiviert
             </p>
-            <p className="text-[9px] font-black mt-1" style={{ color: "#2a2010" }}>
+            <p className="text-[9px] font-black mt-1" style={{ color: "var(--color-border)" }}>
               Der Liga-Admin kann die Funktion in den Einstellungen aktivieren
             </p>
           </div>
@@ -195,10 +195,10 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
           <>
             {/* GW + window status header */}
             <div className="w-full max-w-md flex justify-between items-center mb-5">
-              <p className="text-sm font-black" style={{ color: "#f5a623" }}>Waiver Wire</p>
+              <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>Waiver Wire</p>
               <div className="text-right">
-                <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>GW {currentGW}</p>
-                <p className="text-[9px] font-black" style={{ color: windowOpen ? "#00ce7d" : "#ff4d6d" }}>
+                <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>GW {currentGW}</p>
+                <p className="text-[9px] font-black" style={{ color: windowOpen ? "var(--color-success)" : "var(--color-error)" }}>
                   {windowOpen ? "Fenster offen" : "Fenster zu"}
                 </p>
               </div>
@@ -207,11 +207,11 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
             {/* FAAB budget */}
             {settings?.waiver_budget_enabled && (
               <div className="w-full max-w-md mb-3 flex items-center justify-between px-3 py-2 rounded-xl"
-                style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                   FAAB-Budget
                 </span>
-                <span className="font-black text-lg" style={{ color: "#f5a623" }}>
+                <span className="font-black text-lg" style={{ color: "var(--color-primary)" }}>
                   {myTeam?.faab_budget ?? settings.waiver_budget_starting} Bucks
                 </span>
               </div>
@@ -219,20 +219,20 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
             {/* Status-Bar */}
             <div className="w-full max-w-md rounded-2xl p-4 mb-4 flex items-center justify-between"
-              style={{ background: "#141008", border: "1px solid #2a2010" }}>
+              style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
               <div>
-                <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#5a4020" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>
                   Meine Priority
                 </p>
-                <p className="text-2xl font-black" style={{ color: "#f5a623" }}>
+                <p className="text-2xl font-black" style={{ color: "var(--color-primary)" }}>
                   #{myPriority || "—"}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#5a4020" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>
                   Claims übrig
                 </p>
-                <p className="text-2xl font-black" style={{ color: "#c8b080" }}>
+                <p className="text-2xl font-black" style={{ color: "var(--color-text)" }}>
                   {claimsLeft}
                 </p>
               </div>
@@ -242,7 +242,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
             {/* Offene Claims */}
             {pendingClaims.length > 0 && (
               <div className="w-full max-w-md mb-4">
-                <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#5a4020" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
                   Offene Claims ({pendingClaims.length})
                 </p>
                 <div className="space-y-2">
@@ -251,25 +251,25 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                     const playerOutObj = mySquad.find(p => p.id === claim.player_out);
                     return (
                       <div key={claim.id} className="flex items-center justify-between p-3 rounded-xl"
-                        style={{ background: "#141008", border: "1px solid #2a2010" }}>
+                        style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
                         <div>
-                          <p className="text-xs font-black" style={{ color: "#00ce7d" }}>
+                          <p className="text-xs font-black" style={{ color: "var(--color-success)" }}>
                             + {playerIn?.name || `Spieler #${claim.player_in}`}
                           </p>
                           {playerOutObj && (
-                            <p className="text-[9px]" style={{ color: "#ff4d6d" }}>
+                            <p className="text-[9px]" style={{ color: "var(--color-error)" }}>
                               − {playerOutObj.name}
                             </p>
                           )}
                           {settings?.waiver_budget_enabled && (
-                            <p className="text-[8px] font-black" style={{ color: "#5a4020" }}>
+                            <p className="text-[8px] font-black" style={{ color: "var(--color-muted)" }}>
                               Bid: {claim.bid_amount} Bucks
                             </p>
                           )}
                         </div>
                         <button onClick={() => cancelClaim(claim.id)}
                           className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase"
-                          style={{ background: "#2a1010", color: "#ff4d6d" }}>
+                          style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)" }}>
                           Zurückziehen
                         </button>
                       </div>
@@ -282,33 +282,33 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
             {/* Claim-Formular */}
             {selectedPlayer && (
               <div className="w-full max-w-md mb-4 rounded-2xl p-4"
-                style={{ background: "#141008", border: "1px solid #f5a623" }}>
-                <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#f5a623" }}>
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-primary)" }}>
                   Claim einreichen
                 </p>
                 <div className="flex items-center gap-3 mb-3">
                   <img src={selectedPlayer.photo_url} className="w-10 h-10 rounded-full"
                     style={{ border: `2px solid ${POS_COLOR[selectedPlayer.position]}` }} alt="" />
                   <div>
-                    <p className="font-black text-sm" style={{ color: "#c8b080" }}>{selectedPlayer.name}</p>
-                    <p className="text-[9px]" style={{ color: "#5a4020" }}>{selectedPlayer.team_name}</p>
+                    <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{selectedPlayer.name}</p>
+                    <p className="text-[9px]" style={{ color: "var(--color-muted)" }}>{selectedPlayer.team_name}</p>
                   </div>
-                  <p className="ml-auto font-black text-lg" style={{ color: "#f5a623" }}>
+                  <p className="ml-auto font-black text-lg" style={{ color: "var(--color-primary)" }}>
                     {selectedPlayer.fpts?.toFixed(0)}
                   </p>
                 </div>
 
                 <div className="mb-3">
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#5a4020" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
                     Abgeben (optional)
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     <button onClick={() => setPlayerOut(null)}
                       className="px-2.5 py-1.5 rounded-lg text-[9px] font-black"
                       style={{
-                        background: playerOut === null ? "#f5a623" : "#0c0900",
-                        color: playerOut === null ? "#0c0900" : "#5a4020",
-                        border: "1px solid #2a2010",
+                        background: playerOut === null ? "var(--color-primary)" : "var(--bg-page)",
+                        color: playerOut === null ? "var(--bg-page)" : "var(--color-muted)",
+                        border: "1px solid var(--color-border)",
                       }}>
                       Keinen
                     </button>
@@ -316,9 +316,9 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                       <button key={p.id} onClick={() => setPlayerOut(p.id)}
                         className="px-2.5 py-1.5 rounded-lg text-[9px] font-black"
                         style={{
-                          background: playerOut === p.id ? "#3a1010" : "#0c0900",
-                          color: playerOut === p.id ? "#ff4d6d" : "#5a4020",
-                          border: `1px solid ${playerOut === p.id ? "#ff4d6d" : "#2a2010"}`,
+                          background: playerOut === p.id ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "var(--bg-page)",
+                          color: playerOut === p.id ? "var(--color-error)" : "var(--color-muted)",
+                          border: `1px solid ${playerOut === p.id ? "var(--color-error)" : "var(--color-border)"}`,
                         }}>
                         {p.name.split(" ").pop()}
                       </button>
@@ -328,24 +328,24 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
                 {settings?.waiver_budget_enabled && (
                   <div className="mb-3">
-                    <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
-                      Bid: <span style={{ color: "#f5a623" }}>{bidAmount} Bucks</span>
+                    <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                      Bid: <span style={{ color: "var(--color-primary)" }}>{bidAmount} Bucks</span>
                     </label>
                     <input type="range" min="0" max={settings.waiver_budget_starting || 100}
                       value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))}
-                      className="w-full mt-1 accent-[#f5a623]" />
+                      className="w-full mt-1 accent-[var(--color-primary)]" />
                   </div>
                 )}
 
                 <div className="flex gap-2">
                   <button onClick={() => setSelectedPlayer(null)}
                     className="flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase"
-                    style={{ background: "#2a2010", color: "#5a4020" }}>
+                    style={{ background: "var(--color-border)", color: "var(--color-muted)" }}>
                     Abbrechen
                   </button>
                   <button onClick={submitClaim} disabled={submitting || !windowOpen}
                     className="flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase disabled:opacity-50"
-                    style={{ background: "#f5a623", color: "#0c0900" }}>
+                    style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
                     {submitting ? "..." : "Claim einreichen"}
                   </button>
                 </div>
@@ -354,7 +354,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
             {/* Priority-Liste */}
             <div className="w-full max-w-md mb-4">
-              <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#5a4020" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
                 Waiver-Priorität
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -362,12 +362,12 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                   <div key={p.team_id}
                     className="flex-shrink-0 px-3 py-2 rounded-xl text-center"
                     style={{
-                      background: p.team_id === myTeam?.id ? "#1a1208" : "#141008",
-                      border: `1px solid ${p.team_id === myTeam?.id ? "#f5a623" : "#2a2010"}`,
+                      background: p.team_id === myTeam?.id ? "var(--bg-elevated)" : "var(--bg-card)",
+                      border: `1px solid ${p.team_id === myTeam?.id ? "var(--color-primary)" : "var(--color-border)"}`,
                       minWidth: 72,
                     }}>
-                    <p className="text-[9px] font-black" style={{ color: "#f5a623" }}>#{p.priority}</p>
-                    <p className="text-[8px] truncate" style={{ color: "#5a4020" }}>{p.teams?.name || "—"}</p>
+                    <p className="text-[9px] font-black" style={{ color: "var(--color-primary)" }}>#{p.priority}</p>
+                    <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{p.teams?.name || "—"}</p>
                   </div>
                 ))}
               </div>
@@ -378,16 +378,16 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Spieler suchen..."
                 className="w-full p-3 rounded-xl text-sm focus:outline-none"
-                style={{ background: "#141008", border: "1px solid #2a2010", color: "#c8b080" }} />
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
             </div>
             <div className="flex gap-1.5 w-full max-w-md mb-3">
               {(["ALL", "GK", "DF", "MF", "FW"] as const).map(pos => (
                 <button key={pos} onClick={() => setPosFilter(pos)}
                   className="flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all"
                   style={{
-                    background: posFilter === pos ? (POS_COLOR[pos] || "#2a2010") : "#141008",
-                    color: posFilter === pos ? "#0c0900" : "#5a4020",
-                    border: `1px solid ${posFilter === pos ? (POS_COLOR[pos] || "#f5a623") : "#2a2010"}`,
+                    background: posFilter === pos ? (POS_COLOR[pos] || "var(--color-border)") : "var(--bg-card)",
+                    color: posFilter === pos ? "var(--bg-page)" : "var(--color-muted)",
+                    border: `1px solid ${posFilter === pos ? (POS_COLOR[pos] || "var(--color-primary)") : "var(--color-border)"}`,
                   }}>
                   {pos}
                 </button>
@@ -396,30 +396,30 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
             {/* Wire-Liste */}
             <div className="w-full max-w-md space-y-2">
-              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                 {filteredWire.length} Spieler verfügbar
               </p>
               {filteredWire.slice(0, 50).map(player => {
-                const posColor = POS_COLOR[player.position] || "#c8b080";
+                const posColor = POS_COLOR[player.position] || "var(--color-text)";
                 const alreadyClaimed = pendingClaims.some((c: any) => c.player_in === player.id);
                 return (
                   <div key={player.id}
                     onClick={() => !alreadyClaimed && setSelectedPlayer(player)}
                     className="flex items-center gap-3 p-3 rounded-2xl transition-all"
                     style={{
-                      background: "#141008",
-                      border: `1px solid ${selectedPlayer?.id === player.id ? "#f5a623" : alreadyClaimed ? "#3a2a10" : "#2a2010"}`,
+                      background: "var(--bg-card)",
+                      border: `1px solid ${selectedPlayer?.id === player.id ? "var(--color-primary)" : alreadyClaimed ? "var(--color-border-subtle)" : "var(--color-border)"}`,
                       cursor: alreadyClaimed ? "default" : "pointer",
                       opacity: alreadyClaimed ? 0.6 : 1,
                     }}>
                     <img src={player.photo_url} className="w-10 h-10 rounded-full flex-shrink-0"
                       style={{ border: `2px solid ${posColor}` }} alt="" />
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-sm truncate" style={{ color: "#c8b080" }}>{player.name}</p>
-                      <p className="text-[9px] truncate" style={{ color: "#5a4020" }}>{player.team_name}</p>
+                      <p className="font-black text-sm truncate" style={{ color: "var(--color-text)" }}>{player.name}</p>
+                      <p className="text-[9px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="font-black text-base" style={{ color: "#f5a623" }}>{player.fpts?.toFixed(0)}</p>
+                      <p className="font-black text-base" style={{ color: "var(--color-primary)" }}>{player.fpts?.toFixed(0)}</p>
                       <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
                         style={{ background: posColor + "30", color: posColor }}>
                         {player.position}
@@ -427,7 +427,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                     </div>
                     {alreadyClaimed && (
                       <span className="text-[8px] font-black px-2 py-1 rounded-lg ml-1"
-                        style={{ background: "#3a2a10", color: "#f5a623" }}>
+                        style={{ background: "var(--color-border-subtle)", color: "var(--color-primary)" }}>
                         Claimed
                       </span>
                     )}
@@ -437,8 +437,8 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
               {waiverWire.length === 0 && (
                 <div className="text-center py-12">
                   <p className="text-4xl mb-2">📋</p>
-                  <p className="text-sm font-black" style={{ color: "#5a4020" }}>Keine Spieler auf Waiver Wire</p>
-                  <p className="text-xs mt-1" style={{ color: "#2a2010" }}>
+                  <p className="text-sm font-black" style={{ color: "var(--color-muted)" }}>Keine Spieler auf Waiver Wire</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--color-border)" }}>
                     Spieler erscheinen hier nach dem Draft
                   </p>
                 </div>

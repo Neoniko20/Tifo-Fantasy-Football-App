@@ -18,10 +18,10 @@ const LEAGUES = [
 ];
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623",
-  DF: "#4a9eff",
-  MF: "#00ce7d",
-  FW: "#ff4d6d",
+  GK: "var(--color-primary)",
+  DF: "var(--color-info)",
+  MF: "var(--color-success)",
+  FW: "var(--color-error)",
 };
 
 type PlayerStats = {
@@ -55,7 +55,7 @@ export default function Home() {
   return (
     <Suspense fallback={
       <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-        style={{ background: "#0c0900", color: "#2a2010" }}>
+        style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
         Laden...
       </main>
     }>
@@ -348,10 +348,10 @@ function HomeInner() {
   /* ── SQUAD TAB ─────────────────────────────────────── */
   if (activeTab === "squad") {
     return (
-      <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+      <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
         {/* Glow */}
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-          style={{ background: "#f5a623" }} />
+          style={{ background: "var(--color-primary)" }} />
 
         <div className="w-full max-w-md flex justify-between items-center mb-6">
           <TifoIcon size={36} />
@@ -360,15 +360,15 @@ function HomeInner() {
 
         {/* Hero FPTS */}
         <div className="w-full max-w-md rounded-2xl p-5 mb-6 relative overflow-hidden"
-          style={{ background: "#141008", border: "1px solid #f5a623" }}>
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
           <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-            style={{ background: "#f5a623" }} />
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "#5a4020" }}>Tifo — Saison Total</p>
-          <p className="text-4xl font-black tracking-tighter" style={{ color: "#f5a623" }}>
+            style={{ background: "var(--color-primary)" }} />
+          <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--color-muted)" }}>Tifo — Saison Total</p>
+          <p className="text-4xl font-black tracking-tighter" style={{ color: "var(--color-primary)" }}>
             {totalSquadPoints.toFixed(1)}
-            <span className="text-xs font-bold ml-2" style={{ color: "#5a4020" }}>FPTS</span>
+            <span className="text-xs font-bold ml-2" style={{ color: "var(--color-muted)" }}>FPTS</span>
           </p>
-          <p className="text-xs mt-1 font-black" style={{ color: "#5a4020" }}>
+          <p className="text-xs mt-1 font-black" style={{ color: "var(--color-muted)" }}>
             {mySquad.length} / 11 Spieler
             {captainId && " · Kapitän gesetzt"}
           </p>
@@ -377,8 +377,8 @@ function HomeInner() {
         {mySquad.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-4xl mb-3">👥</p>
-            <p className="text-sm font-black" style={{ color: "#5a4020" }}>Kein Kader aufgestellt</p>
-            <p className="text-xs mt-1" style={{ color: "#2a2010" }}>Gehe zu HOME und füge Spieler hinzu</p>
+            <p className="text-sm font-black" style={{ color: "var(--color-muted)" }}>Kein Kader aufgestellt</p>
+            <p className="text-xs mt-1" style={{ color: "var(--color-border)" }}>Gehe zu HOME und füge Spieler hinzu</p>
           </div>
         ) : (
           <div className="w-full max-w-md space-y-2.5">
@@ -387,38 +387,38 @@ function HomeInner() {
               const pts = calculateDetailedPoints(item.statistics, isCap);
               const stats = Array.isArray(item.statistics) ? item.statistics[0] : item.statistics;
               const pos = normalizePosition(stats?.games?.position || item.player?.position || "");
-              const posColor = POS_COLOR[pos] || "#c8b080";
+              const posColor = POS_COLOR[pos] || "var(--color-text)";
               return (
                 <div key={item.player.id}
                   className="flex items-center justify-between p-3 rounded-2xl"
-                  style={{ background: "#141008", border: `1px solid ${isCap ? "#f5a623" : "#2a2010"}` }}>
+                  style={{ background: "var(--bg-card)", border: `1px solid ${isCap ? "var(--color-primary)" : "var(--color-border)"}` }}>
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <img src={item.player.photo} className="w-11 h-11 rounded-full"
-                        style={{ border: `2px solid ${isCap ? "#f5a623" : "#2a2010"}` }} alt="" />
+                        style={{ border: `2px solid ${isCap ? "var(--color-primary)" : "var(--color-border)"}` }} alt="" />
                       <span className="absolute -bottom-1 -right-1 text-[8px] font-black px-1 rounded-full"
-                        style={{ background: posColor, color: "#0c0900" }}>{pos}</span>
+                        style={{ background: posColor, color: "var(--bg-page)" }}>{pos}</span>
                     </div>
                     <div>
-                      <p className="font-black text-sm" style={{ color: isCap ? "#f5a623" : "#c8b080" }}>
+                      <p className="font-black text-sm" style={{ color: isCap ? "var(--color-primary)" : "var(--color-text)" }}>
                         {isCap && <span className="mr-1">©</span>}{item.player.name}
                       </p>
-                      <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "#5a4020" }}>
+                      <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-muted)" }}>
                         {item.team_name}
                       </p>
                     </div>
                   </div>
                   <div className="text-right flex flex-col items-end gap-1.5">
-                    <p className="text-lg font-black" style={{ color: "#f5a623" }}>{pts.season.toFixed(1)}</p>
+                    <p className="text-lg font-black" style={{ color: "var(--color-primary)" }}>{pts.season.toFixed(1)}</p>
                     <div className="flex gap-1">
                       <button onClick={() => handleSetCaptain(item.player.id)}
                         className="px-2 py-1 text-[9px] font-black rounded-lg uppercase transition-colors"
-                        style={{ background: isCap ? "#f5a623" : "#2a2010", color: isCap ? "#0c0900" : "#5a4020" }}>
+                        style={{ background: isCap ? "var(--color-primary)" : "var(--color-border)", color: isCap ? "var(--bg-page)" : "var(--color-muted)" }}>
                         Cap
                       </button>
                       <button onClick={() => toggleSquad(item)}
                         className="px-2 py-1 text-[9px] font-black rounded-lg uppercase"
-                        style={{ background: "#2a2010", color: "#5a4020" }}>
+                        style={{ background: "var(--color-border)", color: "var(--color-muted)" }}>
                         ✕
                       </button>
                     </div>
@@ -435,10 +435,10 @@ function HomeInner() {
 
   /* ── HOME TAB ──────────────────────────────────────── */
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       {/* Ambient glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#f5a623" }} />
+        style={{ background: "var(--color-primary)" }} />
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-5">
@@ -447,7 +447,7 @@ function HomeInner() {
           <button
             onClick={async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }}
             className="text-[9px] font-black uppercase tracking-widest transition-colors"
-            style={{ color: "#5a4020" }}>
+            style={{ color: "var(--color-muted)" }}>
             Logout
           </button>
           <UserBadge />
@@ -456,17 +456,17 @@ function HomeInner() {
 
       {/* Hero card */}
       <div className="w-full max-w-md rounded-2xl p-5 mb-5 relative overflow-hidden"
-        style={{ background: "#141008", border: "1px solid #f5a623" }}>
+        style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
         <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-          style={{ background: "#f5a623" }} />
-        <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "#5a4020" }}>Mein Kader · Saison Total</p>
+          style={{ background: "var(--color-primary)" }} />
+        <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--color-muted)" }}>Mein Kader · Saison Total</p>
         <div className="flex justify-between items-end">
-          <p className="text-4xl font-black tracking-tighter" style={{ color: "#f5a623" }}>
+          <p className="text-4xl font-black tracking-tighter" style={{ color: "var(--color-primary)" }}>
             {totalSquadPoints.toFixed(1)}
-            <span className="text-xs font-bold ml-2" style={{ color: "#5a4020" }}>FPTS</span>
+            <span className="text-xs font-bold ml-2" style={{ color: "var(--color-muted)" }}>FPTS</span>
           </p>
-          <p className="text-xs font-black pb-1" style={{ color: "#5a4020" }}>
-            {mySquad.length}<span style={{ color: "#2a2010" }}> / 11</span>
+          <p className="text-xs font-black pb-1" style={{ color: "var(--color-muted)" }}>
+            {mySquad.length}<span style={{ color: "var(--color-border)" }}> / 11</span>
           </p>
         </div>
       </div>
@@ -474,8 +474,8 @@ function HomeInner() {
       {/* Caching status */}
       {caching && (
         <div className="w-full max-w-md mb-4 p-3 rounded-xl text-center"
-          style={{ background: "#141008", border: "1px solid #2a2010" }}>
-          <p className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "#f5a623" }}>
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+          <p className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "var(--color-primary)" }}>
             {cachingStatus || "Lade Spieler..."}
           </p>
         </div>
@@ -487,9 +487,9 @@ function HomeInner() {
           <button key={l.id} onClick={() => setActiveLeague(l.id)}
             className="flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-all"
             style={{
-              background: activeLeague === l.id ? "#f5a623" : "#141008",
-              color: activeLeague === l.id ? "#0c0900" : "#5a4020",
-              border: `1px solid ${activeLeague === l.id ? "#f5a623" : "#2a2010"}`,
+              background: activeLeague === l.id ? "var(--color-primary)" : "var(--bg-card)",
+              color: activeLeague === l.id ? "var(--bg-page)" : "var(--color-muted)",
+              border: `1px solid ${activeLeague === l.id ? "var(--color-primary)" : "var(--color-border)"}`,
             }}>
             {l.flag} {l.name}
           </button>
@@ -502,9 +502,9 @@ function HomeInner() {
           <button onClick={() => setActiveTeam("")}
             className="flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-all"
             style={{
-              background: activeTeam === "" ? "#2a2010" : "#141008",
-              color: activeTeam === "" ? "#c8b080" : "#5a4020",
-              border: "1px solid #2a2010",
+              background: activeTeam === "" ? "var(--color-border)" : "var(--bg-card)",
+              color: activeTeam === "" ? "var(--color-text)" : "var(--color-muted)",
+              border: "1px solid var(--color-border)",
             }}>
             Alle
           </button>
@@ -512,9 +512,9 @@ function HomeInner() {
             <button key={team} onClick={() => setActiveTeam(team === activeTeam ? "" : team)}
               className="flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase whitespace-nowrap transition-all"
               style={{
-                background: activeTeam === team ? "#2a2010" : "#141008",
-                color: activeTeam === team ? "#c8b080" : "#5a4020",
-                border: "1px solid #2a2010",
+                background: activeTeam === team ? "var(--color-border)" : "var(--bg-card)",
+                color: activeTeam === team ? "var(--color-text)" : "var(--color-muted)",
+                border: "1px solid var(--color-border)",
               }}>
               {team}
             </button>
@@ -527,30 +527,30 @@ function HomeInner() {
         <input type="text" value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Spieler suchen..."
           className="w-full p-3 rounded-xl text-sm focus:outline-none transition-colors"
-          style={{ background: "#141008", border: "1px solid #2a2010", color: "#c8b080" }} />
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
       </div>
 
       {/* Sort + Position filter */}
       <div className="flex gap-2 w-full max-w-md mb-4">
-        <div className="flex-1 flex p-1 rounded-xl gap-0.5" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+        <div className="flex-1 flex p-1 rounded-xl gap-0.5" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
           {[{ id: "points", label: "FPTS" }, { id: "goals", label: "Tore" }, { id: "assists", label: "Ast" }, { id: "position", label: "Pos" }].map((f) => (
             <button key={f.id} onClick={() => setSortBy(f.id)}
               className="flex-1 py-1.5 text-[9px] font-black rounded-lg transition-colors uppercase"
               style={{
-                background: sortBy === f.id ? "#2a2010" : "transparent",
-                color: sortBy === f.id ? "#f5a623" : "#5a4020",
+                background: sortBy === f.id ? "var(--color-border)" : "transparent",
+                color: sortBy === f.id ? "var(--color-primary)" : "var(--color-muted)",
               }}>
               {f.label}
             </button>
           ))}
         </div>
-        <div className="flex p-1 rounded-xl gap-0.5" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+        <div className="flex p-1 rounded-xl gap-0.5" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
           {(["ALL", "GK", "DF", "MF", "FW"] as const).map((p) => (
             <button key={p} onClick={() => setPositionFilter(p)}
               className="px-2 py-1.5 text-[9px] font-black rounded-lg transition-colors"
               style={{
-                background: positionFilter === p ? (POS_COLOR[p] || "#2a2010") : "transparent",
-                color: positionFilter === p ? "#0c0900" : "#5a4020",
+                background: positionFilter === p ? (POS_COLOR[p] || "var(--color-border)") : "transparent",
+                color: positionFilter === p ? "var(--bg-page)" : "var(--color-muted)",
               }}>
               {p}
             </button>
@@ -560,7 +560,7 @@ function HomeInner() {
 
       {/* Count line */}
       <div className="w-full max-w-md mb-2">
-        <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+        <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
           {filteredPlayers.length} Spieler
           {activeLeague !== 0 && ` · ${LEAGUES.find(l => l.id === activeLeague)?.name}`}
           {activeTeam && ` · ${activeTeam}`}
@@ -571,9 +571,9 @@ function HomeInner() {
       <div className="w-full max-w-md space-y-2">
         {loading ? (
           <div className="text-center py-20 animate-pulse text-[9px] font-black uppercase tracking-widest"
-            style={{ color: "#2a2010" }}>Lade Datenbank...</div>
+            style={{ color: "var(--color-border)" }}>Lade Datenbank...</div>
         ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-20 text-sm" style={{ color: "#5a4020" }}>Keine Spieler gefunden.</div>
+          <div className="text-center py-20 text-sm" style={{ color: "var(--color-muted)" }}>Keine Spieler gefunden.</div>
         ) : (
           sortedPlayers.slice(0, 50).map((item) => {
             const stats = Array.isArray(item.statistics) ? item.statistics[0] : item.statistics;
@@ -582,56 +582,56 @@ function HomeInner() {
             const isInSquad = mySquad.some((p) => p.player.id === item.player.id);
             const isSaving = savingPlayer === item.player.id;
             const pos = normalizePosition(stats?.games?.position || item.player?.position || "");
-            const posColor = POS_COLOR[pos] || "#c8b080";
+            const posColor = POS_COLOR[pos] || "var(--color-text)";
             return (
               <div key={item.player.id}
                 className="flex items-center justify-between p-3 rounded-2xl transition-all"
                 style={{
-                  background: "#141008",
-                  border: `1px solid ${isCap ? "#f5a623" : isInSquad ? "#3a2a10" : "#2a2010"}`,
+                  background: "var(--bg-card)",
+                  border: `1px solid ${isCap ? "var(--color-primary)" : isInSquad ? "var(--color-border-subtle)" : "var(--color-border)"}`,
                 }}>
                 {/* Left: photo + info */}
                 <div className="flex items-center gap-3 flex-1 min-w-0" onClick={() => setSelectedPlayer(item)}>
                   <div className="relative flex-shrink-0">
                     <img src={item.player.photo} className="w-11 h-11 rounded-full"
-                      style={{ border: `2px solid ${isCap ? "#f5a623" : "#2a2010"}` }} alt="" />
+                      style={{ border: `2px solid ${isCap ? "var(--color-primary)" : "var(--color-border)"}` }} alt="" />
                     <span className="absolute -bottom-1 -right-1 text-[7px] font-black px-1 rounded-full leading-4"
-                      style={{ background: posColor, color: "#0c0900" }}>{pos}</span>
+                      style={{ background: posColor, color: "var(--bg-page)" }}>{pos}</span>
                   </div>
                   <div className="min-w-0">
-                    <p className="font-black text-sm truncate" style={{ color: isCap ? "#f5a623" : "#c8b080" }}>
+                    <p className="font-black text-sm truncate" style={{ color: isCap ? "var(--color-primary)" : "var(--color-text)" }}>
                       {isCap && "© "}{item.player.name}
                     </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest truncate mt-0.5" style={{ color: "#5a4020" }}>
+                    <p className="text-[9px] font-black uppercase tracking-widest truncate mt-0.5" style={{ color: "var(--color-muted)" }}>
                       {item.team_name || stats?.team?.name}
                     </p>
-                    <div className="flex gap-2 mt-1.5 text-[10px]" style={{ color: "#5a4020" }}>
-                      <span>G <span style={{ color: "#c8b080" }}>{pts.breakdown.goals}</span></span>
-                      <span>A <span style={{ color: "#c8b080" }}>{pts.breakdown.assists}</span></span>
-                      <span>KP <span style={{ color: "#c8b080" }}>{pts.breakdown.keyPasses}</span></span>
-                      <span>S <span style={{ color: "#c8b080" }}>{pts.breakdown.shotsOn}</span></span>
+                    <div className="flex gap-2 mt-1.5 text-[10px]" style={{ color: "var(--color-muted)" }}>
+                      <span>G <span style={{ color: "var(--color-text)" }}>{pts.breakdown.goals}</span></span>
+                      <span>A <span style={{ color: "var(--color-text)" }}>{pts.breakdown.assists}</span></span>
+                      <span>KP <span style={{ color: "var(--color-text)" }}>{pts.breakdown.keyPasses}</span></span>
+                      <span>S <span style={{ color: "var(--color-text)" }}>{pts.breakdown.shotsOn}</span></span>
                     </div>
                   </div>
                 </div>
                 {/* Right: pts + buttons */}
                 <div className="flex flex-col items-end gap-1.5 ml-2 flex-shrink-0">
-                  <p className="text-lg font-black leading-none" style={{ color: "#f5a623" }}>
+                  <p className="text-lg font-black leading-none" style={{ color: "var(--color-primary)" }}>
                     {pts.season.toFixed(1)}
                   </p>
                   <div className="flex gap-1">
                     <button onClick={() => toggleSquad(item)} disabled={isSaving}
                       className="px-2 py-1 text-[9px] font-black rounded-lg uppercase disabled:opacity-50 transition-colors"
                       style={{
-                        background: isInSquad ? "#3a1010" : "#2a2010",
-                        color: isInSquad ? "#ff4d6d" : "#5a4020",
+                        background: isInSquad ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "var(--color-border)",
+                        color: isInSquad ? "var(--color-error)" : "var(--color-muted)",
                       }}>
                       {isSaving ? "…" : isInSquad ? "−" : "+"}
                     </button>
                     <button onClick={() => handleSetCaptain(item.player.id)}
                       className="px-2 py-1 text-[9px] font-black rounded-lg uppercase transition-colors"
                       style={{
-                        background: isCap ? "#f5a623" : "#2a2010",
-                        color: isCap ? "#0c0900" : "#5a4020",
+                        background: isCap ? "var(--color-primary)" : "var(--color-border)",
+                        color: isCap ? "var(--bg-page)" : "var(--color-muted)",
                       }}>
                       C
                     </button>
@@ -649,20 +649,20 @@ function HomeInner() {
           style={{ background: "rgba(0,0,0,0.7)", zIndex: 50 }}
           onClick={() => setSelectedPlayer(null)}>
           <div className="w-full max-w-sm rounded-2xl p-5"
-            style={{ background: "#141008", border: "1px solid #2a2010" }}
+            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
             onClick={e => e.stopPropagation()}>
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
               <img src={selectedPlayer.player.photo} className="w-14 h-14 rounded-full"
-                style={{ border: "2px solid #2a2010" }} alt="" />
+                style={{ border: "2px solid var(--color-border)" }} alt="" />
               <div className="flex-1 min-w-0">
-                <p className="font-black text-base truncate" style={{ color: "#c8b080" }}>{selectedPlayer.player.name}</p>
-                <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "#5a4020" }}>
+                <p className="font-black text-base truncate" style={{ color: "var(--color-text)" }}>{selectedPlayer.player.name}</p>
+                <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-muted)" }}>
                   {selectedPlayer.team_name}
                 </p>
               </div>
               <button onClick={() => setSelectedPlayer(null)}
-                className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                 ✕
               </button>
             </div>
@@ -673,15 +673,15 @@ function HomeInner() {
               const b = pts.breakdown;
               const posLabel = b.position === "GK" ? "TW" : b.position === "DF" ? "VER" : b.position === "MF" ? "MF" : "ST";
               const goalPts = b.position === "GK" || b.position === "DF" ? 6 : b.position === "MF" ? 5 : 4;
-              const posColor = POS_COLOR[b.position] || "#c8b080";
+              const posColor = POS_COLOR[b.position] || "var(--color-text)";
               return (
                 <>
                   <div className="flex items-center gap-2 mb-4">
                     <span className="text-[9px] font-black px-2 py-0.5 rounded-full"
-                      style={{ background: posColor, color: "#0c0900" }}>{posLabel}</span>
-                    <span className="text-[9px] font-black" style={{ color: "#5a4020" }}>{goalPts} Pkt/Tor</span>
-                    <span className="ml-auto text-2xl font-black" style={{ color: "#f5a623" }}>{pts.season.toFixed(1)}</span>
-                    <span className="text-[9px] font-black" style={{ color: "#5a4020" }}>FPTS</span>
+                      style={{ background: posColor, color: "var(--bg-page)" }}>{posLabel}</span>
+                    <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>{goalPts} Pkt/Tor</span>
+                    <span className="ml-auto text-2xl font-black" style={{ color: "var(--color-primary)" }}>{pts.season.toFixed(1)}</span>
+                    <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>FPTS</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {[
@@ -697,22 +697,22 @@ function HomeInner() {
                       ["Clean Sheets", b.cleanSheets],
                     ].map(([label, val]) => (
                       <div key={label as string} className="p-2 rounded-xl"
-                        style={{ background: "#0c0900", border: "1px solid #2a2010" }}>
-                        <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#5a4020" }}>{label}</p>
-                        <p className="font-black" style={{ color: "#c8b080" }}>{val}</p>
+                        style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
+                        <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>{label}</p>
+                        <p className="font-black" style={{ color: "var(--color-text)" }}>{val}</p>
                       </div>
                     ))}
                   </div>
                   <div className="flex gap-2 mt-4">
                     <button onClick={() => { toggleSquad(selectedPlayer); setSelectedPlayer(null); }}
                       className="flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
-                      style={{ background: mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "#3a1010" : "#2a2010",
-                               color: mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "#ff4d6d" : "#c8b080" }}>
+                      style={{ background: mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "var(--color-border)",
+                               color: mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "var(--color-error)" : "var(--color-text)" }}>
                       {mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "Entfernen" : "Hinzufügen"}
                     </button>
                     <button onClick={() => { handleSetCaptain(selectedPlayer.player.id); setSelectedPlayer(null); }}
                       className="flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                      style={{ background: "#f5a623", color: "#0c0900" }}>
+                      style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
                       Kapitän
                     </button>
                   </div>

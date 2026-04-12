@@ -44,7 +44,7 @@ export function LiveMatchupCard({ matchup, currentUserId, gwIsActive, onPointsCh
 
   const isHomeMe = matchup.home?.user_id === currentUserId;
   const isAwayMe = matchup.away?.user_id === currentUserId;
-  const highlightBorder = (isHomeMe || isAwayMe) ? "#3a2a10" : "#2a2010";
+  const highlightBorder = (isHomeMe || isAwayMe) ? "var(--color-border-subtle)" : "var(--color-border)";
 
   async function loadTeamRoster(teamId: string): Promise<PlayerWithPoints[]> {
     // 1. Get this team's starting XI for this GW from liga_lineups
@@ -164,28 +164,28 @@ export function LiveMatchupCard({ matchup, currentUserId, gwIsActive, onPointsCh
 
   return (
     <div className="rounded-2xl p-4"
-      style={{ background: "#141008", border: `1px solid ${highlightBorder}` }}>
+      style={{ background: "var(--bg-card)", border: `1px solid ${highlightBorder}` }}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex-1 text-right">
-          <p className="font-black text-sm truncate" style={{ color: isHomeMe ? "#f5a623" : "#c8b080" }}>
+          <p className="font-black text-sm truncate" style={{ color: isHomeMe ? "var(--color-primary)" : "var(--color-text)" }}>
             {matchup.home?.name}
           </p>
-          <p className="text-2xl font-black" style={{ color: homeSum > awaySum ? "#f5a623" : "#c8b080" }}>
+          <p className="text-2xl font-black" style={{ color: homeSum > awaySum ? "var(--color-primary)" : "var(--color-text)" }}>
             {homeSum.toFixed(1)}
           </p>
         </div>
         <div className="flex flex-col items-center">
           <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-            style={{ background: "#141008", color: "#2a2010", border: "1px solid #2a2010" }}>
+            style={{ background: "var(--bg-card)", color: "var(--color-border)", border: "1px solid var(--color-border)" }}>
             VS
           </span>
         </div>
         <div className="flex-1 text-left">
-          <p className="font-black text-sm truncate" style={{ color: isAwayMe ? "#f5a623" : "#c8b080" }}>
+          <p className="font-black text-sm truncate" style={{ color: isAwayMe ? "var(--color-primary)" : "var(--color-text)" }}>
             {matchup.away?.name}
           </p>
-          <p className="text-2xl font-black" style={{ color: awaySum > homeSum ? "#f5a623" : "#c8b080" }}>
+          <p className="text-2xl font-black" style={{ color: awaySum > homeSum ? "var(--color-primary)" : "var(--color-text)" }}>
             {awaySum.toFixed(1)}
           </p>
         </div>
@@ -193,12 +193,12 @@ export function LiveMatchupCard({ matchup, currentUserId, gwIsActive, onPointsCh
 
       {/* Status bar */}
       <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-widest mb-3 px-2 py-1.5 rounded-lg"
-        style={{ background: "#0c0900", border: "1px solid #2a2010" }}>
-        <span style={{ color: "#5a4020" }}>● {counts.finished} FT</span>
-        <span style={{ color: "#ff6b00" }}>● {counts.live} LIVE</span>
-        <span style={{ color: "#5a4020" }}>○ {counts.upcoming} –</span>
+        style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
+        <span style={{ color: "var(--color-muted)" }}>● {counts.finished} FT</span>
+        <span style={{ color: "var(--color-primary)" }}>● {counts.live} LIVE</span>
+        <span style={{ color: "var(--color-muted)" }}>○ {counts.upcoming} –</span>
         {lastSync && (
-          <span style={{ color: "#2a2010" }}>
+          <span style={{ color: "var(--color-border)" }}>
             {lastSync.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
           </span>
         )}
@@ -207,7 +207,7 @@ export function LiveMatchupCard({ matchup, currentUserId, gwIsActive, onPointsCh
       {/* Player breakdown — 2 columns on wider screens, 1 column on mobile */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
         <div>
-          <p className="text-[7px] font-black uppercase tracking-widest mb-1 text-right sm:text-left" style={{ color: "#2a2010" }}>
+          <p className="text-[7px] font-black uppercase tracking-widest mb-1 text-right sm:text-left" style={{ color: "var(--color-border)" }}>
             {matchup.home?.name}
           </p>
           {homePlayers.map(p => (
@@ -219,7 +219,7 @@ export function LiveMatchupCard({ matchup, currentUserId, gwIsActive, onPointsCh
           ))}
         </div>
         <div>
-          <p className="text-[7px] font-black uppercase tracking-widest mb-1" style={{ color: "#2a2010" }}>
+          <p className="text-[7px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-border)" }}>
             {matchup.away?.name}
           </p>
           {awayPlayers.map(p => (

@@ -35,9 +35,9 @@ export function useToast() {
 // ─────────────────────────────────────────────
 
 const COLORS: Record<ToastType, { bg: string; border: string; color: string; icon: string }> = {
-  success: { bg: "#0a1f14", border: "#00ce7d", color: "#00ce7d", icon: "✓" },
-  error:   { bg: "#1f0a0a", border: "#ff4d6d", color: "#ff4d6d", icon: "✕" },
-  info:    { bg: "#1a1200", border: "#f5a623", color: "#f5a623", icon: "i" },
+  success: { bg: "color-mix(in srgb, var(--color-success) 12%, var(--bg-page))", border: "var(--color-success)", color: "var(--color-success)", icon: "✓" },
+  error:   { bg: "color-mix(in srgb, var(--color-error) 12%, var(--bg-page))", border: "var(--color-error)", color: "var(--color-error)", icon: "✕" },
+  info:    { bg: "color-mix(in srgb, var(--color-primary) 12%, var(--bg-page))", border: "var(--color-primary)", color: "var(--color-primary)", icon: "i" },
 };
 
 // ─────────────────────────────────────────────
@@ -104,7 +104,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 borderRadius: "12px",
                 background: c.bg,
                 border: `1px solid ${c.border}`,
-                color: "#c8b080",
+                color: "var(--color-text)",
                 fontSize: "13px",
                 lineHeight: "1.4",
                 boxShadow: `0 4px 20px rgba(0,0,0,0.6), 0 0 0 1px ${c.border}22`,
@@ -143,7 +143,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   flexShrink: 0,
                   background: "none",
                   border: "none",
-                  color: "#5a4020",
+                  color: "var(--color-muted)",
                   cursor: "pointer",
                   fontSize: "14px",
                   padding: "0 2px",

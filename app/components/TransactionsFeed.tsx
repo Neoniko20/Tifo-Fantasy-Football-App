@@ -32,7 +32,7 @@ export function TransactionsFeed({ leagueId, onlyTeamId, kindFilter, emptyLabel,
   if (loading) {
     return (
       <p className="text-center text-[9px] font-black uppercase tracking-widest py-8 animate-pulse"
-        style={{ color: "#2a2010" }}>
+        style={{ color: "var(--color-border)" }}>
         Lade…
       </p>
     );
@@ -40,7 +40,7 @@ export function TransactionsFeed({ leagueId, onlyTeamId, kindFilter, emptyLabel,
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-16" style={{ color: "#2a2010" }}>
+      <div className="text-center py-16" style={{ color: "var(--color-border)" }}>
         <p className="text-3xl mb-3">📋</p>
         <p className="text-[9px] font-black uppercase tracking-widest">
           {emptyLabel || "Noch keine Transaktionen"}

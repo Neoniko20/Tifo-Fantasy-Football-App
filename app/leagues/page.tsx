@@ -19,7 +19,7 @@ type League = {
   mode?: string; // "liga" | "wm"
 };
 
-const inputCls = "w-full mt-1 p-3 rounded-xl text-sm focus:outline-none focus:border-[#f5a623] transition-colors";
+const inputCls = "w-full mt-1 p-3 rounded-xl text-sm focus:outline-none focus:border-[var(--color-primary)] transition-colors";
 
 export default function LeaguesPage() {
   const [user, setUser] = useState<any>(null);
@@ -210,28 +210,28 @@ export default function LeaguesPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       {/* Glow */}
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#f5a623" }} />
+        style={{ background: "var(--color-primary)" }} />
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-6">
         <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: "#5a4020" }}>Fantasy Football</p>
-          <h1 className="text-xl font-black" style={{ color: "#f5a623" }}>LIGA</h1>
+          <p className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--color-muted)" }}>Fantasy Football</p>
+          <h1 className="text-xl font-black" style={{ color: "var(--color-primary)" }}>LIGA</h1>
         </div>
         <UserBadge />
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 w-full max-w-md mb-5 p-1 rounded-xl" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+      <div className="flex gap-2 w-full max-w-md mb-5 p-1 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
         {[{ id: "overview", label: "Übersicht" }, { id: "create", label: "Erstellen" }, { id: "join", label: "Beitreten" }].map((t) => (
           <button key={t.id} onClick={() => { setView(t.id as any); }}
             className="flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all"
             style={{
-              background: view === t.id ? "#f5a623" : "transparent",
-              color: view === t.id ? "#0c0900" : "#5a4020",
+              background: view === t.id ? "var(--color-primary)" : "transparent",
+              color: view === t.id ? "var(--bg-page)" : "var(--color-muted)",
             }}>
             {t.label}
           </button>
@@ -243,53 +243,53 @@ export default function LeaguesPage() {
         <div className="w-full max-w-md space-y-3">
           {loading ? (
             <div className="text-center py-20 text-[9px] font-black uppercase tracking-widest animate-pulse"
-              style={{ color: "#2a2010" }}>Lade Ligen...</div>
+              style={{ color: "var(--color-border)" }}>Lade Ligen...</div>
           ) : leagues.length === 0 ? (
             <div className="text-center py-20">
               <p className="text-4xl mb-3">🏆</p>
-              <p className="text-sm font-black mb-1" style={{ color: "#5a4020" }}>Noch keine Ligen.</p>
-              <p className="text-xs mb-5" style={{ color: "#2a2010" }}>Erstelle deine erste Liga oder tritt einer bei.</p>
+              <p className="text-sm font-black mb-1" style={{ color: "var(--color-muted)" }}>Noch keine Ligen.</p>
+              <p className="text-xs mb-5" style={{ color: "var(--color-border)" }}>Erstelle deine erste Liga oder tritt einer bei.</p>
               <button onClick={() => setView("create")}
                 className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest"
-                style={{ background: "#f5a623", color: "#0c0900" }}>
+                style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
                 Erste Liga erstellen
               </button>
             </div>
           ) : (
             leagues.map((league) => (
               <div key={league.id} className="rounded-2xl p-4"
-                style={{ background: "#141008", border: "1px solid #2a2010" }}>
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="font-black text-base" style={{ color: "#c8b080" }}>{league.name}</h3>
+                    <h3 className="font-black text-base" style={{ color: "var(--color-text)" }}>{league.name}</h3>
                     <div className="flex gap-2 mt-1">
                       <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
                         style={{
-                          background: league.status === "active" ? "#1a1a08" : "#141008",
-                          color: league.status === "active" ? "#f5a623" : "#5a4020",
-                          border: `1px solid ${league.status === "active" ? "#f5a623" : "#2a2010"}`,
+                          background: league.status === "active" ? "var(--bg-elevated)" : "var(--bg-card)",
+                          color: league.status === "active" ? "var(--color-primary)" : "var(--color-muted)",
+                          border: `1px solid ${league.status === "active" ? "var(--color-primary)" : "var(--color-border)"}`,
                         }}>
                         {statusLabel(league.status)}
                       </span>
                       <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full"
-                        style={{ background: "#141008", border: "1px solid #2a2010", color: "#5a4020" }}>
+                        style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
                         {league.scoring_type === "h2h" ? "H2H" : "Gesamtpkt."}
                       </span>
                     </div>
                   </div>
-                  <span className="text-[9px] font-black" style={{ color: "#5a4020" }}>{league.max_teams} Teams</span>
+                  <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>{league.max_teams} Teams</span>
                 </div>
 
                 {league.owner_id === user?.id && (
                   <div className="flex items-center gap-3 rounded-xl p-3 mb-3"
-                    style={{ background: "#0c0900", border: "1px solid #2a2010" }}>
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
                     <div className="flex-1">
-                      <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#5a4020" }}>Invite-Code</p>
-                      <p className="font-black tracking-widest text-sm" style={{ color: "#f5a623" }}>{league.invite_code}</p>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>Invite-Code</p>
+                      <p className="font-black tracking-widest text-sm" style={{ color: "var(--color-primary)" }}>{league.invite_code}</p>
                     </div>
                     <button onClick={() => copyCode(league.invite_code)}
                       className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-colors"
-                      style={{ background: "#2a2010", color: copiedCode === league.invite_code ? "#f5a623" : "#c8b080" }}>
+                      style={{ background: "var(--color-border)", color: copiedCode === league.invite_code ? "var(--color-primary)" : "var(--color-text)" }}>
                       {copiedCode === league.invite_code ? "✓ Kopiert" : "Kopieren"}
                     </button>
                   </div>
@@ -297,7 +297,7 @@ export default function LeaguesPage() {
 
                 <button onClick={() => window.location.href = `/leagues/${league.id}`}
                   className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
-                  style={{ background: "#2a2010", color: "#c8b080" }}>
+                  style={{ background: "var(--color-border)", color: "var(--color-text)" }}>
                   Liga öffnen →
                 </button>
               </div>
@@ -309,20 +309,20 @@ export default function LeaguesPage() {
       {/* CREATE */}
       {view === "create" && (
         <div className="w-full max-w-md space-y-3">
-          <div className="rounded-2xl p-5" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <h2 className="font-black text-base mb-5" style={{ color: "#c8b080" }}>Neue Liga erstellen</h2>
+          <div className="rounded-2xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <h2 className="font-black text-base mb-5" style={{ color: "var(--color-text)" }}>Neue Liga erstellen</h2>
 
             {/* Liga-Name */}
             <div className="mb-4">
-              <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>Liga-Name</label>
+              <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Liga-Name</label>
               <input type="text" value={newLeagueName} onChange={(e) => setNewLeagueName(e.target.value)}
                 className={inputCls} placeholder="z.B. WM 2026 Friends Liga"
-                style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
             </div>
 
             {/* Liga-Typ: Liga vs WM */}
             <div className="mb-4">
-              <label className="text-[9px] font-black uppercase tracking-widest mb-2 block" style={{ color: "#5a4020" }}>Liga-Typ</label>
+              <label className="text-[9px] font-black uppercase tracking-widest mb-2 block" style={{ color: "var(--color-muted)" }}>Liga-Typ</label>
               <div className="flex gap-2">
                 {[
                   { id: "liga", label: "⚽ Saison-Liga", desc: "Bundesliga, PL, La Liga…" },
@@ -331,11 +331,11 @@ export default function LeaguesPage() {
                   <button key={m.id} onClick={() => setLeagueMode(m.id as any)}
                     className="flex-1 p-3 rounded-xl text-left transition-all"
                     style={{
-                      border: `1px solid ${leagueMode === m.id ? "#f5a623" : "#2a2010"}`,
-                      background: leagueMode === m.id ? "#1a1208" : "#0c0900",
+                      border: `1px solid ${leagueMode === m.id ? "var(--color-primary)" : "var(--color-border)"}`,
+                      background: leagueMode === m.id ? "var(--bg-elevated)" : "var(--bg-page)",
                     }}>
-                    <p className="text-xs font-black" style={{ color: leagueMode === m.id ? "#f5a623" : "#c8b080" }}>{m.label}</p>
-                    <p className="text-[9px] mt-0.5" style={{ color: "#5a4020" }}>{m.desc}</p>
+                    <p className="text-xs font-black" style={{ color: leagueMode === m.id ? "var(--color-primary)" : "var(--color-text)" }}>{m.label}</p>
+                    <p className="text-[9px] mt-0.5" style={{ color: "var(--color-muted)" }}>{m.desc}</p>
                   </button>
                 ))}
               </div>
@@ -344,17 +344,17 @@ export default function LeaguesPage() {
             {/* Scoring-Modus (nur Liga) */}
             {leagueMode === "liga" && (
               <div className="mb-4">
-                <label className="text-[9px] font-black uppercase tracking-widest mb-2 block" style={{ color: "#5a4020" }}>Scoring</label>
+                <label className="text-[9px] font-black uppercase tracking-widest mb-2 block" style={{ color: "var(--color-muted)" }}>Scoring</label>
                 <div className="flex gap-2">
                   {[{ id: "h2h", label: "Head-to-Head", desc: "Wie Sleeper" }, { id: "standard", label: "Gesamtpunkte", desc: "Wie Comunio" }].map((m) => (
                     <button key={m.id} onClick={() => setScoringType(m.id as any)}
                       className="flex-1 p-3 rounded-xl text-left transition-all"
                       style={{
-                        border: `1px solid ${scoringType === m.id ? "#f5a623" : "#2a2010"}`,
-                        background: scoringType === m.id ? "#1a1208" : "#0c0900",
+                        border: `1px solid ${scoringType === m.id ? "var(--color-primary)" : "var(--color-border)"}`,
+                        background: scoringType === m.id ? "var(--bg-elevated)" : "var(--bg-page)",
                       }}>
-                      <p className="text-xs font-black" style={{ color: scoringType === m.id ? "#f5a623" : "#c8b080" }}>{m.label}</p>
-                      <p className="text-[9px] mt-0.5" style={{ color: "#5a4020" }}>{m.desc}</p>
+                      <p className="text-xs font-black" style={{ color: scoringType === m.id ? "var(--color-primary)" : "var(--color-text)" }}>{m.label}</p>
+                      <p className="text-[9px] mt-0.5" style={{ color: "var(--color-muted)" }}>{m.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -363,13 +363,13 @@ export default function LeaguesPage() {
 
             {/* Teams-Anzahl */}
             <div className="mb-5">
-              <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
-                Teams: <span style={{ color: "#f5a623" }}>{maxTeams}</span>
+              <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                Teams: <span style={{ color: "var(--color-primary)" }}>{maxTeams}</span>
               </label>
               <input type="range" min="4" max={leagueMode === "wm" ? 10 : 12} step="2"
                 value={maxTeams} onChange={(e) => setMaxTeams(Number(e.target.value))}
-                className="w-full mt-2 accent-[#f5a623]" />
-              <div className="flex justify-between text-[9px] mt-1" style={{ color: "#2a2010" }}>
+                className="w-full mt-2 accent-[var(--color-primary)]" />
+              <div className="flex justify-between text-[9px] mt-1" style={{ color: "var(--color-border)" }}>
                 <span>4</span>
                 {leagueMode === "wm" ? <><span>6</span><span>8</span><span>10</span></> : <><span>6</span><span>8</span><span>10</span><span>12</span></>}
               </div>
@@ -377,40 +377,40 @@ export default function LeaguesPage() {
 
             <button onClick={createLeague} disabled={saving || !newLeagueName.trim()}
               className="w-full py-3 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
-              style={{ background: "#f5a623", color: "#0c0900" }}>
+              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
               {saving ? "Erstelle..." : `${leagueMode === "wm" ? "WM-Liga" : "Liga"} erstellen`}
             </button>
           </div>
 
           {/* WM SETTINGS (nur wenn WM-Modus) */}
           {leagueMode === "wm" && (
-            <div className="rounded-2xl p-5" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest mb-4" style={{ color: "#f5a623" }}>
+            <div className="rounded-2xl p-5" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--color-primary)" }}>
                 🏆 WM-Modus Einstellungen
               </p>
 
               {/* Kader-Größe */}
               <div className="mb-4">
-                <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
-                  Startelf: <span style={{ color: "#f5a623" }}>{wmSquadSize}</span> · Bank: <span style={{ color: "#f5a623" }}>{wmBenchSize}</span>
-                  <span style={{ color: "#2a2010" }}> · {wmSquadSize + wmBenchSize} Draftrunden</span>
+                <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                  Startelf: <span style={{ color: "var(--color-primary)" }}>{wmSquadSize}</span> · Bank: <span style={{ color: "var(--color-primary)" }}>{wmBenchSize}</span>
+                  <span style={{ color: "var(--color-border)" }}> · {wmSquadSize + wmBenchSize} Draftrunden</span>
                 </label>
                 <div className="flex gap-3 mt-2">
                   <div className="flex-1">
-                    <p className="text-[8px] mb-1" style={{ color: "#5a4020" }}>Startelf</p>
+                    <p className="text-[8px] mb-1" style={{ color: "var(--color-muted)" }}>Startelf</p>
                     <input type="range" min="9" max="11" value={wmSquadSize}
                       onChange={(e) => setWmSquadSize(Number(e.target.value))}
-                      className="w-full accent-[#f5a623]" />
-                    <div className="flex justify-between text-[8px]" style={{ color: "#2a2010" }}>
+                      className="w-full accent-[var(--color-primary)]" />
+                    <div className="flex justify-between text-[8px]" style={{ color: "var(--color-border)" }}>
                       <span>9</span><span>10</span><span>11</span>
                     </div>
                   </div>
                   <div className="flex-1">
-                    <p className="text-[8px] mb-1" style={{ color: "#5a4020" }}>Bank</p>
+                    <p className="text-[8px] mb-1" style={{ color: "var(--color-muted)" }}>Bank</p>
                     <input type="range" min="0" max="8" value={wmBenchSize}
                       onChange={(e) => setWmBenchSize(Number(e.target.value))}
-                      className="w-full accent-[#f5a623]" />
-                    <div className="flex justify-between text-[8px]" style={{ color: "#2a2010" }}>
+                      className="w-full accent-[var(--color-primary)]" />
+                    <div className="flex justify-between text-[8px]" style={{ color: "var(--color-border)" }}>
                       <span>0</span><span>4</span><span>8</span>
                     </div>
                   </div>
@@ -419,7 +419,7 @@ export default function LeaguesPage() {
 
               {/* Formationen */}
               <div className="mb-4">
-                <label className="text-[9px] font-black uppercase tracking-widest mb-2 block" style={{ color: "#5a4020" }}>
+                <label className="text-[9px] font-black uppercase tracking-widest mb-2 block" style={{ color: "var(--color-muted)" }}>
                   Erlaubte Formationen
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -430,9 +430,9 @@ export default function LeaguesPage() {
                       )}
                       className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
                       style={{
-                        background: wmFormations.includes(f) ? "#f5a623" : "#0c0900",
-                        color: wmFormations.includes(f) ? "#0c0900" : "#5a4020",
-                        border: `1px solid ${wmFormations.includes(f) ? "#f5a623" : "#2a2010"}`,
+                        background: wmFormations.includes(f) ? "var(--color-primary)" : "var(--bg-page)",
+                        color: wmFormations.includes(f) ? "var(--bg-page)" : "var(--color-muted)",
+                        border: `1px solid ${wmFormations.includes(f) ? "var(--color-primary)" : "var(--color-border)"}`,
                       }}>
                       {f}
                     </button>
@@ -441,29 +441,29 @@ export default function LeaguesPage() {
               </div>
 
               {/* Transfers */}
-              <div className="mb-4 p-3 rounded-xl" style={{ background: "#0c0900", border: "1px solid #2a2010" }}>
-                <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>Transfers (Gruppenphase)</p>
+              <div className="mb-4 p-3 rounded-xl" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>Transfers (Gruppenphase)</p>
                 <label className="flex items-center gap-2 mb-2 cursor-pointer">
                   <input type="checkbox" checked={wmTransfersUnlimited}
                     onChange={e => setWmTransfersUnlimited(e.target.checked)}
-                    className="accent-[#f5a623]" />
-                  <span className="text-xs font-black" style={{ color: "#c8b080" }}>Unlimited Transfers</span>
+                    className="accent-[var(--color-primary)]" />
+                  <span className="text-xs font-black" style={{ color: "var(--color-text)" }}>Unlimited Transfers</span>
                 </label>
                 {!wmTransfersUnlimited && (
                   <div>
-                    <label className="text-[9px]" style={{ color: "#5a4020" }}>
-                      Max. <span style={{ color: "#f5a623" }}>{wmTransfers}</span> pro Spieltag
+                    <label className="text-[9px]" style={{ color: "var(--color-muted)" }}>
+                      Max. <span style={{ color: "var(--color-primary)" }}>{wmTransfers}</span> pro Spieltag
                     </label>
                     <input type="range" min="1" max="5" value={wmTransfers}
                       onChange={e => setWmTransfers(Number(e.target.value))}
-                      className="w-full mt-1 accent-[#f5a623]" />
+                      className="w-full mt-1 accent-[var(--color-primary)]" />
                   </div>
                 )}
               </div>
 
               {/* Waiver System */}
-              <div className="mb-4 p-3 rounded-xl" style={{ background: "#0c0900", border: "1px solid #2a2010" }}>
-                <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>Waiver-System (K.O.-Phase ab GW4)</p>
+              <div className="mb-4 p-3 rounded-xl" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>Waiver-System (K.O.-Phase ab GW4)</p>
 
                 <div className="flex gap-2 mb-3">
                   {[
@@ -479,11 +479,11 @@ export default function LeaguesPage() {
                         }}
                         className="flex-1 p-2 rounded-xl text-left transition-all"
                         style={{
-                          border: `1px solid ${active ? "#f5a623" : "#2a2010"}`,
-                          background: active ? "#1a1208" : "transparent",
+                          border: `1px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`,
+                          background: active ? "var(--bg-elevated)" : "transparent",
                         }}>
-                        <p className="text-[10px] font-black" style={{ color: active ? "#f5a623" : "#c8b080" }}>{w.label}</p>
-                        <p className="text-[8px]" style={{ color: "#5a4020" }}>{w.desc}</p>
+                        <p className="text-[10px] font-black" style={{ color: active ? "var(--color-primary)" : "var(--color-text)" }}>{w.label}</p>
+                        <p className="text-[8px]" style={{ color: "var(--color-muted)" }}>{w.desc}</p>
                       </button>
                     );
                   })}
@@ -491,29 +491,29 @@ export default function LeaguesPage() {
 
                 {wmWaiverBudget && (
                   <div className="mb-3">
-                    <label className="text-[9px]" style={{ color: "#5a4020" }}>
-                      Start-Budget: <span style={{ color: "#f5a623" }}>{wmWaiverBudgetAmount}</span> Bucks
+                    <label className="text-[9px]" style={{ color: "var(--color-muted)" }}>
+                      Start-Budget: <span style={{ color: "var(--color-primary)" }}>{wmWaiverBudgetAmount}</span> Bucks
                     </label>
                     <input type="range" min="50" max="500" step="50" value={wmWaiverBudgetAmount}
                       onChange={e => setWmWaiverBudgetAmount(Number(e.target.value))}
-                      className="w-full mt-1 accent-[#f5a623]" />
+                      className="w-full mt-1 accent-[var(--color-primary)]" />
                   </div>
                 )}
 
                 <label className="flex items-center gap-2 mb-2 cursor-pointer">
                   <input type="checkbox" checked={wmClaimsLimit}
                     onChange={e => setWmClaimsLimit(e.target.checked)}
-                    className="accent-[#f5a623]" />
-                  <span className="text-xs font-black" style={{ color: "#c8b080" }}>Claims-Limit pro GW</span>
+                    className="accent-[var(--color-primary)]" />
+                  <span className="text-xs font-black" style={{ color: "var(--color-text)" }}>Claims-Limit pro GW</span>
                 </label>
                 {wmClaimsLimit && (
                   <div>
-                    <label className="text-[9px]" style={{ color: "#5a4020" }}>
-                      Max. <span style={{ color: "#f5a623" }}>{wmMaxClaims}</span> Claims pro Spieltag
+                    <label className="text-[9px]" style={{ color: "var(--color-muted)" }}>
+                      Max. <span style={{ color: "var(--color-primary)" }}>{wmMaxClaims}</span> Claims pro Spieltag
                     </label>
                     <input type="range" min="1" max="5" value={wmMaxClaims}
                       onChange={e => setWmMaxClaims(Number(e.target.value))}
-                      className="w-full mt-1 accent-[#f5a623]" />
+                      className="w-full mt-1 accent-[var(--color-primary)]" />
                   </div>
                 )}
               </div>
@@ -522,10 +522,10 @@ export default function LeaguesPage() {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={wmAutoSubs}
                   onChange={e => setWmAutoSubs(e.target.checked)}
-                  className="accent-[#f5a623]" />
+                  className="accent-[var(--color-primary)]" />
                 <div>
-                  <p className="text-xs font-black" style={{ color: "#c8b080" }}>Automatische Substitutionen</p>
-                  <p className="text-[9px]" style={{ color: "#5a4020" }}>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Automatische Substitutionen</p>
+                  <p className="text-[9px]" style={{ color: "var(--color-muted)" }}>
                     Spieler ausgeschiedener Nationen werden automatisch durch Bankspieler ersetzt
                   </p>
                 </div>
@@ -538,21 +538,21 @@ export default function LeaguesPage() {
       {/* JOIN */}
       {view === "join" && (
         <div className="w-full max-w-md rounded-2xl p-5"
-          style={{ background: "#141008", border: "1px solid #2a2010" }}>
-          <h2 className="font-black text-base mb-1" style={{ color: "#c8b080" }}>Liga beitreten</h2>
-          <p className="text-xs mb-5" style={{ color: "#5a4020" }}>Gib den Invite-Code deines Liga-Erstellers ein.</p>
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+          <h2 className="font-black text-base mb-1" style={{ color: "var(--color-text)" }}>Liga beitreten</h2>
+          <p className="text-xs mb-5" style={{ color: "var(--color-muted)" }}>Gib den Invite-Code deines Liga-Erstellers ein.</p>
 
           <div className="mb-6">
-            <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>Invite-Code</label>
+            <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Invite-Code</label>
             <input type="text" value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
               className={`${inputCls} font-mono tracking-widest uppercase`}
               placeholder="z.B. a3f9b2c1"
-              style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
           </div>
 
           <button onClick={joinLeague} disabled={saving || !joinCode.trim()}
             className="w-full py-3 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
-            style={{ background: "#f5a623", color: "#0c0900" }}>
+            style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
             {saving ? "Suche Liga..." : "Beitreten"}
           </button>
         </div>

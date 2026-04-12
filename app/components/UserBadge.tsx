@@ -32,11 +32,11 @@ export function UserBadge({ teamName }: { teamName?: string }) {
     >
       <div className="text-right">
         <p className="text-[9px] font-black uppercase tracking-widest leading-tight"
-          style={{ color: "#c8b080" }}>
+          style={{ color: "var(--color-text)" }}>
           {displayName}
         </p>
         <p className="text-[8px] truncate max-w-[80px]"
-          style={{ color: "#5a4020" }}>
+          style={{ color: "var(--color-muted)" }}>
           {user.email}
         </p>
       </div>
@@ -44,12 +44,12 @@ export function UserBadge({ teamName }: { teamName?: string }) {
       {/* Avatar circle — Amber ring */}
       <div
         className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
-        style={{ border: "2px solid #f5a623", background: "#141008" }}
+        style={{ border: "2px solid var(--color-primary)", background: "var(--bg-card)" }}
       >
         {avatarUrl ? (
           <img src={avatarUrl} className="w-full h-full object-cover" alt="" />
         ) : (
-          <span className="text-sm font-black" style={{ color: "#f5a623" }}>
+          <span className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
             {initial}
           </span>
         )}

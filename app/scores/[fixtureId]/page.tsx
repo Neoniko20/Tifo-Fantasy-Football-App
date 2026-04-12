@@ -19,7 +19,7 @@ const EVENT_ICON: Record<string, string> = {
 };
 
 const POS_COLOR: Record<string, string> = {
-  G: "#f5a623", D: "#4a9eff", M: "#00ce7d", F: "#ff4d6d",
+  G: "var(--color-primary)", D: "var(--color-info)", M: "var(--color-success)", F: "var(--color-error)",
 };
 
 export default function FixtureDetailPage({ params }: { params: Promise<{ fixtureId: string }> }) {
@@ -53,16 +53,16 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center"
-      style={{ background: "#0c0900" }}>
+      style={{ background: "var(--bg-page)" }}>
       <p className="text-[9px] font-black uppercase tracking-widest animate-pulse"
-        style={{ color: "#2a2010" }}>Lade Partie...</p>
+        style={{ color: "var(--color-border)" }}>Lade Partie...</p>
     </main>
   );
 
   if (!data || data.error) return (
     <main className="flex min-h-screen items-center justify-center"
-      style={{ background: "#0c0900" }}>
-      <p className="text-[9px] font-black uppercase" style={{ color: "#ff4d6d" }}>
+      style={{ background: "var(--bg-page)" }}>
+      <p className="text-[9px] font-black uppercase" style={{ color: "var(--color-error)" }}>
         Spiel nicht gefunden
       </p>
     </main>
@@ -113,24 +113,24 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
   }
 
   return (
-    <main className="flex min-h-screen flex-col pb-24" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col pb-24" style={{ background: "var(--bg-page)" }}>
 
       {/* Back + live indicator */}
       <div className="flex items-center justify-between px-4 pt-3 pb-0 max-w-[480px] mx-auto w-full">
         <button onClick={() => window.history.back()}
           className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"
-          style={{ color: "#5a4020" }}>
+          style={{ color: "var(--color-muted)" }}>
           ‹ Zurück
         </button>
         {data.isLive && (
           <span className="flex items-center gap-1.5 text-[8px] font-black uppercase"
-            style={{ color: "#00ce7d" }}>
+            style={{ color: "var(--color-success)" }}>
             <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block"
-              style={{ background: "#00ce7d" }} />
+              style={{ background: "var(--color-success)" }} />
             Live
           </span>
         )}
-        <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#3a2a10" }}>
+        <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>
           {data.league?.name} · {data.league?.round?.replace("Regular Season - ", "GW ")}
         </p>
       </div>
@@ -138,7 +138,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
       {/* Scoreboard */}
       <div className="max-w-[480px] mx-auto w-full px-4 pt-4 pb-2">
         <div className="rounded-2xl p-4"
-          style={{ background: "#141008", border: `1px solid ${data.isLive ? "#00ce7d30" : "#2a2010"}` }}>
+          style={{ background: "var(--bg-card)", border: `1px solid ${data.isLive ? "var(--color-success)30" : "var(--color-border)"}` }}>
 
           <div className="flex items-center justify-between gap-2">
             {/* Home */}
@@ -147,7 +147,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                 className="w-12 h-12 object-contain"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               <p className="font-black text-xs text-center"
-                style={{ color: data.home.winner === true ? "#f5a623" : "#c8b080" }}>
+                style={{ color: data.home.winner === true ? "var(--color-primary)" : "var(--color-text)" }}>
                 {data.home.name}
               </p>
             </div>
@@ -156,22 +156,22 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
             <div className="text-center flex-shrink-0 px-2">
               {hasScore ? (
                 <>
-                  <p className="font-black text-3xl leading-none" style={{ color: "#f5a623" }}>
+                  <p className="font-black text-3xl leading-none" style={{ color: "var(--color-primary)" }}>
                     {homeGoals}
-                    <span className="mx-2 text-2xl" style={{ color: "#3a2a10" }}>–</span>
+                    <span className="mx-2 text-2xl" style={{ color: "var(--color-border-subtle)" }}>–</span>
                     {awayGoals}
                   </p>
                   {data.score?.halftime && (data.isLive || data.isFinished) && (
-                    <p className="text-[7px] font-black mt-1" style={{ color: "#3a2a10" }}>
+                    <p className="text-[7px] font-black mt-1" style={{ color: "var(--color-border-subtle)" }}>
                       HZ: {data.score.halftime.home ?? 0}–{data.score.halftime.away ?? 0}
                     </p>
                   )}
                 </>
               ) : (
-                <p className="font-black text-xl" style={{ color: "#5a4020" }}>vs</p>
+                <p className="font-black text-xl" style={{ color: "var(--color-muted)" }}>vs</p>
               )}
               <p className="text-[8px] font-black mt-1"
-                style={{ color: data.isLive ? "#00ce7d" : "#5a4020" }}>
+                style={{ color: data.isLive ? "var(--color-success)" : "var(--color-muted)" }}>
                 {data.isLive
                   ? `${data.elapsed}'`
                   : data.isFinished
@@ -180,7 +180,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
               </p>
               {data.venue && (
                 <p className="text-[7px] mt-0.5 truncate max-w-[90px]"
-                  style={{ color: "#2a2010" }}>{data.venue}</p>
+                  style={{ color: "var(--color-border)" }}>{data.venue}</p>
               )}
             </div>
 
@@ -190,7 +190,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                 className="w-12 h-12 object-contain"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               <p className="font-black text-xs text-center"
-                style={{ color: data.away.winner === true ? "#f5a623" : "#c8b080" }}>
+                style={{ color: data.away.winner === true ? "var(--color-primary)" : "var(--color-text)" }}>
                 {data.away.name}
               </p>
             </div>
@@ -199,11 +199,11 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
           {/* Quick event icons in scoreboard (goals + cards) */}
           {(homeEvents.length > 0 || awayEvents.length > 0) && (
             <div className="flex justify-between mt-3 pt-3 gap-2"
-              style={{ borderTop: "1px solid #2a2010" }}>
+              style={{ borderTop: "1px solid var(--color-border)" }}>
               <div className="flex-1 space-y-0.5">
                 {homeEvents.filter((e: any) => e.type === "Goal").map((e: any, i: number) => (
                   <p key={i} className="text-[8px] font-black text-right"
-                    style={{ color: e.detail === "Own Goal" ? "#ff4d6d" : "#c8b080" }}>
+                    style={{ color: e.detail === "Own Goal" ? "var(--color-error)" : "var(--color-text)" }}>
                     ⚽ {e.playerName?.split(" ").pop()} {e.time}'
                     {e.detail === "Penalty" && " (E)"}
                     {e.detail === "Own Goal" && " (ET)"}
@@ -211,16 +211,16 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                 ))}
                 {homeEvents.filter((e: any) => e.type === "Card").map((e: any, i: number) => (
                   <p key={i} className="text-[8px] font-black text-right"
-                    style={{ color: e.detail?.includes("Red") ? "#ff4d6d" : "#f5a623" }}>
+                    style={{ color: e.detail?.includes("Red") ? "var(--color-error)" : "var(--color-primary)" }}>
                     {e.detail?.includes("Red") ? "🟥" : "🟨"} {e.playerName?.split(" ").pop()} {e.time}'
                   </p>
                 ))}
               </div>
-              <div className="flex-shrink-0 w-px" style={{ background: "#2a2010" }} />
+              <div className="flex-shrink-0 w-px" style={{ background: "var(--color-border)" }} />
               <div className="flex-1 space-y-0.5">
                 {awayEvents.filter((e: any) => e.type === "Goal").map((e: any, i: number) => (
                   <p key={i} className="text-[8px] font-black"
-                    style={{ color: e.detail === "Own Goal" ? "#ff4d6d" : "#c8b080" }}>
+                    style={{ color: e.detail === "Own Goal" ? "var(--color-error)" : "var(--color-text)" }}>
                     ⚽ {e.playerName?.split(" ").pop()} {e.time}'
                     {e.detail === "Penalty" && " (E)"}
                     {e.detail === "Own Goal" && " (ET)"}
@@ -228,7 +228,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                 ))}
                 {awayEvents.filter((e: any) => e.type === "Card").map((e: any, i: number) => (
                   <p key={i} className="text-[8px] font-black"
-                    style={{ color: e.detail?.includes("Red") ? "#ff4d6d" : "#f5a623" }}>
+                    style={{ color: e.detail?.includes("Red") ? "var(--color-error)" : "var(--color-primary)" }}>
                     {e.detail?.includes("Red") ? "🟥" : "🟨"} {e.playerName?.split(" ").pop()} {e.time}'
                   </p>
                 ))}
@@ -249,9 +249,9 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
             <button key={id} onClick={() => setTab(id)}
               className="flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
               style={{
-                background: tab === id ? "#f5a623" : "#141008",
-                color: tab === id ? "#0c0900" : "#5a4020",
-                border: `1px solid ${tab === id ? "#f5a623" : "#2a2010"}`,
+                background: tab === id ? "var(--color-primary)" : "var(--bg-card)",
+                color: tab === id ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${tab === id ? "var(--color-primary)" : "var(--color-border)"}`,
               }}>
               {label}
             </button>
@@ -266,7 +266,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
         {tab === "events" && (
           <div>
             {nonSubs.length === 0 ? (
-              <div className="text-center py-12" style={{ color: "#2a2010" }}>
+              <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
                 <p className="text-[9px] font-black uppercase tracking-widest">
                   {data.isFinished ? "Keine Ereignisse" : "Noch keine Ereignisse"}
                 </p>
@@ -279,17 +279,17 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                   const isGoal = e.type === "Goal";
                   const isCard = e.type === "Card";
                   const color = isGoal
-                    ? (e.detail === "Own Goal" ? "#ff4d6d" : "#f5a623")
+                    ? (e.detail === "Own Goal" ? "var(--color-error)" : "var(--color-primary)")
                     : isCard
-                    ? (e.detail?.includes("Red") ? "#ff4d6d" : "#f5a623")
-                    : "#5a4020";
+                    ? (e.detail?.includes("Red") ? "var(--color-error)" : "var(--color-primary)")
+                    : "var(--color-muted)";
 
                   return (
                     <div key={i}
                       className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
                       style={{
-                        background: isGoal ? "#1a1208" : "#141008",
-                        border: `1px solid ${isGoal ? "#3a2a10" : "#2a2010"}`,
+                        background: isGoal ? "var(--bg-elevated)" : "var(--bg-card)",
+                        border: `1px solid ${isGoal ? "var(--color-border-subtle)" : "var(--color-border)"}`,
                       }}>
                       {/* Home side */}
                       {isHome ? (
@@ -302,23 +302,23 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                               {e.detail === "Own Goal" && " (ET)"}
                             </p>
                             {e.assistName && (
-                              <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                              <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>
                                 Vorlage: {e.assistName}
                               </p>
                             )}
-                            <p className="text-[7px]" style={{ color: "#3a2a10" }}>
+                            <p className="text-[7px]" style={{ color: "var(--color-border-subtle)" }}>
                               {data.home.name}
                             </p>
                           </div>
                           <span className="font-black text-sm flex-shrink-0"
-                            style={{ color: "#5a4020" }}>{e.time}'</span>
+                            style={{ color: "var(--color-muted)" }}>{e.time}'</span>
                           <div className="w-8" />
                         </>
                       ) : (
                         <>
                           <div className="w-8" />
                           <span className="font-black text-sm flex-shrink-0"
-                            style={{ color: "#5a4020" }}>{e.time}'</span>
+                            style={{ color: "var(--color-muted)" }}>{e.time}'</span>
                           <div className="flex-1 min-w-0 text-right">
                             <p className="font-black text-xs" style={{ color }}>
                               {e.playerName}
@@ -326,11 +326,11 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                               {e.detail === "Own Goal" && " (ET)"}
                             </p>
                             {e.assistName && (
-                              <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                              <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>
                                 Vorlage: {e.assistName}
                               </p>
                             )}
-                            <p className="text-[7px]" style={{ color: "#3a2a10" }}>
+                            <p className="text-[7px]" style={{ color: "var(--color-border-subtle)" }}>
                               {data.away.name}
                             </p>
                           </div>
@@ -347,26 +347,26 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
             {subs.length > 0 && (
               <div className="mt-4">
                 <p className="text-[8px] font-black uppercase tracking-widest mb-2"
-                  style={{ color: "#2a2010" }}>Einwechslungen</p>
+                  style={{ color: "var(--color-border)" }}>Einwechslungen</p>
                 <div className="space-y-1">
                   {subs.map((e: any, i: number) => {
                     const isHome = e.teamId === data.home.id;
                     return (
                       <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
-                        style={{ background: "#141008" }}>
+                        style={{ background: "var(--bg-card)" }}>
                         <span className="text-[7px] font-black w-6 text-center"
-                          style={{ color: "#3a2a10" }}>{e.time}'</span>
+                          style={{ color: "var(--color-border-subtle)" }}>{e.time}'</span>
                         <span className="text-xs">↕</span>
                         <div className="flex-1 min-w-0">
-                          <span className="text-[8px] font-black" style={{ color: "#00ce7d" }}>
+                          <span className="text-[8px] font-black" style={{ color: "var(--color-success)" }}>
                             ▲ {e.assistName}
                           </span>
-                          <span className="text-[7px] mx-1" style={{ color: "#2a2010" }}>·</span>
-                          <span className="text-[8px] font-black" style={{ color: "#ff4d6d" }}>
+                          <span className="text-[7px] mx-1" style={{ color: "var(--color-border)" }}>·</span>
+                          <span className="text-[8px] font-black" style={{ color: "var(--color-error)" }}>
                             ▼ {e.playerName}
                           </span>
                         </div>
-                        <span className="text-[7px] font-black" style={{ color: "#3a2a10" }}>
+                        <span className="text-[7px] font-black" style={{ color: "var(--color-border-subtle)" }}>
                           {isHome ? data.home.name : data.away.name}
                         </span>
                       </div>
@@ -382,7 +382,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
         {tab === "lineup" && (
           <div>
             {!homeLineup && !awayLineup ? (
-              <div className="text-center py-12" style={{ color: "#2a2010" }}>
+              <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
                 <p className="text-[9px] font-black uppercase tracking-widest">
                   Aufstellung noch nicht verfügbar
                 </p>
@@ -406,16 +406,16 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
 
                   return (
                     <div key={lineup.teamId} className="rounded-2xl overflow-hidden"
-                      style={{ background: "#141008", border: "1px solid #2a2010" }}>
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
                       {/* Team header */}
                       <div className="flex items-center gap-3 px-4 py-3"
-                        style={{ background: "#1a1208", borderBottom: "1px solid #2a2010" }}>
+                        style={{ background: "var(--bg-elevated)", borderBottom: "1px solid var(--color-border)" }}>
                         <img src={teamObj.logo} alt="" className="w-6 h-6 object-contain"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                        <p className="font-black text-sm" style={{ color: "#c8b080" }}>{teamObj.name}</p>
+                        <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{teamObj.name}</p>
                         {lineup.formation && (
                           <span className="ml-auto text-[9px] font-black"
-                            style={{ color: "#f5a623" }}>{lineup.formation}</span>
+                            style={{ color: "var(--color-primary)" }}>{lineup.formation}</span>
                         )}
                       </div>
 
@@ -425,7 +425,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                           const goals = goalEvents.filter((e: any) => e.playerId === p.id);
                           const cards = cardEvents.filter((e: any) => e.playerId === p.id);
                           const subOut = subOutIds.has(p.id);
-                          const posColor = POS_COLOR[p.pos?.charAt(0)] || "#5a4020";
+                          const posColor = POS_COLOR[p.pos?.charAt(0)] || "var(--color-muted)";
                           return (
                             <div key={p.id} className="flex items-center gap-2 py-1">
                               <span className="text-[8px] font-black w-5 text-center"
@@ -433,7 +433,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                               <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                                 style={{ background: posColor }} />
                               <span className="text-[9px] font-black flex-1 truncate"
-                                style={{ color: subOut ? "#5a4020" : "#c8b080" }}>
+                                style={{ color: subOut ? "var(--color-muted)" : "var(--color-text)" }}>
                                 {p.name}
                               </span>
                               {/* Events */}
@@ -459,9 +459,9 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                       {lineup.substitutes.length > 0 && (
                         <>
                           <div className="px-4 py-1.5"
-                            style={{ background: "#0f0c06", borderTop: "1px solid #2a2010" }}>
+                            style={{ background: "var(--bg-page)", borderTop: "1px solid var(--color-border)" }}>
                             <p className="text-[7px] font-black uppercase tracking-widest"
-                              style={{ color: "#2a2010" }}>Ersatzbank</p>
+                              style={{ color: "var(--color-border)" }}>Ersatzbank</p>
                           </div>
                           <div className="px-3 py-1 space-y-0.5">
                             {lineup.substitutes.map((p: any) => {
@@ -470,15 +470,15 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                               const subIn = (data.events || []).some((e: any) =>
                                 e.type?.toLowerCase() === "subst" && e.assistId === p.id
                               );
-                              const posColor = POS_COLOR[p.pos?.charAt(0)] || "#3a2a10";
+                              const posColor = POS_COLOR[p.pos?.charAt(0)] || "var(--color-border-subtle)";
                               return (
                                 <div key={p.id} className="flex items-center gap-2 py-0.5">
                                   <span className="text-[7px] font-black w-5 text-center"
-                                    style={{ color: "#3a2a10" }}>{p.number}</span>
+                                    style={{ color: "var(--color-border-subtle)" }}>{p.number}</span>
                                   <span className="w-1 h-1 rounded-full flex-shrink-0"
-                                    style={{ background: "#2a2010" }} />
+                                    style={{ background: "var(--color-border)" }} />
                                   <span className="text-[8px] font-black flex-1 truncate"
-                                    style={{ color: subIn ? "#c8b080" : "#5a4020" }}>
+                                    style={{ color: subIn ? "var(--color-text)" : "var(--color-muted)" }}>
                                     {p.name}
                                   </span>
                                   <span className="flex gap-0.5 flex-shrink-0">
@@ -490,7 +490,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                                         {c.detail?.includes("Red") ? "🟥" : "🟨"}
                                       </span>
                                     ))}
-                                    {subIn && <span className="text-[9px]" style={{ color: "#00ce7d" }}>↑</span>}
+                                    {subIn && <span className="text-[9px]" style={{ color: "var(--color-success)" }}>↑</span>}
                                   </span>
                                 </div>
                               );
@@ -500,8 +500,8 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                       )}
 
                       {lineup.coach && (
-                        <div className="px-4 py-2" style={{ borderTop: "1px solid #2a2010" }}>
-                          <p className="text-[7px] font-black" style={{ color: "#3a2a10" }}>
+                        <div className="px-4 py-2" style={{ borderTop: "1px solid var(--color-border)" }}>
+                          <p className="text-[7px] font-black" style={{ color: "var(--color-border-subtle)" }}>
                             Trainer: {lineup.coach}
                           </p>
                         </div>
@@ -518,7 +518,7 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
         {tab === "stats" && (
           <div>
             {Object.keys(homeStats).length === 0 && Object.keys(awayStats).length === 0 ? (
-              <div className="text-center py-12" style={{ color: "#2a2010" }}>
+              <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
                 <p className="text-[9px] font-black uppercase tracking-widest">
                   Statistiken noch nicht verfügbar
                 </p>
@@ -527,8 +527,8 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
               <>
                 {/* Team name header */}
                 <div className="flex items-center justify-between mb-3 px-1">
-                  <p className="text-[9px] font-black" style={{ color: "#c8b080" }}>{data.home.name}</p>
-                  <p className="text-[9px] font-black" style={{ color: "#c8b080" }}>{data.away.name}</p>
+                  <p className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>{data.home.name}</p>
+                  <p className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>{data.away.name}</p>
                 </div>
                 <div className="space-y-2">
                   {statKeys.map(([key, label]) => {
@@ -545,20 +545,20 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                     return (
                       <div key={key}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-black text-xs" style={{ color: "#c8b080" }}>
+                          <span className="font-black text-xs" style={{ color: "var(--color-text)" }}>
                             {isPct ? hRaw : hRaw ?? 0}
                           </span>
                           <span className="text-[7px] font-black uppercase tracking-widest"
-                            style={{ color: "#3a2a10" }}>{label}</span>
-                          <span className="font-black text-xs" style={{ color: "#c8b080" }}>
+                            style={{ color: "var(--color-border-subtle)" }}>{label}</span>
+                          <span className="font-black text-xs" style={{ color: "var(--color-text)" }}>
                             {isPct ? aRaw : aRaw ?? 0}
                           </span>
                         </div>
                         {/* Bar */}
                         <div className="flex rounded-full overflow-hidden h-1"
-                          style={{ background: "#2a2010" }}>
-                          <div style={{ width: `${hPct}%`, background: "#f5a623", transition: "width 0.5s" }} />
-                          <div style={{ flex: 1, background: "#4a9eff" }} />
+                          style={{ background: "var(--color-border)" }}>
+                          <div style={{ width: `${hPct}%`, background: "var(--color-primary)", transition: "width 0.5s" }} />
+                          <div style={{ flex: 1, background: "var(--color-info)" }} />
                         </div>
                       </div>
                     );
@@ -566,13 +566,13 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
                 </div>
                 <div className="flex gap-4 mt-4 justify-center">
                   <span className="flex items-center gap-1.5 text-[8px] font-black"
-                    style={{ color: "#5a4020" }}>
-                    <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#f5a623" }} />
+                    style={{ color: "var(--color-muted)" }}>
+                    <span className="w-3 h-1 rounded-full inline-block" style={{ background: "var(--color-primary)" }} />
                     {data.home.name}
                   </span>
                   <span className="flex items-center gap-1.5 text-[8px] font-black"
-                    style={{ color: "#5a4020" }}>
-                    <span className="w-3 h-1 rounded-full inline-block" style={{ background: "#4a9eff" }} />
+                    style={{ color: "var(--color-muted)" }}>
+                    <span className="w-3 h-1 rounded-full inline-block" style={{ background: "var(--color-info)" }} />
                     {data.away.name}
                   </span>
                 </div>

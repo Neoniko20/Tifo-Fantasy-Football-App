@@ -243,17 +243,17 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "#0c0900", color: "#2a2010" }}>
+      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
       Lade Admin...
     </main>
   );
 
   if (!isOwner) return (
     <main className="flex min-h-screen items-center justify-center flex-col gap-4"
-      style={{ background: "#0c0900" }}>
-      <p className="text-sm font-black" style={{ color: "#ff4d6d" }}>Kein Zugriff</p>
+      style={{ background: "var(--bg-page)" }}>
+      <p className="text-sm font-black" style={{ color: "var(--color-error)" }}>Kein Zugriff</p>
       <button onClick={() => window.location.href = `/wm/${leagueId}`}
-        className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+        className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
         ← Zurück
       </button>
     </main>
@@ -262,29 +262,29 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const activeNations = nations.filter(n => !n.eliminated_after_gameweek);
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-12" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-12" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#f5a623" }} />
+        style={{ background: "var(--color-primary)" }} />
 
       {/* Header */}
       <div className="w-full max-w-xl flex justify-between items-center mb-5">
         <button onClick={() => window.location.href = `/wm/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
           ← WM
         </button>
         <div className="text-center">
-          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>Admin</p>
-          <p className="text-sm font-black" style={{ color: "#f5a623" }}>{league?.name}</p>
+          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Admin</p>
+          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>{league?.name}</p>
         </div>
         <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-          style={{ background: "#1a0a00", border: "1px solid #f5a623", color: "#f5a623" }}>
+          style={{ background: "color-mix(in srgb, var(--color-primary) 10%, var(--bg-page))", border: "1px solid var(--color-primary)", color: "var(--color-primary)" }}>
           Liga-Owner
         </span>
       </div>
 
       {/* GW Selector */}
       <div className="w-full max-w-xl mb-4">
-        <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "#5a4020" }}>
+        <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
           Spieltag
         </p>
         <div className="flex gap-2 flex-wrap">
@@ -292,13 +292,13 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
             <button key={gw.gameweek} onClick={() => setSelectedGW(gw.gameweek)}
               className="px-3 py-2 rounded-xl text-[10px] font-black transition-all"
               style={{
-                background: selectedGW === gw.gameweek ? "#f5a623" : "#141008",
-                color: selectedGW === gw.gameweek ? "#0c0900" : "#5a4020",
-                border: `1px solid ${selectedGW === gw.gameweek ? "#f5a623" : gw.status === "active" ? "#3a2a10" : "#2a2010"}`,
+                background: selectedGW === gw.gameweek ? "var(--color-primary)" : "var(--bg-card)",
+                color: selectedGW === gw.gameweek ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${selectedGW === gw.gameweek ? "var(--color-primary)" : gw.status === "active" ? "var(--color-border-subtle)" : "var(--color-border)"}`,
               }}>
               GW{gw.gameweek}
               <span className="ml-1 text-[7px]"
-                style={{ color: selectedGW === gw.gameweek ? "#0c0900" : gw.status === "active" ? "#f5a623" : "#2a2010" }}>
+                style={{ color: selectedGW === gw.gameweek ? "var(--bg-page)" : gw.status === "active" ? "var(--color-primary)" : "var(--color-border)" }}>
                 {gw.status === "active" ? "●" : gw.status === "finished" ? "✓" : "○"}
               </span>
             </button>
@@ -307,7 +307,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 w-full max-w-xl mb-4 p-1 rounded-xl" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+      <div className="flex gap-1 w-full max-w-xl mb-4 p-1 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
         {([
           { id: "points",    label: "Punkte eintragen" },
           { id: "nations",   label: "Ausscheidungen" },
@@ -316,8 +316,8 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
             style={{
-              background: tab === t.id ? "#f5a623" : "transparent",
-              color: tab === t.id ? "#0c0900" : "#5a4020",
+              background: tab === t.id ? "var(--color-primary)" : "transparent",
+              color: tab === t.id ? "var(--bg-page)" : "var(--color-muted)",
             }}>
             {t.label}
           </button>
@@ -327,7 +327,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       {/* PUNKTE EINTRAGEN */}
       {tab === "points" && (
         <div className="w-full max-w-xl">
-          <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+          <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
             GW{selectedGW} · {squadPlayers.length} Spieler im Pool
           </p>
           <div className="space-y-2 mb-4">
@@ -339,23 +339,23 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
               return (
                 <div key={player_id} className="rounded-xl p-3"
                   style={{
-                    background: "#141008",
-                    border: `1px solid ${isElim ? "#2a1010" : "#2a2010"}`,
+                    background: "var(--bg-card)",
+                    border: `1px solid ${isElim ? "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" : "var(--color-border)"}`,
                     opacity: isElim ? 0.5 : 1,
                   }}>
                   <div className="flex items-center justify-between mb-2">
                     <div>
-                      <p className="font-black text-sm" style={{ color: isElim ? "#5a2020" : "#c8b080" }}>{p.name}</p>
-                      <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                      <p className="font-black text-sm" style={{ color: isElim ? "var(--color-muted)" : "var(--color-text)" }}>{p.name}</p>
+                      <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                         {p.position} · {p.team_name}
-                        {isElim && <span style={{ color: "#ff4d6d" }}> · AUSGESCHIEDEN</span>}
+                        {isElim && <span style={{ color: "var(--color-error)" }}> · AUSGESCHIEDEN</span>}
                       </p>
                     </div>
                     {isElim ? (
                       <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                        style={{ background: "#2a1010", color: "#ff4d6d" }}>0 Pts</span>
+                        style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)" }}>0 Pts</span>
                     ) : (
-                      <span className="text-sm font-black" style={{ color: "#f5a623" }}>
+                      <span className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
                         {calculateWMGameweekPoints({ ...s, position: p.position }, nation || null, selectedGW).points.toFixed(1)}
                       </span>
                     )}
@@ -377,7 +377,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                         { key: "pass_accuracy",label: "Pass%", type: "number" },
                       ].map(({ key, label, type }) => (
                         <div key={key}>
-                          <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "#2a2010" }}>{label}</p>
+                          <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "var(--color-border)" }}>{label}</p>
                           <input
                             type={type}
                             value={s[key as keyof typeof s] as number}
@@ -385,7 +385,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                             max={key === "pass_accuracy" ? 100 : undefined}
                             onChange={e => updateStat(player_id, key as keyof Omit<GWStats, "position">, Number(e.target.value))}
                             className="w-full p-1 rounded text-xs text-center font-black focus:outline-none"
-                            style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}
+                            style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
                           />
                         </div>
                       ))}
@@ -398,7 +398,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                           className="w-4 h-4"
                         />
                         <label htmlFor={`cs-${player_id}`} className="text-[9px] font-black uppercase"
-                          style={{ color: "#5a4020" }}>
+                          style={{ color: "var(--color-muted)" }}>
                           Clean Sheet
                         </label>
                       </div>
@@ -411,8 +411,8 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
           <button onClick={savePoints} disabled={saving}
             className="w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all"
             style={{
-              background: saving ? "#2a2010" : "#f5a623",
-              color: saving ? "#5a4020" : "#0c0900",
+              background: saving ? "var(--color-border)" : "var(--color-primary)",
+              color: saving ? "var(--color-muted)" : "var(--bg-page)",
             }}>
             {saving ? "Speichern..." : `GW${selectedGW} Punkte berechnen & speichern`}
           </button>
@@ -422,15 +422,15 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       {/* AUSSCHEIDUNGEN */}
       {tab === "nations" && (
         <div className="w-full max-w-xl space-y-3">
-          <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
               Nation nach GW{selectedGW} ausscheiden lassen
             </p>
             <select
               value={eliminateNation}
               onChange={e => setEliminateNation(e.target.value)}
               className="w-full p-2 rounded-lg text-sm font-black focus:outline-none mb-3"
-              style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
               <option value="">Nation wählen...</option>
               {activeNations.map(n => (
                 <option key={n.id} value={n.id}>{n.name}</option>
@@ -439,8 +439,8 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
             <button onClick={markEliminatedNation} disabled={!eliminateNation}
               className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
               style={{
-                background: eliminateNation ? "#ff4d6d" : "#2a1010",
-                color: eliminateNation ? "#ffffff" : "#5a2020",
+                background: eliminateNation ? "var(--color-error)" : "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))",
+                color: eliminateNation ? "var(--color-text)" : "var(--color-muted)",
               }}>
               Nach GW{selectedGW} ausscheiden
             </button>
@@ -450,15 +450,15 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
             {nations.map(n => (
               <div key={n.id} className="flex items-center justify-between p-3 rounded-xl"
                 style={{
-                  background: "#141008",
-                  border: `1px solid ${n.eliminated_after_gameweek ? "#2a1010" : "#2a2010"}`,
+                  background: "var(--bg-card)",
+                  border: `1px solid ${n.eliminated_after_gameweek ? "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" : "var(--color-border)"}`,
                   opacity: n.eliminated_after_gameweek ? 0.6 : 1,
                 }}>
-                <p className="font-black text-sm" style={{ color: "#c8b080" }}>{n.name}</p>
+                <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{n.name}</p>
                 {n.eliminated_after_gameweek ? (
                   <div className="flex items-center gap-2">
                     <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                      style={{ background: "#2a1010", color: "#ff4d6d" }}>
+                      style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)" }}>
                       Raus nach GW{n.eliminated_after_gameweek}
                     </span>
                     <button onClick={async () => {
@@ -466,11 +466,11 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                         .update({ eliminated_after_gameweek: null })
                         .eq("id", n.id);
                       setNations(prev => prev.map(x => x.id === n.id ? { ...x, eliminated_after_gameweek: null } : x));
-                    }} className="text-[8px] font-black" style={{ color: "#5a2020" }}>✕</button>
+                    }} className="text-[8px] font-black" style={{ color: "var(--color-muted)" }}>✕</button>
                   </div>
                 ) : (
                   <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                    style={{ background: "#0a1a0a", color: "#00ce7d", border: "1px solid #00ce7d40" }}>
+                    style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)", border: "1px solid var(--color-success)40" }}>
                     Aktiv
                   </span>
                 )}
@@ -485,13 +485,13 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
         <div className="w-full max-w-xl space-y-2">
           {gameweeks.map(gw => (
             <div key={gw.gameweek} className="flex items-center justify-between p-4 rounded-xl"
-              style={{ background: "#141008", border: `1px solid ${gw.status === "active" ? "#3a2a10" : "#2a2010"}` }}>
+              style={{ background: "var(--bg-card)", border: `1px solid ${gw.status === "active" ? "var(--color-border-subtle)" : "var(--color-border)"}` }}>
               <div>
-                <p className="font-black text-sm" style={{ color: "#c8b080" }}>
+                <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>
                   GW{gw.gameweek}
-                  {gw.label && <span className="ml-2 text-[9px]" style={{ color: "#5a4020" }}>{gw.label}</span>}
+                  {gw.label && <span className="ml-2 text-[9px]" style={{ color: "var(--color-muted)" }}>{gw.label}</span>}
                 </p>
-                <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                   {PHASE_LABEL[gw.phase] || gw.phase}
                 </p>
               </div>
@@ -501,12 +501,12 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                     className="px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
                     style={{
                       background: gw.status === s
-                        ? s === "active" ? "#f5a623" : s === "finished" ? "#00ce7d" : "#2a2010"
-                        : "#0c0900",
+                        ? s === "active" ? "var(--color-primary)" : s === "finished" ? "var(--color-success)" : "var(--color-border)"
+                        : "var(--bg-page)",
                       color: gw.status === s
-                        ? s === "active" ? "#0c0900" : s === "finished" ? "#0c0900" : "#c8b080"
-                        : "#5a4020",
-                      border: `1px solid ${gw.status === s ? "transparent" : "#2a2010"}`,
+                        ? s === "active" ? "var(--bg-page)" : s === "finished" ? "var(--bg-page)" : "var(--color-text)"
+                        : "var(--color-muted)",
+                      border: `1px solid ${gw.status === s ? "transparent" : "var(--color-border)"}`,
                     }}>
                     {s === "upcoming" ? "Bald" : s === "active" ? "Aktiv" : "Fertig"}
                   </button>

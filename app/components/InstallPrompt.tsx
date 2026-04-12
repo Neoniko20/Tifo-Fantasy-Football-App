@@ -57,17 +57,17 @@ export function InstallPrompt() {
   return (
     <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm mx-auto px-4">
       <div className="rounded-2xl p-4 shadow-xl"
-        style={{ background: "#141008", border: "1px solid #f5a623" }}>
+        style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
         <div className="flex items-start gap-3">
           <div className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center"
-            style={{ background: "#0c0900", border: "1px solid #f5a623" }}>
+            style={{ background: "var(--bg-page)", border: "1px solid var(--color-primary)" }}>
             <span className="text-2xl">⚡</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-xs" style={{ color: "#f5a623" }}>
+            <p className="font-black text-xs" style={{ color: "var(--color-primary)" }}>
               Tifo auf den Homescreen
             </p>
-            <p className="text-[9px] font-black mt-0.5" style={{ color: "#c8b080" }}>
+            <p className="text-[9px] font-black mt-0.5" style={{ color: "var(--color-text)" }}>
               {isIOS
                 ? "Tippe auf ⎙ Teilen → Zum Home-Bildschirm"
                 : "Installiere Tifo als App — ein Tap auf dem Homescreen, kein Browser-Chrome."}
@@ -76,13 +76,13 @@ export function InstallPrompt() {
               {!isIOS && (
                 <button onClick={install}
                   className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest"
-                  style={{ background: "#f5a623", color: "#0c0900" }}>
+                  style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
                   Installieren
                 </button>
               )}
               <button onClick={dismiss}
                 className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest"
-                style={{ background: "#2a2010", color: "#5a4020" }}>
+                style={{ background: "var(--color-border)", color: "var(--color-muted)" }}>
                 Später
               </button>
             </div>

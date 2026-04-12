@@ -12,7 +12,7 @@ import {
 import { useToast } from "@/app/components/ToastProvider";
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
+  GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
 };
 
 export default function TradesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -205,7 +205,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "#0c0900", color: "#2a2010" }}>Lade Trades...</main>
+      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>Lade Trades...</main>
   );
 
   const inbox = trades.filter(t => t.receiver?.user_id === user?.id && t.status === "pending");
@@ -216,29 +216,29 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
     squad?.find(p => p.id === id)?.name || allPlayers[id] || `#${id}`;
 
   const STATUS_COLORS: Record<string, string> = {
-    pending: "#f5a623", accepted: "#00ce7d", rejected: "#ff4d6d", cancelled: "#2a2010",
+    pending: "var(--color-primary)", accepted: "var(--color-success)", rejected: "var(--color-error)", cancelled: "var(--color-border)",
   };
   const STATUS_LABELS: Record<string, string> = {
     pending: "Ausstehend", accepted: "Angenommen", rejected: "Abgelehnt", cancelled: "Zurückgezogen",
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#4a9eff" }} />
+        style={{ background: "var(--color-info)" }} />
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-5">
         <button onClick={() => window.location.href = `/leagues/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
           ← Liga
         </button>
-        <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "#c8b080" }}>Trades</h1>
+        <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>Trades</h1>
         <div />
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 w-full max-w-md mb-5 p-1 rounded-xl" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+      <div className="flex gap-1 w-full max-w-md mb-5 p-1 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
         {([
           { id: "inbox",   label: `Eingang${inbox.length > 0 ? ` (${inbox.length})` : ""}` },
           { id: "propose", label: "Trade vorschlagen" },
@@ -247,8 +247,8 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex-1 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all"
             style={{
-              background: tab === t.id ? "#f5a623" : "transparent",
-              color: tab === t.id ? "#0c0900" : t.id === "inbox" && inbox.length > 0 ? "#f5a623" : "#5a4020",
+              background: tab === t.id ? "var(--color-primary)" : "transparent",
+              color: tab === t.id ? "var(--bg-page)" : t.id === "inbox" && inbox.length > 0 ? "var(--color-primary)" : "var(--color-muted)",
             }}>
             {t.label}
           </button>
@@ -259,35 +259,35 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       {tab === "inbox" && (
         <div className="w-full max-w-md space-y-3">
           {inbox.length === 0 ? (
-            <div className="text-center py-12" style={{ color: "#2a2010" }}>
+            <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
               <p className="text-[9px] font-black uppercase tracking-widest">Keine offenen Trades</p>
             </div>
           ) : inbox.map(t => (
             <div key={t.id} className="rounded-2xl p-4 space-y-3"
-              style={{ background: "#141008", border: "1px solid #3a2a10" }}>
+              style={{ background: "var(--bg-card)", border: "1px solid var(--color-border-subtle)" }}>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-black" style={{ color: "#f5a623" }}>
+                <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>
                   {t.proposer?.name} bietet an:
                 </p>
-                <span className="text-[8px]" style={{ color: "#2a2010" }}>
+                <span className="text-[8px]" style={{ color: "var(--color-border)" }}>
                   {new Date(t.created_at).toLocaleDateString("de-DE")}
                 </span>
               </div>
               {/* Tausch-Visualisierung */}
               <div className="flex gap-3">
-                <div className="flex-1 p-2 rounded-xl" style={{ background: "#0a1a0a", border: "1px solid #1a3a1a" }}>
-                  <p className="text-[7px] font-black uppercase mb-1.5" style={{ color: "#00ce7d" }}>Du erhältst</p>
+                <div className="flex-1 p-2 rounded-xl" style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid #1a3a1a" }}>
+                  <p className="text-[7px] font-black uppercase mb-1.5" style={{ color: "var(--color-success)" }}>Du erhältst</p>
                   {(t.offer_player_ids || []).map((pid: number) => (
-                    <p key={pid} className="text-[10px] font-black" style={{ color: "#c8b080" }}>
+                    <p key={pid} className="text-[10px] font-black" style={{ color: "var(--color-text)" }}>
                       {getPlayerName(pid, targetSquad.length ? targetSquad : mySquad)}
                     </p>
                   ))}
                 </div>
-                <div className="flex items-center" style={{ color: "#2a2010" }}>⇄</div>
-                <div className="flex-1 p-2 rounded-xl" style={{ background: "#1a0808", border: "1px solid #3a1010" }}>
-                  <p className="text-[7px] font-black uppercase mb-1.5" style={{ color: "#ff4d6d" }}>Du gibst ab</p>
+                <div className="flex items-center" style={{ color: "var(--color-border)" }}>⇄</div>
+                <div className="flex-1 p-2 rounded-xl" style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #3a1010" }}>
+                  <p className="text-[7px] font-black uppercase mb-1.5" style={{ color: "var(--color-error)" }}>Du gibst ab</p>
                   {(t.request_player_ids || []).map((pid: number) => (
-                    <p key={pid} className="text-[10px] font-black" style={{ color: "#c8b080" }}>
+                    <p key={pid} className="text-[10px] font-black" style={{ color: "var(--color-text)" }}>
                       {getPlayerName(pid, mySquad)}
                     </p>
                   ))}
@@ -296,12 +296,12 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
               <div className="flex gap-2">
                 <button onClick={() => respondTrade(t.id, false)}
                   className="flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase"
-                  style={{ background: "#1a0808", border: "1px solid #3a1010", color: "#ff4d6d" }}>
+                  style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #3a1010", color: "var(--color-error)" }}>
                   Ablehnen
                 </button>
                 <button onClick={() => respondTrade(t.id, true)}
                   className="flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase"
-                  style={{ background: "#0a1a0a", border: "1px solid #00ce7d", color: "#00ce7d" }}>
+                  style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid var(--color-success)", color: "var(--color-success)" }}>
                   Annehmen
                 </button>
               </div>
@@ -314,8 +314,8 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       {tab === "propose" && (
         <div className="w-full max-w-md space-y-4">
           {/* Team auswählen */}
-          <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#2a2010" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>
               Mit welchem Team?
             </p>
             <div className="flex flex-wrap gap-2">
@@ -323,9 +323,9 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
                 <button key={t.id} onClick={() => setTargetTeamId(t.id)}
                   className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
                   style={{
-                    background: targetTeamId === t.id ? "#141008" : "#0c0900",
-                    border: `1px solid ${targetTeamId === t.id ? "#f5a623" : "#2a2010"}`,
-                    color: targetTeamId === t.id ? "#f5a623" : "#5a4020",
+                    background: targetTeamId === t.id ? "var(--bg-card)" : "var(--bg-page)",
+                    border: `1px solid ${targetTeamId === t.id ? "var(--color-primary)" : "var(--color-border)"}`,
+                    color: targetTeamId === t.id ? "var(--color-primary)" : "var(--color-muted)",
                   }}>
                   {t.name}
                 </button>
@@ -336,8 +336,8 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
           {targetTeamId && (
             <>
               {/* Meine Spieler (Angebot) */}
-              <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#ff4d6d" }}>
+              <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-error)" }}>
                   Ich biete an ({offerIds.length})
                 </p>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -345,17 +345,17 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
                     <button key={p.id} onClick={() => toggleId(offerIds, setOfferIds, p.id)}
                       className="w-full flex items-center gap-2 p-2.5 rounded-xl text-left transition-all"
                       style={{
-                        background: offerIds.includes(p.id) ? "#1a0808" : "#0c0900",
-                        border: `1px solid ${offerIds.includes(p.id) ? "#ff4d6d" : "#2a2010"}`,
+                        background: offerIds.includes(p.id) ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "var(--bg-page)",
+                        border: `1px solid ${offerIds.includes(p.id) ? "var(--color-error)" : "var(--color-border)"}`,
                       }}>
                       <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
                         style={{ background: POS_COLOR[p.position] + "20", color: POS_COLOR[p.position] }}>
                         {p.position}
                       </span>
-                      <span className="flex-1 text-xs font-black" style={{ color: offerIds.includes(p.id) ? "#ff4d6d" : "#c8b080" }}>
+                      <span className="flex-1 text-xs font-black" style={{ color: offerIds.includes(p.id) ? "var(--color-error)" : "var(--color-text)" }}>
                         {p.name}
                       </span>
-                      <span className="text-[9px] font-black" style={{ color: "#5a4020" }}>
+                      <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>
                         {p.fpts?.toFixed(0)} pts
                       </span>
                     </button>
@@ -364,12 +364,12 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
               </div>
 
               {/* Gegnerische Spieler (Anfrage) */}
-              <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#00ce7d" }}>
+              <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-success)" }}>
                   Ich möchte ({requestIds.length})
                 </p>
                 {targetSquad.length === 0 ? (
-                  <p className="text-[9px] py-4 text-center font-black uppercase" style={{ color: "#2a2010" }}>
+                  <p className="text-[9px] py-4 text-center font-black uppercase" style={{ color: "var(--color-border)" }}>
                     Kader wird geladen...
                   </p>
                 ) : (
@@ -378,17 +378,17 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
                       <button key={p.id} onClick={() => toggleId(requestIds, setRequestIds, p.id)}
                         className="w-full flex items-center gap-2 p-2.5 rounded-xl text-left transition-all"
                         style={{
-                          background: requestIds.includes(p.id) ? "#0a1a0a" : "#0c0900",
-                          border: `1px solid ${requestIds.includes(p.id) ? "#00ce7d" : "#2a2010"}`,
+                          background: requestIds.includes(p.id) ? "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))" : "var(--bg-page)",
+                          border: `1px solid ${requestIds.includes(p.id) ? "var(--color-success)" : "var(--color-border)"}`,
                         }}>
                         <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
                           style={{ background: POS_COLOR[p.position] + "20", color: POS_COLOR[p.position] }}>
                           {p.position}
                         </span>
-                        <span className="flex-1 text-xs font-black" style={{ color: requestIds.includes(p.id) ? "#00ce7d" : "#c8b080" }}>
+                        <span className="flex-1 text-xs font-black" style={{ color: requestIds.includes(p.id) ? "var(--color-success)" : "var(--color-text)" }}>
                           {p.name}
                         </span>
-                        <span className="text-[9px] font-black" style={{ color: "#5a4020" }}>
+                        <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>
                           {p.fpts?.toFixed(0)} pts
                         </span>
                       </button>
@@ -401,7 +401,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
               {offerIds.length > 0 && requestIds.length > 0 && (
                 <button onClick={proposeTrade} disabled={sending}
                   className="w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all"
-                  style={{ background: sending ? "#2a2010" : "#f5a623", color: "#0c0900" }}>
+                  style={{ background: sending ? "var(--color-border)" : "var(--color-primary)", color: "var(--bg-page)" }}>
                   {sending ? "Wird gesendet..." : "Trade-Vorschlag senden"}
                 </button>
               )}
@@ -414,14 +414,14 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       {tab === "sent" && (
         <div className="w-full max-w-md space-y-3">
           {sent.length === 0 ? (
-            <div className="text-center py-12" style={{ color: "#2a2010" }}>
+            <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
               <p className="text-[9px] font-black uppercase tracking-widest">Noch keine Trades gesendet</p>
             </div>
           ) : sent.map(t => (
             <div key={t.id} className="rounded-2xl p-4"
-              style={{ background: "#141008", border: `1px solid ${STATUS_COLORS[t.status] || "#2a2010"}30` }}>
+              style={{ background: "var(--bg-card)", border: `1px solid ${STATUS_COLORS[t.status] || "var(--color-border)"}30` }}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-black" style={{ color: "#c8b080" }}>
+                <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>
                   → {t.receiver?.name}
                 </p>
                 <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
@@ -431,17 +431,17 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
               </div>
               <div className="flex gap-3 mb-2">
                 <div className="flex-1">
-                  <p className="text-[7px] font-black uppercase mb-1" style={{ color: "#ff4d6d" }}>Ich biete</p>
+                  <p className="text-[7px] font-black uppercase mb-1" style={{ color: "var(--color-error)" }}>Ich biete</p>
                   {(t.offer_player_ids || []).map((pid: number) => (
-                    <p key={pid} className="text-[10px] font-black" style={{ color: "#c8b080" }}>
+                    <p key={pid} className="text-[10px] font-black" style={{ color: "var(--color-text)" }}>
                       {getPlayerName(pid)}
                     </p>
                   ))}
                 </div>
                 <div className="flex-1">
-                  <p className="text-[7px] font-black uppercase mb-1" style={{ color: "#00ce7d" }}>Ich möchte</p>
+                  <p className="text-[7px] font-black uppercase mb-1" style={{ color: "var(--color-success)" }}>Ich möchte</p>
                   {(t.request_player_ids || []).map((pid: number) => (
-                    <p key={pid} className="text-[10px] font-black" style={{ color: "#c8b080" }}>
+                    <p key={pid} className="text-[10px] font-black" style={{ color: "var(--color-text)" }}>
                       {getPlayerName(pid)}
                     </p>
                   ))}
@@ -450,7 +450,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
               {t.status === "pending" && (
                 <button onClick={() => cancelTrade(t.id)}
                   className="text-[9px] font-black uppercase"
-                  style={{ color: "#5a4020" }}>
+                  style={{ color: "var(--color-muted)" }}>
                   Zurückziehen
                 </button>
               )}

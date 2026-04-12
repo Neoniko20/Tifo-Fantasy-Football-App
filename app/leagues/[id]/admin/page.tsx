@@ -754,36 +754,36 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "#0c0900", color: "#2a2010" }}>Lade Admin...</main>
+      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>Lade Admin...</main>
   );
 
   if (!isOwner) return (
-    <main className="flex min-h-screen items-center justify-center flex-col gap-4" style={{ background: "#0c0900" }}>
-      <p className="text-sm font-black" style={{ color: "#ff4d6d" }}>Kein Zugriff</p>
+    <main className="flex min-h-screen items-center justify-center flex-col gap-4" style={{ background: "var(--bg-page)" }}>
+      <p className="text-sm font-black" style={{ color: "var(--color-error)" }}>Kein Zugriff</p>
       <button onClick={() => window.location.href = `/leagues/${leagueId}`}
-        className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>← Zurück</button>
+        className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>← Zurück</button>
     </main>
   );
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#f5a623" }} />
+        style={{ background: "var(--color-primary)" }} />
 
       {/* Header */}
       <div className="w-full max-w-xl flex justify-between items-center mb-5">
         <button onClick={() => window.location.href = `/leagues/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>← Liga</button>
+          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>← Liga</button>
         <div className="text-center">
-          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>Admin</p>
-          <p className="text-sm font-black" style={{ color: "#f5a623" }}>{league?.name}</p>
+          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Admin</p>
+          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>{league?.name}</p>
         </div>
         <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-          style={{ background: "#1a0a00", border: "1px solid #f5a623", color: "#f5a623" }}>Owner</span>
+          style={{ background: "color-mix(in srgb, var(--color-primary) 10%, var(--bg-page))", border: "1px solid var(--color-primary)", color: "var(--color-primary)" }}>Owner</span>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 w-full max-w-xl mb-5 p-1 rounded-xl" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+      <div className="flex gap-1 w-full max-w-xl mb-5 p-1 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
         {([
           { id: "gameweeks", label: "Spieltage" },
           { id: "points",    label: "Punkte" },
@@ -792,7 +792,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
         ] as const).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
-            style={{ background: tab === t.id ? "#f5a623" : "transparent", color: tab === t.id ? "#0c0900" : "#5a4020" }}>
+            style={{ background: tab === t.id ? "var(--color-primary)" : "transparent", color: tab === t.id ? "var(--bg-page)" : "var(--color-muted)" }}>
             {t.label}
           </button>
         ))}
@@ -803,13 +803,13 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
         <div className="w-full max-w-xl space-y-3">
 
           {/* Auto-Generieren */}
-          <div className="rounded-xl p-4" style={{ background: "#0f0d06", border: "1px solid #3a2a10" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#f5a623" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border-subtle)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-primary)" }}>
               Auto-Generieren
             </p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div className="col-span-2">
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Liga / Wettbewerb</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Liga / Wettbewerb</p>
                 <select value={autoGenLeague}
                   onChange={e => {
                     const key = e.target.value;
@@ -818,70 +818,70 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     setAutoCount(LIGA_PRESETS[key].count);
                   }}
                   className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
                   {Object.entries(LIGA_PRESETS).map(([k, v]) => (
                     <option key={k} value={k}>{v.label}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Saisonstart</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Saisonstart</p>
                 <input type="date" value={autoStart} onChange={e => setAutoStart(e.target.value)}
                   className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
               </div>
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Anzahl Spieltage</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Anzahl Spieltage</p>
                 <input type="number" value={autoCount} min={1} max={50} onChange={e => setAutoCount(Number(e.target.value))}
                   className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
               </div>
             </div>
-            <p className="text-[8px] mb-3" style={{ color: "#5a4020" }}>
+            <p className="text-[8px] mb-3" style={{ color: "var(--color-muted)" }}>
               Generiert {autoCount} Spieltage à 7 Tage ab {autoStart || "?"}
             </p>
             <button onClick={autoGenerateGameweeks} disabled={autoGenerating}
               className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-              style={{ background: autoGenerating ? "#2a2010" : "#3a2a10", color: autoGenerating ? "#5a4020" : "#f5a623", border: "1px solid #f5a623" }}>
+              style={{ background: autoGenerating ? "var(--color-border)" : "var(--color-border-subtle)", color: autoGenerating ? "var(--color-muted)" : "var(--color-primary)", border: "1px solid var(--color-primary)" }}>
               {autoGenerating ? "Generiere..." : `Alle ${autoCount} Spieltage generieren`}
             </button>
           </div>
 
           {/* Neuer GW */}
-          <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
               Neuer Spieltag
             </p>
             <div className="grid grid-cols-2 gap-2 mb-3">
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Nummer</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Nummer</p>
                 <input type="number" value={newGWNum} onChange={e => setNewGWNum(Number(e.target.value))}
                   className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
               </div>
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Label</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Label</p>
                 <input type="text" value={newGWLabel} onChange={e => setNewGWLabel(e.target.value)}
                   placeholder="z.B. Spieltag 1"
                   className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
               </div>
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Start</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Start</p>
                 <input type="date" value={newGWStart} onChange={e => setNewGWStart(e.target.value)}
                   className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
               </div>
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Ende</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Ende</p>
                 <input type="date" value={newGWEnd} onChange={e => setNewGWEnd(e.target.value)}
                   className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
               </div>
             </div>
             <button onClick={createGameweek}
               className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
-              style={{ background: "#f5a623", color: "#0c0900" }}>
+              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
               Spieltag {newGWNum} anlegen
             </button>
           </div>
@@ -893,20 +893,20 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
             const isBreak = activeLgs.length === 0 && !gw.notes?.includes("Winterpause");
             return (
               <div key={gw.id} className="p-4 rounded-xl space-y-3"
-                style={{ background: "#141008", border: `1px solid ${gw.status === "active" ? "#3a2a10" : "#2a2010"}` }}>
+                style={{ background: "var(--bg-card)", border: `1px solid ${gw.status === "active" ? "var(--color-border-subtle)" : "var(--color-border)"}` }}>
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-black text-sm" style={{ color: "#c8b080" }}>
+                    <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>
                       GW{gw.gameweek} · {gw.label}
                     </p>
                     {gw.start_date && (
-                      <p className="text-[8px] font-black uppercase mt-0.5" style={{ color: "#5a4020" }}>
+                      <p className="text-[8px] font-black uppercase mt-0.5" style={{ color: "var(--color-muted)" }}>
                         {gw.start_date} → {gw.end_date || "?"}
                       </p>
                     )}
                     {gw.notes && (
-                      <p className="text-[8px] font-black mt-0.5" style={{ color: "#f5a623" }}>
+                      <p className="text-[8px] font-black mt-0.5" style={{ color: "var(--color-primary)" }}>
                         ⚠ {gw.notes}
                       </p>
                     )}
@@ -916,11 +916,11 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     className="px-2 py-1 rounded-lg text-[7px] font-black uppercase"
                     style={{
                       background:
-                        gw.status === "finished" ? "#00ce7d" :
-                        gw.status === "active"   ? "#f5a623" :
-                                                   "#2a2010",
+                        gw.status === "finished" ? "var(--color-success)" :
+                        gw.status === "active"   ? "var(--color-primary)" :
+                                                   "var(--color-border)",
                       color:
-                        gw.status === "upcoming" ? "#5a4020" : "#0c0900",
+                        gw.status === "upcoming" ? "var(--color-muted)" : "var(--bg-page)",
                     }}>
                     {gw.status === "upcoming" ? "Bald" :
                      gw.status === "active"   ? "Live" : "Fertig"}
@@ -935,9 +935,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     disabled={gw.status !== "upcoming"}
                     className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
                     style={{
-                      background: gw.status === "upcoming" ? "#1a1208" : "#0c0900",
-                      color:      gw.status === "upcoming" ? "#f5a623" : "#5a4020",
-                      border:     "1px solid #f5a623",
+                      background: gw.status === "upcoming" ? "var(--bg-elevated)" : "var(--bg-page)",
+                      color:      gw.status === "upcoming" ? "var(--color-primary)" : "var(--color-muted)",
+                      border:     "1px solid var(--color-primary)",
                     }}>
                     ▶ Starten
                   </button>
@@ -948,9 +948,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     disabled={importing === gw.gameweek || gw.status === "finished"}
                     className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
                     style={{
-                      background: importing === gw.gameweek ? "#2a2010" : "#0a1a0a",
-                      color:      importing === gw.gameweek ? "#5a4020" : "#00ce7d",
-                      border:     "1px solid #00ce7d",
+                      background: importing === gw.gameweek ? "var(--color-border)" : "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
+                      color:      importing === gw.gameweek ? "var(--color-muted)" : "var(--color-success)",
+                      border:     "1px solid var(--color-success)",
                     }}>
                     {importing === gw.gameweek ? "..." : "■ Beenden + Import"}
                   </button>
@@ -961,8 +961,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     disabled={importing === gw.gameweek || gw.status !== "finished"}
                     className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
                     style={{
-                      background: importing === gw.gameweek ? "#2a2010" : "#1a0a08",
-                      color:      importing === gw.gameweek ? "#5a4020" : "#ff8866",
+                      background: importing === gw.gameweek ? "var(--color-border)" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
+                      color:      importing === gw.gameweek ? "var(--color-muted)" : "var(--color-error)",
                       border:     "1px solid #ff8866",
                     }}>
                     ↻ Neu rechnen
@@ -974,9 +974,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   <button onClick={() => toggleWaiverWindow(gw.id, !gw.waiver_window_open)}
                     className="w-full py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
                     style={{
-                      background: gw.waiver_window_open ? "#1a1a08" : "#141008",
-                      color:      gw.waiver_window_open ? "#f5a623" : "#5a4020",
-                      border: `1px solid ${gw.waiver_window_open ? "#f5a623" : "#2a2010"}`,
+                      background: gw.waiver_window_open ? "var(--bg-elevated)" : "var(--bg-card)",
+                      color:      gw.waiver_window_open ? "var(--color-primary)" : "var(--color-muted)",
+                      border: `1px solid ${gw.waiver_window_open ? "var(--color-primary)" : "var(--color-border)"}`,
                     }}>
                     Waiver {gw.waiver_window_open ? "schließen" : "öffnen"}
                   </button>
@@ -984,7 +984,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
                 {/* Liga-Toggles */}
                 <div>
-                  <p className="text-[7px] font-black uppercase tracking-widest mb-1.5" style={{ color: "#8a6a40" }}>
+                  <p className="text-[7px] font-black uppercase tracking-widest mb-1.5" style={{ color: "var(--color-dim)" }}>
                     Spielende Ligen
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -997,9 +997,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                           <button onClick={() => toggleLeague(gw.id, key, "active_leagues")}
                             className="px-2 py-1 rounded-lg text-[8px] font-black transition-all"
                             style={{
-                              background: active ? "#1a1208" : "#0c0900",
-                              border: `1px solid ${active ? "#f5a623" : "#2a2010"}`,
-                              color: active ? "#f5a623" : "#2a2010",
+                              background: active ? "var(--bg-elevated)" : "var(--bg-page)",
+                              border: `1px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`,
+                              color: active ? "var(--color-primary)" : "var(--color-border)",
                             }}>
                             {meta.flag} {meta.short}
                           </button>
@@ -1008,9 +1008,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                               title="Doppelspieltag"
                               className="px-1.5 py-1 rounded-lg text-[8px] font-black transition-all"
                               style={{
-                                background: isDouble ? "#1a0a00" : "#0c0900",
-                                border: `1px solid ${isDouble ? "#ff6b00" : "#2a2010"}`,
-                                color: isDouble ? "#ff6b00" : "#2a2010",
+                                background: isDouble ? "color-mix(in srgb, var(--color-primary) 10%, var(--bg-page))" : "var(--bg-page)",
+                                border: `1px solid ${isDouble ? "var(--color-primary)" : "var(--color-border)"}`,
+                                color: isDouble ? "var(--color-primary)" : "var(--color-border)",
                               }}>
                               ×2
                             </button>
@@ -1020,7 +1020,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     })}
                   </div>
                   {isBreak && (
-                    <p className="text-[8px] mt-1.5 font-black" style={{ color: "#5a4020" }}>
+                    <p className="text-[8px] mt-1.5 font-black" style={{ color: "var(--color-muted)" }}>
                       Länderspielpause — keine Liga-Spiele
                     </p>
                   )}
@@ -1030,46 +1030,46 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           })}
 
           {/* AUDIT LOG (collapsible) */}
-          <div className="rounded-xl p-4" style={{ background: "#0f0d06", border: "1px solid #2a2010" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
             <button
               onClick={() => setAuditLogVisible(v => !v)}
               className="w-full flex items-center justify-between text-[9px] font-black uppercase tracking-widest"
-              style={{ color: "#8a6a40" }}>
+              style={{ color: "var(--color-dim)" }}>
               <span>📜 Admin-Verlauf ({auditLog.length})</span>
               <span>{auditLogVisible ? "▲" : "▼"}</span>
             </button>
             {auditLogVisible && (
               <div className="mt-3 space-y-1.5">
                 {auditLog.length === 0 && (
-                  <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                  <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                     Noch keine Einträge
                   </p>
                 )}
                 {auditLog.map(entry => (
                   <div key={entry.id}
                     className="flex items-start justify-between gap-2 py-1 border-b"
-                    style={{ borderColor: "#1a1208" }}>
+                    style={{ borderColor: "var(--bg-elevated)" }}>
                     <div className="flex-1">
-                      <p className="text-[9px] font-black" style={{ color: "#c8b080" }}>
+                      <p className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
                         {actionLabel(entry.action)}{entry.gameweek ? ` · GW${entry.gameweek}` : ""}
                       </p>
                       {entry.metadata?.players_imported !== undefined && (
-                        <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                        <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>
                           {entry.metadata.players_imported} Spieler · {entry.metadata.api_calls_used} API-Calls
                         </p>
                       )}
                       {entry.metadata?.error && (
-                        <p className="text-[7px]" style={{ color: "#ff4d6d" }}>
+                        <p className="text-[7px]" style={{ color: "var(--color-error)" }}>
                           {entry.metadata.error}
                         </p>
                       )}
                     </div>
                     <div className="flex flex-col items-end">
                       <span className="text-[7px] font-black uppercase"
-                        style={{ color: entry.actor_label === "cron" ? "#00ce7d" : "#f5a623" }}>
+                        style={{ color: entry.actor_label === "cron" ? "var(--color-success)" : "var(--color-primary)" }}>
                         {entry.actor_label}
                       </span>
-                      <span className="text-[7px]" style={{ color: "#5a4020" }}>
+                      <span className="text-[7px]" style={{ color: "var(--color-muted)" }}>
                         {new Date(entry.created_at).toLocaleString("de-DE", {
                           day: "2-digit", month: "2-digit",
                           hour: "2-digit", minute: "2-digit",
@@ -1083,7 +1083,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           </div>
 
           {gameweeks.length === 0 && (
-            <p className="text-center text-sm font-black py-8" style={{ color: "#2a2010" }}>
+            <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
               Noch keine Spieltage
             </p>
           )}
@@ -1091,11 +1091,11 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           {importResult && (
             <div className="rounded-xl p-4 text-center"
               style={{
-                background: importResult.startsWith("Fehler") ? "#1a0808" : "#0a1a0a",
-                border: `1px solid ${importResult.startsWith("Fehler") ? "#ff4d6d" : "#00ce7d"}`,
+                background: importResult.startsWith("Fehler") ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
+                border: `1px solid ${importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)"}`,
               }}>
               <p className="text-sm font-black"
-                style={{ color: importResult.startsWith("Fehler") ? "#ff4d6d" : "#00ce7d" }}>
+                style={{ color: importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)" }}>
                 {importResult}
               </p>
             </div>
@@ -1112,9 +1112,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
               <button key={gw.gameweek} onClick={() => setSelectedGW(gw.gameweek)}
                 className="px-3 py-2 rounded-xl text-[10px] font-black transition-all"
                 style={{
-                  background: selectedGW === gw.gameweek ? "#f5a623" : "#141008",
-                  color: selectedGW === gw.gameweek ? "#0c0900" : "#5a4020",
-                  border: `1px solid ${selectedGW === gw.gameweek ? "#f5a623" : "#2a2010"}`,
+                  background: selectedGW === gw.gameweek ? "var(--color-primary)" : "var(--bg-card)",
+                  color: selectedGW === gw.gameweek ? "var(--bg-page)" : "var(--color-muted)",
+                  border: `1px solid ${selectedGW === gw.gameweek ? "var(--color-primary)" : "var(--color-border)"}`,
                 }}>
                 GW{gw.gameweek}
               </button>
@@ -1122,12 +1122,12 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           </div>
 
           {gameweeks.length === 0 ? (
-            <p className="text-center text-sm font-black py-8" style={{ color: "#2a2010" }}>
+            <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
               Erst Spieltage anlegen
             </p>
           ) : (
             <>
-              <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
                 GW{selectedGW} · {squadPlayers.length} Spieler im Pool
               </p>
               <div className="space-y-2 mb-4">
@@ -1137,18 +1137,18 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   const pts = calcPoints(s, p.position, false, scoringRules);
                   return (
                     <div key={player_id} className="rounded-xl p-3"
-                      style={{ background: "#141008", border: "1px solid #2a2010" }}>
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           {p.photo_url && <img src={p.photo_url} className="w-7 h-7 rounded-full" alt="" />}
                           <div>
-                            <p className="font-black text-sm" style={{ color: "#c8b080" }}>{p.name}</p>
-                            <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                            <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                            <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                               {p.position} · {p.team_name}
                             </p>
                           </div>
                         </div>
-                        <span className="text-sm font-black" style={{ color: "#f5a623" }}>{pts.toFixed(1)}</span>
+                        <span className="text-sm font-black" style={{ color: "var(--color-primary)" }}>{pts.toFixed(1)}</span>
                       </div>
                       <div className="grid grid-cols-4 gap-1.5">
                         {[
@@ -1166,19 +1166,19 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                           { key: "pass_accuracy", label: "Pass%"    },
                         ].map(({ key, label }) => (
                           <div key={key}>
-                            <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "#8a6a40" }}>{label}</p>
+                            <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "var(--color-dim)" }}>{label}</p>
                             <input type="number" min={0}
                               value={s[key as keyof typeof s] as number}
                               onChange={e => updateStat(player_id, key as any, Number(e.target.value))}
                               className="w-full p-1 rounded text-xs text-center font-black focus:outline-none"
-                              style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
                           </div>
                         ))}
                         <div className="col-span-4 flex items-center gap-2 mt-1">
                           <input type="checkbox" id={`cs-${player_id}`} checked={s.clean_sheet}
                             onChange={e => updateStat(player_id, "clean_sheet", e.target.checked)} className="w-4 h-4" />
                           <label htmlFor={`cs-${player_id}`} className="text-[9px] font-black uppercase"
-                            style={{ color: "#5a4020" }}>Clean Sheet</label>
+                            style={{ color: "var(--color-muted)" }}>Clean Sheet</label>
                         </div>
                       </div>
                     </div>
@@ -1187,7 +1187,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
               </div>
               <button onClick={savePoints} disabled={saving}
                 className="w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all"
-                style={{ background: saving ? "#2a2010" : "#f5a623", color: saving ? "#5a4020" : "#0c0900" }}>
+                style={{ background: saving ? "var(--color-border)" : "var(--color-primary)", color: saving ? "var(--color-muted)" : "var(--bg-page)" }}>
                 {saving ? "Speichern..." : `GW${selectedGW} Punkte berechnen & speichern`}
               </button>
             </>
@@ -1200,40 +1200,40 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
         <div className="w-full max-w-xl space-y-3">
 
           {/* DB Status */}
-          <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                 Spieler-Datenbank
               </p>
-              <p className="text-[8px] font-black uppercase" style={{ color: "#3a2a10" }}>Saison 2024/25</p>
+              <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-border-subtle)" }}>Saison 2024/25</p>
             </div>
-            <p className="text-4xl font-black mb-1" style={{ color: "#f5a623" }}>
+            <p className="text-4xl font-black mb-1" style={{ color: "var(--color-primary)" }}>
               {playerCount?.toLocaleString("de-DE") ?? "–"}
             </p>
-            <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#3a2a10" }}>
+            <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>
               Spieler total
             </p>
           </div>
 
           {/* Per-League Progress */}
           {importStatus?.leagues && (
-            <div className="rounded-xl overflow-hidden" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest px-4 pt-3 pb-2" style={{ color: "#5a4020" }}>
+            <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest px-4 pt-3 pb-2" style={{ color: "var(--color-muted)" }}>
                 Fortschritt pro Liga
               </p>
               {importStatus.leagues.map((lg: any) => {
                 const pct = lg.totalPages ? Math.round((lg.pagesDone / lg.totalPages) * 100) : 0;
-                const statusColor = lg.done ? "#00ce7d" : lg.pagesDone > 0 ? "#f5a623" : "#3a2a10";
+                const statusColor = lg.done ? "var(--color-success)" : lg.pagesDone > 0 ? "var(--color-primary)" : "var(--color-border-subtle)";
                 return (
                   <div key={lg.key} className="px-4 py-2.5 flex items-center gap-3"
-                    style={{ borderTop: "1px solid #1a1208" }}>
+                    style={{ borderTop: "1px solid var(--bg-elevated)" }}>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5">
                           {LEAGUE_BADGES[LEAGUE_KEY_TO_APID[lg.key]] && (
                             <img src={LEAGUE_BADGES[LEAGUE_KEY_TO_APID[lg.key]]} alt="" className="w-4 h-4 object-contain" />
                           )}
-                          <p className="text-[9px] font-black" style={{ color: "#c8b080" }}>{lg.name}</p>
+                          <p className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>{lg.name}</p>
                         </div>
                         <p className="text-[8px] font-black" style={{ color: statusColor }}>
                           {lg.done ? "✅ Fertig" : lg.pagesDone > 0
@@ -1242,7 +1242,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                         </p>
                       </div>
                       {/* Progress bar */}
-                      <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "#2a2010" }}>
+                      <div className="w-full h-1 rounded-full overflow-hidden" style={{ background: "var(--color-border)" }}>
                         <div className="h-full rounded-full transition-all"
                           style={{ width: `${lg.done ? 100 : pct}%`, background: statusColor }} />
                       </div>
@@ -1250,9 +1250,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     <button onClick={() => setImportLeague(lg.key)}
                       className="text-[7px] font-black uppercase px-2 py-1 rounded-lg flex-shrink-0"
                       style={{
-                        background: importLeague === lg.key ? "#f5a62320" : "#1a1208",
-                        color: importLeague === lg.key ? "#f5a623" : "#3a2a10",
-                        border: `1px solid ${importLeague === lg.key ? "#f5a62340" : "#2a2010"}`,
+                        background: importLeague === lg.key ? "var(--color-primary)20" : "var(--bg-elevated)",
+                        color: importLeague === lg.key ? "var(--color-primary)" : "var(--color-border-subtle)",
+                        border: `1px solid ${importLeague === lg.key ? "var(--color-primary)40" : "var(--color-border)"}`,
                       }}>
                       {lg.done ? "Neu" : lg.pagesDone > 0 ? "Weiter" : "Starten"}
                     </button>
@@ -1263,12 +1263,12 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           )}
 
           {/* Import starten */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
             <div className="flex items-center justify-between">
-              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                 Import ausführen
               </p>
-              <p className="text-[8px] font-black" style={{ color: "#3a2a10" }}>
+              <p className="text-[8px] font-black" style={{ color: "var(--color-border-subtle)" }}>
                 Max. 90 Calls / Run
               </p>
             </div>
@@ -1286,9 +1286,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 <button key={key} onClick={() => setImportLeague(key)}
                   className="py-2 px-3 rounded-xl text-[8px] font-black uppercase transition-all flex items-center gap-1.5"
                   style={{
-                    background: importLeague === key ? "#f5a62320" : "#0c0900",
-                    color: importLeague === key ? "#f5a623" : "#5a4020",
-                    border: `1px solid ${importLeague === key ? "#f5a623" : "#2a2010"}`,
+                    background: importLeague === key ? "var(--color-primary)20" : "var(--bg-page)",
+                    color: importLeague === key ? "var(--color-primary)" : "var(--color-muted)",
+                    border: `1px solid ${importLeague === key ? "var(--color-primary)" : "var(--color-border)"}`,
                   }}>
                   {apId && LEAGUE_BADGES[apId] && (
                     <img src={LEAGUE_BADGES[apId]} alt="" className="w-3.5 h-3.5 object-contain" />
@@ -1298,10 +1298,10 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
               ))}
             </div>
 
-            <div className="p-3 rounded-xl text-[8px]" style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#5a4020" }}>
+            <div className="p-3 rounded-xl text-[8px]" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
               💡 Der Import merkt sich den Fortschritt. Bei Tageslimit einfach morgen neu starten — er macht dort weiter wo er aufgehört hat.
               {importStatus?.needsProgressTable && (
-                <p className="mt-2" style={{ color: "#f5a623" }}>
+                <p className="mt-2" style={{ color: "var(--color-primary)" }}>
                   ⚠ Für Fortschritts-Tracking: Tabelle <code>import_progress</code> in Supabase anlegen
                   (Spalten: league_key text PK, pages_done int, total_pages int, done bool, updated_at text)
                 </p>
@@ -1312,14 +1312,14 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
               <button onClick={() => runImport(false)} disabled={importRunning}
                 className="flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                 style={{
-                  background: importRunning ? "#2a2010" : "#f5a623",
-                  color: importRunning ? "#5a4020" : "#0c0900",
+                  background: importRunning ? "var(--color-border)" : "var(--color-primary)",
+                  color: importRunning ? "var(--color-muted)" : "var(--bg-page)",
                 }}>
                 {importRunning ? "⏳ Läuft..." : "▶ Fortsetzen"}
               </button>
               <button onClick={() => runImport(true)} disabled={importRunning}
                 className="py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#5a4020" }}>
+                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
                 ↺ Neu
               </button>
             </div>
@@ -1327,20 +1327,20 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
           {/* Log */}
           {importLog.length > 0 && (
-            <div className="rounded-xl p-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+            <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
                 Ergebnis
               </p>
               <div className="space-y-1">
                 {importLog.map((line, i) => (
                   <p key={i} className="text-[10px] font-black"
                     style={{
-                      color: line.startsWith("✅") ? "#00ce7d"
-                           : line.startsWith("❌") ? "#ff4d6d"
-                           : line.startsWith("⏸") ? "#f5a623"
-                           : line.startsWith("📅") ? "#4a9eff"
-                           : line.startsWith("  →") ? "#4a9eff"
-                           : "#c8b080",
+                      color: line.startsWith("✅") ? "var(--color-success)"
+                           : line.startsWith("❌") ? "var(--color-error)"
+                           : line.startsWith("⏸") ? "var(--color-primary)"
+                           : line.startsWith("📅") ? "var(--color-info)"
+                           : line.startsWith("  →") ? "var(--color-info)"
+                           : "var(--color-text)",
                     }}>
                     {line || "\u00A0"}
                   </p>
@@ -1356,32 +1356,32 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
         <div className="w-full max-w-xl space-y-3">
 
           {/* Liga-Einstellungen bearbeiten */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
               Liga-Einstellungen
             </p>
 
             <div>
-              <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Liga-Name</p>
+              <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Liga-Name</p>
               <input type="text" value={settingsName} onChange={e => setSettingsName(e.target.value)}
                 className="w-full p-3 rounded-xl text-sm font-black focus:outline-none"
-                style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Max. Teams</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Max. Teams</p>
                 <select value={settingsMaxTeams} onChange={e => setSettingsMaxTeams(Number(e.target.value))}
                   className="w-full p-3 rounded-xl text-sm font-black focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
                   {[4,6,8,10,12,14,16].map(n => <option key={n} value={n}>{n} Teams</option>)}
                 </select>
               </div>
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Wertung</p>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Wertung</p>
                 <select value={settingsScoringType} onChange={e => setSettingsScoringType(e.target.value)}
                   className="w-full p-3 rounded-xl text-sm font-black focus:outline-none"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
                   <option value="h2h">Head-to-Head</option>
                   <option value="standard">Gesamtpunkte</option>
                 </select>
@@ -1389,15 +1389,15 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
             </div>
 
             <div>
-              <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>Liga-Status</p>
+              <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Liga-Status</p>
               <div className="flex gap-2">
                 {(["setup", "drafting", "active", "finished"] as const).map(s => (
                   <button key={s} onClick={() => setSettingsStatus(s)}
                     className="flex-1 py-2 rounded-xl text-[8px] font-black uppercase transition-all"
                     style={{
-                      background: settingsStatus === s ? "#f5a623" : "#0c0900",
-                      color: settingsStatus === s ? "#0c0900" : "#5a4020",
-                      border: `1px solid ${settingsStatus === s ? "#f5a623" : "#2a2010"}`,
+                      background: settingsStatus === s ? "var(--color-primary)" : "var(--bg-page)",
+                      color: settingsStatus === s ? "var(--bg-page)" : "var(--color-muted)",
+                      border: `1px solid ${settingsStatus === s ? "var(--color-primary)" : "var(--color-border)"}`,
                     }}>
                     {s === "setup" ? "Aufbau" : s === "drafting" ? "Draft" : s === "active" ? "Aktiv" : "Beendet"}
                   </button>
@@ -1407,32 +1407,32 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
             {/* Invite Code */}
             <div className="flex items-center justify-between p-3 rounded-xl"
-              style={{ background: "#0c0900", border: "1px solid #2a2010" }}>
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
               <div>
-                <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "#2a2010" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-border)" }}>
                   Invite-Code
                 </p>
-                <p className="font-black tracking-widest text-lg" style={{ color: "#f5a623" }}>
+                <p className="font-black tracking-widest text-lg" style={{ color: "var(--color-primary)" }}>
                   {league?.invite_code}
                 </p>
               </div>
               <button onClick={() => navigator.clipboard.writeText(league?.invite_code || "")}
                 className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"
-                style={{ background: "#2a2010", color: "#c8b080" }}>
+                style={{ background: "var(--color-border)", color: "var(--color-text)" }}>
                 Kopieren
               </button>
             </div>
 
             <button onClick={saveSettings} disabled={saving}
               className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-              style={{ background: saving ? "#2a2010" : "#f5a623", color: saving ? "#5a4020" : "#0c0900" }}>
+              style={{ background: saving ? "var(--color-border)" : "var(--color-primary)", color: saving ? "var(--color-muted)" : "var(--bg-page)" }}>
               {saving ? "Speichern..." : settingsSaved ? "✓ Gespeichert" : "Einstellungen speichern"}
             </button>
           </div>
 
           {/* Kader & Spots */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
               Kader-Einstellungen
             </p>
             <div className="grid grid-cols-2 gap-3">
@@ -1444,54 +1444,54 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 { label: "Taxi-Spots (U21)",   val: taxiSpots,  set: setTaxiSpots,  min: 0,  max: 5  },
               ].map(({ label, val, set, min, max }) => (
                 <div key={label}>
-                  <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>{label}</p>
+                  <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>{label}</p>
                   <div className="flex items-center gap-2">
                     <button onClick={() => set(Math.max(min, val - 1))}
                       className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center"
-                      style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>−</button>
-                    <span className="flex-1 text-center font-black text-sm" style={{ color: "#f5a623" }}>{val}</span>
+                      style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>−</button>
+                    <span className="flex-1 text-center font-black text-sm" style={{ color: "var(--color-primary)" }}>{val}</span>
                     <button onClick={() => set(Math.min(max, val + 1))}
                       className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center"
-                      style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>+</button>
+                      style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>+</button>
                   </div>
                 </div>
               ))}
             </div>
             <div>
-              <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>
+              <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>
                 Max. Spieler vom selben Club (leer = kein Limit)
               </p>
               <input type="number" value={maxPerClub} min={1} max={10}
                 onChange={e => setMaxPerClub(e.target.value === "" ? "" : Number(e.target.value))}
                 placeholder="kein Limit"
                 className="w-full p-2.5 rounded-xl text-sm font-black focus:outline-none"
-                style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
             </div>
 
             {/* Dynasty-Modus Toggle */}
             <div>
-              <p className="text-[8px] font-black uppercase mb-2" style={{ color: "#8a6a40" }}>
+              <p className="text-[8px] font-black uppercase mb-2" style={{ color: "var(--color-dim)" }}>
                 Liga-Modus
               </p>
               <button onClick={() => setDynastyMode(v => !v)}
                 className="w-full flex items-center justify-between p-2.5 rounded-xl transition-all"
                 style={{
-                  background: dynastyMode ? "#0a0e1a" : "#0c0900",
-                  border: `1px solid ${dynastyMode ? "#4a9eff" : "#2a2010"}`,
+                  background: dynastyMode ? "color-mix(in srgb, var(--color-info) 8%, var(--bg-page))" : "var(--bg-page)",
+                  border: `1px solid ${dynastyMode ? "var(--color-info)" : "var(--color-border)"}`,
                 }}>
                 <div className="flex items-center gap-2">
                   <span className="text-base">👑</span>
                   <div className="text-left">
                     <p className="text-[9px] font-black uppercase tracking-widest"
-                      style={{ color: dynastyMode ? "#4a9eff" : "#8a6a40" }}>
+                      style={{ color: dynastyMode ? "var(--color-info)" : "var(--color-dim)" }}>
                       Dynasty-Modus
                     </p>
-                    <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                    <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>
                       Spieler bleiben zwischen Saisons. Rookie-Draft jede Saison.
                     </p>
                   </div>
                 </div>
-                <div className={`w-10 h-5 rounded-full transition-all ${dynastyMode ? "bg-[#4a9eff]" : "bg-[#2a2010]"}`}>
+                <div className={`w-10 h-5 rounded-full transition-all ${dynastyMode ? "bg-[var(--color-info)]" : "bg-[var(--color-border)]"}`}>
                   <div className={`w-5 h-5 rounded-full bg-white shadow transition-all ${dynastyMode ? "translate-x-5" : "translate-x-0"}`} />
                 </div>
               </button>
@@ -1499,7 +1499,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
             {/* Aufstellungs-Lock-Modus */}
             <div>
-              <p className="text-[8px] font-black uppercase mb-2" style={{ color: "#8a6a40" }}>
+              <p className="text-[8px] font-black uppercase mb-2" style={{ color: "var(--color-dim)" }}>
                 Aufstellungs-Modus
               </p>
               <div className="flex flex-col gap-1.5">
@@ -1511,16 +1511,16 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   <button key={opt.id} onClick={() => setLineupLockMode(opt.id)}
                     className="flex items-start gap-2.5 p-2.5 rounded-xl text-left transition-all"
                     style={{
-                      background: lineupLockMode === opt.id ? "#1a1208" : "#0c0900",
-                      border: `1px solid ${lineupLockMode === opt.id ? "#f5a623" : "#2a2010"}`,
+                      background: lineupLockMode === opt.id ? "var(--bg-elevated)" : "var(--bg-page)",
+                      border: `1px solid ${lineupLockMode === opt.id ? "var(--color-primary)" : "var(--color-border)"}`,
                     }}>
                     <span className="text-base flex-shrink-0 mt-0.5">{opt.icon}</span>
                     <div>
                       <p className="text-[9px] font-black uppercase tracking-widest"
-                        style={{ color: lineupLockMode === opt.id ? "#f5a623" : "#8a6a40" }}>
+                        style={{ color: lineupLockMode === opt.id ? "var(--color-primary)" : "var(--color-dim)" }}>
                         {opt.label}
                       </p>
-                      <p className="text-[8px] leading-relaxed mt-0.5" style={{ color: "#5a4020" }}>
+                      <p className="text-[8px] leading-relaxed mt-0.5" style={{ color: "var(--color-muted)" }}>
                         {opt.desc}
                       </p>
                     </div>
@@ -1531,12 +1531,12 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           </div>
 
           {/* Positions-Limits */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
               Positions-Limits im Kader
             </p>
             {(["GK","DF","MF","FW"] as const).map(pos => {
-              const colors: Record<string,string> = { GK:"#f5a623", DF:"#4a9eff", MF:"#00ce7d", FW:"#ff4d6d" };
+              const colors: Record<string,string> = { GK:"var(--color-primary)", DF:"var(--color-info)", MF:"var(--color-success)", FW:"var(--color-error)" };
               return (
                 <div key={pos} className="flex items-center gap-3">
                   <span className="w-8 text-center text-[9px] font-black rounded-lg py-1"
@@ -1544,7 +1544,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   <div className="flex-1 grid grid-cols-2 gap-2">
                     {(["min","max"] as const).map(field => (
                       <div key={field}>
-                        <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "#8a6a40" }}>{field}</p>
+                        <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "var(--color-dim)" }}>{field}</p>
                         <input type="number" min={0} max={10}
                           value={posLimits[pos][field]}
                           onChange={e => setPosLimits(prev => ({
@@ -1552,7 +1552,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                             [pos]: { ...prev[pos], [field]: Number(e.target.value) }
                           }))}
                           className="w-full p-1.5 rounded-lg text-sm font-black text-center focus:outline-none"
-                          style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                          style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
                       </div>
                     ))}
                   </div>
@@ -1562,8 +1562,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           </div>
 
           {/* Erlaubte Formationen */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
               Erlaubte Formationen
             </p>
             <div className="flex flex-wrap gap-2">
@@ -1575,16 +1575,16 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   )}
                     className="px-3 py-1.5 rounded-xl text-[10px] font-black transition-all"
                     style={{
-                      background: on ? "#1a1208" : "#0c0900",
-                      border: `1px solid ${on ? "#f5a623" : "#2a2010"}`,
-                      color: on ? "#f5a623" : "#2a2010",
+                      background: on ? "var(--bg-elevated)" : "var(--bg-page)",
+                      border: `1px solid ${on ? "var(--color-primary)" : "var(--color-border)"}`,
+                      color: on ? "var(--color-primary)" : "var(--color-border)",
                     }}>
                     {f}
                   </button>
                 );
               })}
             </div>
-            <p className="text-[8px] font-black uppercase tracking-widest mt-3" style={{ color: "#3a2a10" }}>
+            <p className="text-[8px] font-black uppercase tracking-widest mt-3" style={{ color: "var(--color-border-subtle)" }}>
               Seltene Formationen
             </p>
             <div className="flex flex-wrap gap-2">
@@ -1596,9 +1596,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   )}
                     className="px-3 py-1.5 rounded-xl text-[10px] font-black transition-all"
                     style={{
-                      background: on ? "#1a0a1a" : "#0c0900",
-                      border: `1px solid ${on ? "#c060ff" : "#2a1a2a"}`,
-                      color: on ? "#c060ff" : "#3a1a3a",
+                      background: on ? "color-mix(in srgb, var(--color-info) 8%, var(--bg-page))" : "var(--bg-page)",
+                      border: `1px solid ${on ? "var(--color-info)" : "var(--color-border)"}`,
+                      color: on ? "var(--color-info)" : "var(--color-muted)",
                     }}>
                     {f} ✦
                   </button>
@@ -1609,15 +1609,15 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
           <button onClick={saveLigaSettings} disabled={saving}
             className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-            style={{ background: saving ? "#2a2010" : settingsSaved ? "#00ce7d" : "#f5a623", color: "#0c0900" }}>
+            style={{ background: saving ? "var(--color-border)" : settingsSaved ? "var(--color-success)" : "var(--color-primary)", color: "var(--bg-page)" }}>
             {saving ? "Speichern..." : settingsSaved ? "✓ Kader-Einstellungen gespeichert" : "Kader-Einstellungen speichern"}
           </button>
 
           {/* Waiver Wire */}
           <div className="w-full mt-2 p-4 rounded-2xl"
-            style={{ background: "#141008", border: "1px solid #2a2010" }}>
+            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#f5a623" }}>
+              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
                 Waiver Wire
               </p>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -1625,51 +1625,51 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   checked={!!ligaSettings?.waiver_enabled}
                   onChange={e => updateSetting("waiver_enabled", e.target.checked)}
                   className="sr-only peer" />
-                <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#f5a623]" />
+                <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[var(--color-primary)]" />
               </label>
             </div>
 
             {ligaSettings?.waiver_enabled && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>Startet ab GW</span>
+                  <span className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>Startet ab GW</span>
                   <input type="number" min="1" max="38"
                     value={ligaSettings.waiver_mode_starts_gameweek || 4}
                     onChange={e => updateSetting("waiver_mode_starts_gameweek", Number(e.target.value))}
                     className="w-16 px-2 py-1 rounded text-xs font-black text-right"
-                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>FAAB-Budget</span>
+                  <span className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>FAAB-Budget</span>
                   <label className="inline-flex items-center cursor-pointer">
                     <input type="checkbox"
                       checked={!!ligaSettings.waiver_budget_enabled}
                       onChange={e => updateSetting("waiver_budget_enabled", e.target.checked)}
                       className="sr-only peer" />
-                    <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[#f5a623]" />
+                    <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-checked:bg-[var(--color-primary)]" />
                   </label>
                 </div>
                 {ligaSettings.waiver_budget_enabled && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>Start-Bucks</span>
+                    <span className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>Start-Bucks</span>
                     <input type="number" min="1" max="1000"
                       value={ligaSettings.waiver_budget_starting || 100}
                       onChange={e => updateSetting("waiver_budget_starting", Number(e.target.value))}
                       className="w-20 px-2 py-1 rounded text-xs font-black text-right"
-                      style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                      style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
                   </div>
                 )}
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>Max. Claims / GW</span>
+                  <span className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>Max. Claims / GW</span>
                   <input type="number" min="1" max="20"
                     value={ligaSettings.waiver_max_claims_per_gameweek || 3}
                     onChange={e => updateSetting("waiver_max_claims_per_gameweek", Number(e.target.value))}
                     className="w-16 px-2 py-1 rounded text-xs font-black text-right"
-                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
                 </div>
                 <button onClick={initWaiverWire} disabled={initializing}
                   className="w-full mt-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                  style={{ background: initializing ? "#2a2010" : "#f5a623", color: "#0c0900" }}>
+                  style={{ background: initializing ? "var(--color-border)" : "var(--color-primary)", color: "var(--bg-page)" }}>
                   {initializing ? "Lade Waiver Wire..." : "Waiver Wire initialisieren"}
                 </button>
               </div>
@@ -1677,14 +1677,14 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           </div>
 
           {/* Punkteschema */}
-          <div className="rounded-xl p-4 space-y-4" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+          <div className="rounded-xl p-4 space-y-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
             <div className="flex items-center justify-between">
-              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                 Punkteschema
               </p>
               <button onClick={resetScoringRules}
                 className="text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-lg"
-                style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#5a4020" }}>
+                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
                 Reset
               </button>
             </div>
@@ -1699,7 +1699,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   style={{ gridTemplateColumns: `repeat(${Math.min(group.fields.length, 4)}, 1fr)` }}>
                   {group.fields.map(f => (
                     <div key={f.key}>
-                      <p className="text-[7px] font-black uppercase mb-1" style={{ color: "#5a4020" }}>
+                      <p className="text-[7px] font-black uppercase mb-1" style={{ color: "var(--color-muted)" }}>
                         {f.label}
                       </p>
                       <input
@@ -1714,9 +1714,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                         }))}
                         className="w-full p-2 rounded-lg text-xs font-black text-center focus:outline-none"
                         style={{
-                          background: "#0c0900",
-                          border: `1px solid ${scoringRules[f.key] !== DEFAULT_SCORING_RULES[f.key] ? group.color + "88" : "#2a2010"}`,
-                          color: scoringRules[f.key] !== DEFAULT_SCORING_RULES[f.key] ? group.color : "#c8b080",
+                          background: "var(--bg-page)",
+                          border: `1px solid ${scoringRules[f.key] !== DEFAULT_SCORING_RULES[f.key] ? group.color + "88" : "var(--color-border)"}`,
+                          color: scoringRules[f.key] !== DEFAULT_SCORING_RULES[f.key] ? group.color : "var(--color-text)",
                         }}
                       />
                     </div>
@@ -1727,21 +1727,21 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
             <button onClick={saveScoringRules} disabled={saving}
               className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-              style={{ background: saving ? "#2a2010" : scoringSaved ? "#00ce7d" : "#f5a623", color: "#0c0900" }}>
+              style={{ background: saving ? "var(--color-border)" : scoringSaved ? "var(--color-success)" : "var(--color-primary)", color: "var(--bg-page)" }}>
               {saving ? "Speichern..." : scoringSaved ? "✓ Punkteschema gespeichert" : "Punkteschema speichern"}
             </button>
           </div>
 
           {/* IR-Übersicht */}
           {irOverview.length > 0 && (
-            <div className="rounded-xl p-4 space-y-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+            <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
               <div className="flex items-center justify-between">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                   Aktive IR-Sperren ({irOverview.length})
                 </p>
                 <button onClick={() => loadIROverview()}
                   className="text-[8px] font-black px-2 py-1 rounded-lg"
-                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#5a4020" }}>
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
                   ↻
                 </button>
               </div>
@@ -1751,29 +1751,29 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                   const team   = slot.teams;
                   return (
                     <div key={slot.id} className="flex items-center gap-3 p-2.5 rounded-xl"
-                      style={{ background: "#0c0900", border: "1px solid #ff4d6d20" }}>
+                      style={{ background: "var(--bg-page)", border: "1px solid var(--color-error)20" }}>
                       {player?.photo_url ? (
                         <img src={player.photo_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                          style={{ border: "1px solid #ff4d6d30" }} alt="" />
+                          style={{ border: "1px solid var(--color-error)30" }} alt="" />
                       ) : (
                         <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center"
-                          style={{ background: "#1a0808", border: "1px solid #ff4d6d30" }}>
-                          <span className="text-[8px] font-black" style={{ color: "#ff4d6d" }}>
+                          style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid var(--color-error)30" }}>
+                          <span className="text-[8px] font-black" style={{ color: "var(--color-error)" }}>
                             {player?.position || "?"}
                           </span>
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>
+                        <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>
                           {player?.name || "—"}
                         </p>
-                        <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                        <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>
                           {team?.name} · GW{slot.placed_at_gw} → frei ab GW{slot.min_return_gw}
                         </p>
                       </div>
                       <button onClick={() => adminForceReturn(slot.id)}
                         className="flex-shrink-0 text-[8px] font-black px-2 py-1 rounded-lg transition-all"
-                        style={{ background: "#1a0808", border: "1px solid #ff4d6d40", color: "#ff4d6d" }}>
+                        style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid var(--color-error)40", color: "var(--color-error)" }}>
                         Freigeben
                       </button>
                     </div>
@@ -1785,43 +1785,43 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
           {/* ── F-33: Dynasty-Einstellungen ── */}
           {dynastyMode && (
-            <div className="rounded-xl p-4 space-y-4" style={{ background: "#0a0e1a", border: "1px solid #4a9eff30" }}>
+            <div className="rounded-xl p-4 space-y-4" style={{ background: "color-mix(in srgb, var(--color-info) 8%, var(--bg-page))", border: "1px solid var(--color-info)30" }}>
               <div className="flex items-center gap-2">
                 <span className="text-base">👑</span>
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#4a9eff" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-info)" }}>
                   Dynasty — Saison {league?.current_season ?? 1}
                 </p>
               </div>
 
               {/* Rookie-Draft Runden */}
               <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#5a7a8a" }}>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-info)" }}>
                   Rookie-Draft Runden
                 </p>
                 <div className="flex items-center gap-2">
                   <button onClick={() => setDynastyRookieRounds(r => Math.max(1, r - 1))}
                     className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center"
-                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>−</button>
-                  <span className="flex-1 text-center font-black text-sm" style={{ color: "#4a9eff" }}>
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>−</button>
+                  <span className="flex-1 text-center font-black text-sm" style={{ color: "var(--color-info)" }}>
                     {dynastyRookieRounds}
                   </span>
                   <button onClick={() => setDynastyRookieRounds(r => Math.min(15, r + 1))}
                     className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center"
-                    style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }}>+</button>
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>+</button>
                 </div>
               </div>
 
               {/* Neue Saison starten */}
-              <div className="rounded-xl p-3" style={{ background: "#060a10", border: "1px solid #4a9eff20" }}>
-                <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "#4a9eff" }}>
+              <div className="rounded-xl p-3" style={{ background: "var(--bg-page)", border: "1px solid var(--color-info)20" }}>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-info)" }}>
                   Neue Saison starten
                 </p>
-                <p className="text-[8px] leading-relaxed mb-3" style={{ color: "#5a4020" }}>
+                <p className="text-[8px] leading-relaxed mb-3" style={{ color: "var(--color-muted)" }}>
                   Speichert Saisonstatistiken. Setzt Punkte zurück. Erstellt Rookie-Draft (schlechteste Mannschaft wählt zuerst). Alle Spieler bleiben im Kader.
                 </p>
                 <button onClick={startNewSeason} disabled={rollingOver}
                   className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
-                  style={{ background: "#0d1a2a", border: "1px solid #4a9eff60", color: "#4a9eff" }}>
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-info)60", color: "var(--color-info)" }}>
                   {rollingOver ? "Wird verarbeitet..." : `→ Saison ${(league?.current_season ?? 1) + 1} starten`}
                 </button>
               </div>
@@ -1831,7 +1831,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 const seasons = [...new Set(dynastySeasonHistory.map((r: any) => r.season))].sort((a, b) => b - a);
                 return (
                   <div>
-                    <p className="text-[8px] font-black uppercase mb-2" style={{ color: "#5a7a8a" }}>
+                    <p className="text-[8px] font-black uppercase mb-2" style={{ color: "var(--color-info)" }}>
                       Saison-Historie
                     </p>
                     {seasons.map(s => {
@@ -1839,24 +1839,24 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                       return (
                         <div key={s} className="mb-3 rounded-xl overflow-hidden"
                           style={{ border: "1px solid #1a2a3a" }}>
-                          <div className="px-3 py-1.5" style={{ background: "#0c1620" }}>
-                            <p className="text-[8px] font-black uppercase" style={{ color: "#4a9eff" }}>
+                          <div className="px-3 py-1.5" style={{ background: "var(--bg-elevated)" }}>
+                            <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-info)" }}>
                               Saison {s}
                             </p>
                           </div>
                           {rows.map((r: any) => (
                             <div key={r.id} className="flex items-center justify-between px-3 py-1.5"
-                              style={{ background: "#060c14", borderTop: "1px solid #0d1a24" }}>
+                              style={{ background: "var(--bg-page)", borderTop: "1px solid #0d1a24" }}>
                               <div className="flex items-center gap-2">
                                 <span className="text-[8px] font-black w-4 text-center"
-                                  style={{ color: r.final_rank <= 3 ? "#f5a623" : "#5a4020" }}>
+                                  style={{ color: r.final_rank <= 3 ? "var(--color-primary)" : "var(--color-muted)" }}>
                                   #{r.final_rank}
                                 </span>
-                                <span className="text-[9px] font-black" style={{ color: "#c8b080" }}>
+                                <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
                                   {r.teams?.name}
                                 </span>
                               </div>
-                              <span className="text-[9px] font-black" style={{ color: "#f5a623" }}>
+                              <span className="text-[9px] font-black" style={{ color: "var(--color-primary)" }}>
                                 {r.total_points?.toFixed(1)} pts
                               </span>
                             </div>
@@ -1872,34 +1872,34 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
           {/* Liga löschen */}
           <div className="rounded-xl p-4 space-y-3"
-            style={{ background: "#1a0808", border: "1px solid #3a1010" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#ff4d6d" }}>
+            style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #3a1010" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-error)" }}>
               Gefahrenzone
             </p>
-            <p className="text-xs" style={{ color: "#5a4020" }}>
+            <p className="text-xs" style={{ color: "var(--color-muted)" }}>
               Die Liga, alle Teams, Drafts, Spieltage und Punkte werden unwiderruflich gelöscht.
             </p>
 
             {!deleteConfirm ? (
               <button onClick={() => setDeleteConfirm(true)}
                 className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                style={{ background: "#0c0900", border: "1px solid #3a1010", color: "#ff4d6d" }}>
+                style={{ background: "var(--bg-page)", border: "1px solid #3a1010", color: "var(--color-error)" }}>
                 Liga löschen
               </button>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs font-black text-center" style={{ color: "#ff4d6d" }}>
+                <p className="text-xs font-black text-center" style={{ color: "var(--color-error)" }}>
                   Wirklich löschen? Das kann nicht rückgängig gemacht werden.
                 </p>
                 <div className="flex gap-2">
                   <button onClick={() => setDeleteConfirm(false)}
                     className="flex-1 py-3 rounded-xl text-[10px] font-black uppercase"
-                    style={{ background: "#2a2010", color: "#c8b080" }}>
+                    style={{ background: "var(--color-border)", color: "var(--color-text)" }}>
                     Abbrechen
                   </button>
                   <button onClick={deleteLeague}
                     className="flex-1 py-3 rounded-xl text-[10px] font-black uppercase"
-                    style={{ background: "#ff4d6d", color: "#0c0900" }}>
+                    style={{ background: "var(--color-error)", color: "var(--bg-page)" }}>
                     Ja, löschen
                   </button>
                 </div>

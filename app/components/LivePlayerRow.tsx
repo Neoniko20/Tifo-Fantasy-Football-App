@@ -3,7 +3,7 @@
 import { liveStateOf, liveStateLabel, liveStateColor, type LiveState } from "@/lib/fixture-status";
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
+  GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
 };
 
 interface Props {
@@ -21,7 +21,7 @@ export function LivePlayerRow({ name, position, photoUrl, points, minutes, fixtu
   const state: LiveState = liveStateOf(fixtureShort);
   const color = liveStateColor(state);
   const label = liveStateLabel(fixtureShort);
-  const posColor = POS_COLOR[position] || "#c8b080";
+  const posColor = POS_COLOR[position] || "var(--color-text)";
 
   return (
     <div className="flex items-center gap-2 py-1.5" style={{ opacity: dim ? 0.45 : 1 }}>
@@ -32,11 +32,11 @@ export function LivePlayerRow({ name, position, photoUrl, points, minutes, fixtu
         style={{ border: `1px solid ${posColor}` }}
       />
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-black truncate" style={{ color: "#c8b080" }}>
+        <p className="text-[10px] font-black truncate" style={{ color: "var(--color-text)" }}>
           {name}
-          {isCaptain && <span className="ml-1" style={{ color: "#f5a623" }}>(C)</span>}
+          {isCaptain && <span className="ml-1" style={{ color: "var(--color-primary)" }}>(C)</span>}
         </p>
-        <p className="text-[7px] font-black uppercase tracking-wider" style={{ color: "#5a4020" }}>
+        <p className="text-[7px] font-black uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>
           {position}
           {state === "live" && typeof minutes === "number" && <span className="ml-1" style={{ color }}>· {minutes}&apos;</span>}
         </p>
@@ -45,7 +45,7 @@ export function LivePlayerRow({ name, position, photoUrl, points, minutes, fixtu
         style={{ background: color + "20", color, border: `1px solid ${color}40` }}>
         {label}
       </span>
-      <p className="text-[11px] font-black w-10 text-right" style={{ color: "#c8b080" }}>
+      <p className="text-[11px] font-black w-10 text-right" style={{ color: "var(--color-text)" }}>
         {points.toFixed(1)}
       </p>
     </div>

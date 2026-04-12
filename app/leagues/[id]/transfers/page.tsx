@@ -6,10 +6,10 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { TransactionsFeed } from "@/app/components/TransactionsFeed";
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623",
-  DF: "#4a9eff",
-  MF: "#00ce7d",
-  FW: "#ff4d6d",
+  GK: "var(--color-primary)",
+  DF: "var(--color-info)",
+  MF: "var(--color-success)",
+  FW: "var(--color-error)",
 };
 
 type Player = {
@@ -145,14 +145,14 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "#0c0900", color: "#2a2010" }}>
+      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
       Lade...
     </main>
   );
 
   if (!myTeam) return (
     <main className="flex min-h-screen items-center justify-center text-sm"
-      style={{ background: "#0c0900", color: "#5a4020" }}>
+      style={{ background: "var(--bg-page)", color: "var(--color-muted)" }}>
       Kein Team in dieser Liga.
     </main>
   );
@@ -160,18 +160,18 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
   const freeAgents = allPlayers.filter(p => !mySquad.find(s => s.id === p.id));
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#f5a623" }} />
+        style={{ background: "var(--color-primary)" }} />
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-6">
         <button onClick={() => window.location.href = `/leagues/${leagueId}`}
           className="text-[9px] font-black uppercase tracking-widest"
-          style={{ color: "#5a4020" }}>
+          style={{ color: "var(--color-muted)" }}>
           ← Liga
         </button>
-        <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "#c8b080" }}>
+        <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>
           Transfers
         </h1>
         <div />
@@ -187,9 +187,9 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex-1 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-colors"
             style={{
-              background: tab === t.id ? "#f5a623" : "#141008",
-              color:      tab === t.id ? "#0c0900" : "#5a4020",
-              border: `1px solid ${tab === t.id ? "#f5a623" : "#2a2010"}`,
+              background: tab === t.id ? "var(--color-primary)" : "var(--bg-card)",
+              color:      tab === t.id ? "var(--bg-page)" : "var(--color-muted)",
+              border: `1px solid ${tab === t.id ? "var(--color-primary)" : "var(--color-border)"}`,
             }}>
             {t.label}
           </button>
@@ -201,39 +201,39 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
           {/* Transfer summary bar */}
           {(playerOut || playerIn) && (
             <div className="w-full max-w-md rounded-2xl p-4 mb-4"
-              style={{ background: "#141008", border: "1px solid #f5a623" }}>
-              <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+              style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
                 Transfer-Vorschau
               </p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 text-center">
                   {playerOut ? (
                     <>
-                      <span className="text-[8px] font-black uppercase" style={{ color: "#ff4d6d" }}>▼ Raus</span>
-                      <p className="text-xs font-black mt-1" style={{ color: "#c8b080" }}>{playerOut.name}</p>
-                      <p className="text-[8px]" style={{ color: "#5a4020" }}>{playerOut.position} · {playerOut.team_name}</p>
+                      <span className="text-[8px] font-black uppercase" style={{ color: "var(--color-error)" }}>▼ Raus</span>
+                      <p className="text-xs font-black mt-1" style={{ color: "var(--color-text)" }}>{playerOut.name}</p>
+                      <p className="text-[8px]" style={{ color: "var(--color-muted)" }}>{playerOut.position} · {playerOut.team_name}</p>
                     </>
                   ) : (
-                    <p className="text-[9px]" style={{ color: "#2a2010" }}>Wähle Spieler raus</p>
+                    <p className="text-[9px]" style={{ color: "var(--color-border)" }}>Wähle Spieler raus</p>
                   )}
                 </div>
-                <span className="text-xl font-black" style={{ color: "#2a2010" }}>⇄</span>
+                <span className="text-xl font-black" style={{ color: "var(--color-border)" }}>⇄</span>
                 <div className="flex-1 text-center">
                   {playerIn ? (
                     <>
-                      <span className="text-[8px] font-black uppercase" style={{ color: "#00ce7d" }}>▲ Rein</span>
-                      <p className="text-xs font-black mt-1" style={{ color: "#c8b080" }}>{playerIn.name}</p>
-                      <p className="text-[8px]" style={{ color: "#5a4020" }}>{playerIn.position} · {playerIn.team_name}</p>
+                      <span className="text-[8px] font-black uppercase" style={{ color: "var(--color-success)" }}>▲ Rein</span>
+                      <p className="text-xs font-black mt-1" style={{ color: "var(--color-text)" }}>{playerIn.name}</p>
+                      <p className="text-[8px]" style={{ color: "var(--color-muted)" }}>{playerIn.position} · {playerIn.team_name}</p>
                     </>
                   ) : (
-                    <p className="text-[9px]" style={{ color: "#2a2010" }}>Wähle neuen Spieler</p>
+                    <p className="text-[9px]" style={{ color: "var(--color-border)" }}>Wähle neuen Spieler</p>
                   )}
                 </div>
               </div>
               {playerOut && playerIn && (
                 <button onClick={confirmTransfer} disabled={saving}
                   className="w-full mt-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                  style={{ background: saving ? "#2a2010" : "#f5a623", color: "#0c0900" }}>
+                  style={{ background: saving ? "var(--color-border)" : "var(--color-primary)", color: "var(--bg-page)" }}>
                   {saving ? "Wird gespeichert..." : saved ? "✓ Transfer durchgeführt!" : "Transfer bestätigen"}
                 </button>
               )}
@@ -242,7 +242,7 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
 
           {/* My Squad */}
           <div className="w-full max-w-md mb-4">
-            <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#2a2010" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>
               Mein Kader · {mySquad.length} Spieler
             </p>
             <div className="space-y-1.5">
@@ -250,31 +250,31 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
                 <button key={p.id} onClick={() => setPlayerOut(playerOut?.id === p.id ? null : p)}
                   className="w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left"
                   style={{
-                    background: playerOut?.id === p.id ? "#1a0808" : "#141008",
-                    border: `1px solid ${playerOut?.id === p.id ? "#ff4d6d" : "#2a2010"}`,
+                    background: playerOut?.id === p.id ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "var(--bg-card)",
+                    border: `1px solid ${playerOut?.id === p.id ? "var(--color-error)" : "var(--color-border)"}`,
                   }}>
                   <img src={p.photo_url || "/player-placeholder.png"} alt={p.name}
                     className="w-8 h-8 rounded-full object-cover"
-                    style={{ border: `1px solid ${POS_COLOR[p.position] || "#2a2010"}` }} />
+                    style={{ border: `1px solid ${POS_COLOR[p.position] || "var(--color-border)"}` }} />
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-xs truncate" style={{ color: playerOut?.id === p.id ? "#ff4d6d" : "#c8b080" }}>
+                    <p className="font-black text-xs truncate" style={{ color: playerOut?.id === p.id ? "var(--color-error)" : "var(--color-text)" }}>
                       {p.name}
                     </p>
-                    <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                    <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                       {p.position} · {p.team_name}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="font-black text-sm" style={{ color: "#c8b080" }}>{p.fpts?.toFixed(1)}</p>
-                      <p className="text-[7px] uppercase" style={{ color: "#2a2010" }}>FPTS</p>
+                      <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{p.fpts?.toFixed(1)}</p>
+                      <p className="text-[7px] uppercase" style={{ color: "var(--color-border)" }}>FPTS</p>
                     </div>
                     {playerOut?.id === p.id && (
-                      <span className="text-[8px] font-black" style={{ color: "#ff4d6d" }}>▼</span>
+                      <span className="text-[8px] font-black" style={{ color: "var(--color-error)" }}>▼</span>
                     )}
                     <button onClick={e => { e.stopPropagation(); window.location.href = `/leagues/${leagueId}/players/${p.id}`; }}
                       className="text-[8px] font-black px-1.5 py-1 rounded"
-                      style={{ background: "#2a2010", color: "#5a4020" }}>↗</button>
+                      style={{ background: "var(--color-border)", color: "var(--color-muted)" }}>↗</button>
                   </div>
                 </button>
               ))}
@@ -283,7 +283,7 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
 
           {/* Free Agent Search */}
           <div className="w-full max-w-md">
-            <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "#2a2010" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>
               Freie Spieler
             </p>
             <div className="flex gap-2 mb-3">
@@ -293,11 +293,11 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="flex-1 px-3 py-2 rounded-xl text-xs font-black outline-none"
-                style={{ background: "#141008", border: "1px solid #2a2010", color: "#c8b080" }}
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
               />
               <select value={posFilter} onChange={e => setPosFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl text-[9px] font-black uppercase outline-none"
-                style={{ background: "#141008", border: "1px solid #2a2010", color: "#5a4020" }}>
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
                 <option value="ALL">Alle</option>
                 <option value="GK">TW</option>
                 <option value="DF">ABW</option>
@@ -307,11 +307,11 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
             </div>
 
             {search.length < 2 && posFilter === "ALL" ? (
-              <div className="text-center py-8" style={{ color: "#2a2010" }}>
+              <div className="text-center py-8" style={{ color: "var(--color-border)" }}>
                 <p className="text-[9px] font-black uppercase tracking-widest">Name eingeben oder Position wählen</p>
               </div>
             ) : freeAgents.length === 0 ? (
-              <div className="text-center py-8" style={{ color: "#2a2010" }}>
+              <div className="text-center py-8" style={{ color: "var(--color-border)" }}>
                 <p className="text-[9px] font-black uppercase tracking-widest">Keine freien Spieler gefunden</p>
               </div>
             ) : (
@@ -320,31 +320,31 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
                   <button key={p.id} onClick={() => setPlayerIn(playerIn?.id === p.id ? null : p)}
                     className="w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left"
                     style={{
-                      background: playerIn?.id === p.id ? "#0a1a0a" : "#141008",
-                      border: `1px solid ${playerIn?.id === p.id ? "#00ce7d" : "#2a2010"}`,
+                      background: playerIn?.id === p.id ? "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))" : "var(--bg-card)",
+                      border: `1px solid ${playerIn?.id === p.id ? "var(--color-success)" : "var(--color-border)"}`,
                     }}>
                     <img src={p.photo_url || "/player-placeholder.png"} alt={p.name}
                       className="w-8 h-8 rounded-full object-cover"
-                      style={{ border: `1px solid ${POS_COLOR[p.position] || "#2a2010"}` }} />
+                      style={{ border: `1px solid ${POS_COLOR[p.position] || "var(--color-border)"}` }} />
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-xs truncate" style={{ color: playerIn?.id === p.id ? "#00ce7d" : "#c8b080" }}>
+                      <p className="font-black text-xs truncate" style={{ color: playerIn?.id === p.id ? "var(--color-success)" : "var(--color-text)" }}>
                         {p.name}
                       </p>
-                      <p className="text-[8px] font-black uppercase" style={{ color: "#5a4020" }}>
+                      <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                         {p.position} · {p.team_name}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-right">
-                        <p className="font-black text-sm" style={{ color: "#c8b080" }}>{p.fpts?.toFixed(1)}</p>
-                        <p className="text-[7px] uppercase" style={{ color: "#2a2010" }}>FPTS</p>
+                        <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{p.fpts?.toFixed(1)}</p>
+                        <p className="text-[7px] uppercase" style={{ color: "var(--color-border)" }}>FPTS</p>
                       </div>
                       {playerIn?.id === p.id && (
-                        <span className="text-[8px] font-black" style={{ color: "#00ce7d" }}>▲</span>
+                        <span className="text-[8px] font-black" style={{ color: "var(--color-success)" }}>▲</span>
                       )}
                       <button onClick={e => { e.stopPropagation(); window.location.href = `/leagues/${leagueId}/players/${p.id}`; }}
                         className="text-[8px] font-black px-1.5 py-1 rounded"
-                        style={{ background: "#2a2010", color: "#5a4020" }}>↗</button>
+                        style={{ background: "var(--color-border)", color: "var(--color-muted)" }}>↗</button>
                     </div>
                   </button>
                 ))}

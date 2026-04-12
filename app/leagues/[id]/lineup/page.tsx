@@ -13,10 +13,10 @@ import { useToast } from "@/app/components/ToastProvider";
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623",
-  DF: "#4a9eff",
-  MF: "#00ce7d",
-  FW: "#ff4d6d",
+  GK: "var(--color-primary)",
+  DF: "var(--color-info)",
+  MF: "var(--color-success)",
+  FW: "var(--color-error)",
 };
 
 const LEAGUE_NAMES: Record<number, string> = {
@@ -595,7 +595,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "#0c0900", color: "#2a2010" }}>
+      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
       Lade Aufstellung...
     </main>
   );
@@ -671,7 +671,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-24" style={{ background: "#0c0900", paddingTop: 80 }}>
+    <main className="flex min-h-screen flex-col items-center p-4 pb-24" style={{ background: "var(--bg-page)", paddingTop: 80 }}>
       <LeagueTopNav
         leagueId={leagueId}
         leagueName={league?.name}
@@ -679,34 +679,34 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
         isOwner={league?.owner_id === user?.id}
       />
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "#f5a623" }} />
+        style={{ background: "var(--color-primary)" }} />
 
       {/* ── Header ── */}
       <div className="w-full max-w-md flex justify-between items-center mb-4">
         <button onClick={() => window.location.href = `/leagues/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
           ← Liga
         </button>
         <div className="text-center">
-          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
             {league?.name}
           </p>
-          <p className="text-sm font-black" style={{ color: "#f5a623" }}>
+          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
             {myTeam?.name || "Mein Team"}
           </p>
         </div>
         <button onClick={saveLineup} disabled={saving || activeTab !== "lineup" || isLocked}
           className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
           style={{
-            background: isLocked ? "#1a1208" : saved ? "#00ce7d" : activeTab === "lineup" ? "#f5a623" : "#1a1208",
-            color: isLocked ? "#5a4020" : "#0c0900",
+            background: isLocked ? "var(--bg-elevated)" : saved ? "var(--color-success)" : activeTab === "lineup" ? "var(--color-primary)" : "var(--bg-elevated)",
+            color: isLocked ? "var(--color-muted)" : "var(--bg-page)",
           }}>
           {isLocked ? "🔒" : saving ? "..." : saved ? "✓" : "Speichern"}
         </button>
       </div>
 
       {/* ── Tab-Navigation ── */}
-      <div className="flex w-full max-w-md mb-4 rounded-xl overflow-hidden" style={{ border: "1px solid #2a2010" }}>
+      <div className="flex w-full max-w-md mb-4 rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-border)" }}>
         {([
           { id: "lineup",  label: "Aufstellung" },
           { id: "squad",   label: "Kader" },
@@ -715,8 +715,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
           <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSelectedSlot(null); setSelectingIR(false); setSelectingTaxi(false); }}
             className="flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all"
             style={{
-              background: activeTab === tab.id ? "#f5a623" : "#141008",
-              color: activeTab === tab.id ? "#0c0900" : "#5a4020",
+              background: activeTab === tab.id ? "var(--color-primary)" : "var(--bg-card)",
+              color: activeTab === tab.id ? "var(--bg-page)" : "var(--color-muted)",
             }}>
             {tab.label}
           </button>
@@ -725,21 +725,21 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
       {/* ── Squad-Warnungen (immer sichtbar) ── */}
       {squadWarnings.length > 0 && (
-        <div className="w-full max-w-md mb-4 rounded-xl overflow-hidden" style={{ border: "1px solid #ff4d6d" }}>
-          <div className="px-3 py-2 flex items-center gap-2" style={{ background: "#2a0808" }}>
+        <div className="w-full max-w-md mb-4 rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-error)" }}>
+          <div className="px-3 py-2 flex items-center gap-2" style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" }}>
             <span className="text-sm">⚠️</span>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#ff4d6d" }}>
+            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-error)" }}>
               Kader-Problem
             </p>
           </div>
           {squadWarnings.map((w, i) => (
             <div key={i} className="px-3 py-2 flex items-start gap-2"
-              style={{ background: "#1a0808", borderTop: "1px solid #3a1010" }}>
+              style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", borderTop: "1px solid #3a1010" }}>
               <span className="text-[9px] font-black flex-shrink-0"
-                style={{ color: w.type === "overflow" ? "#ff4d6d" : "#f5a623" }}>
+                style={{ color: w.type === "overflow" ? "var(--color-error)" : "var(--color-primary)" }}>
                 {w.type === "overflow" ? "● Überfüllt" : "● Position"}
               </span>
-              <p className="text-[9px] leading-relaxed" style={{ color: "#c8b080" }}>{w.message}</p>
+              <p className="text-[9px] leading-relaxed" style={{ color: "var(--color-text)" }}>{w.message}</p>
             </div>
           ))}
         </div>
@@ -752,9 +752,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             <button key={gw.gameweek} onClick={() => setActiveGW(gw.gameweek)}
               className="px-3 py-1.5 rounded-lg text-[9px] font-black whitespace-nowrap flex-shrink-0 transition-all"
               style={{
-                background: activeGW === gw.gameweek ? "#f5a623" : "#141008",
-                color: activeGW === gw.gameweek ? "#0c0900" : "#5a4020",
-                border: `1px solid ${activeGW === gw.gameweek ? "#f5a623" : gw.status === "active" ? "#3a2a10" : "#2a2010"}`,
+                background: activeGW === gw.gameweek ? "var(--color-primary)" : "var(--bg-card)",
+                color: activeGW === gw.gameweek ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${activeGW === gw.gameweek ? "var(--color-primary)" : gw.status === "active" ? "var(--color-border-subtle)" : "var(--color-border)"}`,
               }}>
               GW{gw.gameweek}
             </button>
@@ -763,9 +763,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       )}
       {gameweeks.length === 0 && (
         <div className="w-full max-w-md rounded-xl p-3 mb-4 text-center"
-          style={{ background: "#141008", border: "1px solid #2a2010" }}>
-          <p className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>Noch keine Spieltage angelegt</p>
-          <p className="text-[8px] mt-1" style={{ color: "#2a2010" }}>Liga-Owner kann Spieltage im Admin anlegen</p>
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+          <p className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>Noch keine Spieltage angelegt</p>
+          <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>Liga-Owner kann Spieltage im Admin anlegen</p>
         </div>
       )}
 
@@ -778,13 +778,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
           {(() => {
             if (canLiveSwap) return (
               <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "#0e1a10", border: "1px solid #f5a62350" }}>
+                style={{ background: "color-mix(in srgb, var(--color-success) 8%, var(--bg-page))", border: "1px solid var(--color-primary)50" }}>
                 <span className="text-base">⚡</span>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#f5a623" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
                     Live-Tausch aktiv
                   </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
                     Tausche Starter die noch nicht gespielt haben. Bereits gespielte Spieler sind gesperrt.
                   </p>
                 </div>
@@ -792,13 +792,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             );
             if (lockMode === "pre_sub" && activeGWStatus === "upcoming") return (
               <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "#0e1008", border: "1px solid #4a9eff40" }}>
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-info)40" }}>
                 <span className="text-base">🔄</span>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#4a9eff" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-info)" }}>
                     Auto-Sub Modus
                   </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
                     Bankreihenfolge = Auto-Sub Priorität. Stelle sicher dass die Bank richtig sortiert ist.
                   </p>
                 </div>
@@ -806,13 +806,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             );
             if (isLocked && activeGWStatus === "finished") return (
               <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "#0a1a0a", border: "1px solid #00ce7d40" }}>
+                style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid var(--color-success)40" }}>
                 <span className="text-base">✅</span>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#00ce7d" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>
                     Spieltag abgeschlossen
                   </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
                     Punkte berechnet. Auto-Subs wurden angewendet.
                   </p>
                 </div>
@@ -820,13 +820,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             );
             if (isLocked) return (
               <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "#1a1208", border: "1px solid #f5a62340" }}>
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-primary)40" }}>
                 <span className="text-base">🔒</span>
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#f5a623" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
                     {lockMode === "pre_sub" ? "Live — Auto-Sub läuft" : "Live — Aufstellung gesperrt"}
                   </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
                     {lockMode === "pre_sub"
                       ? "Spieltag läuft. Auto-Subs werden nach Bankreihenfolge angewendet."
                       : "Spieltag läuft. Aufstellung kann nicht mehr geändert werden."}
@@ -839,11 +839,11 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
           {/* Punkte-Vorschau */}
           <div className="w-full max-w-md flex items-center justify-between mb-3 px-1">
-            <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+            <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
               GW{activeGW} · {startingXI.filter(Boolean).length}/11
             </p>
-            <p className="text-sm font-black" style={{ color: "#f5a623" }}>
-              {xiPoints.toFixed(1)} <span className="text-[9px]" style={{ color: "#5a4020" }}>FPTS (Vorschau)</span>
+            <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
+              {xiPoints.toFixed(1)} <span className="text-[9px]" style={{ color: "var(--color-muted)" }}>FPTS (Vorschau)</span>
             </p>
           </div>
 
@@ -857,9 +857,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   disabled={isLocked}
                   className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all disabled:opacity-30"
                   style={{
-                    background: formation === f ? "#f5a623" : "#141008",
-                    color: formation === f ? "#0c0900" : "#5a4020",
-                    border: `1px solid ${formation === f ? "#f5a623" : "#2a2010"}`,
+                    background: formation === f ? "var(--color-primary)" : "var(--bg-card)",
+                    color: formation === f ? "var(--bg-page)" : "var(--color-muted)",
+                    border: `1px solid ${formation === f ? "var(--color-primary)" : "var(--color-border)"}`,
                   }}>
                   {f}
                 </button>
@@ -869,19 +869,19 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
           {/* Spielfeld */}
           <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4"
-            style={{ background: "#0a1a0a", border: "1px solid #1a2a1a", minHeight: 340 }}>
+            style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid #1a2a1a", minHeight: 340 }}>
             <div className="relative p-3"
               style={{ background: "linear-gradient(180deg, #0a1a0a 0%, #081408 100%)" }}>
-              <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "#00ce7d" }} />
+              <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "var(--color-success)" }} />
               <div className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full border opacity-10 -translate-x-1/2 -translate-y-1/2"
-                style={{ borderColor: "#00ce7d" }} />
+                style={{ borderColor: "var(--color-success)" }} />
 
               {rows.map(({ row, slots }) => (
                 <div key={row} className="flex justify-center gap-2 mb-3">
                   {slots.map(({ position, slotIndex }) => {
                     const player = startingXI[slotIndex];
                     const isSelected = selectedSlot?.type === "xi" && selectedSlot.index === slotIndex;
-                    const posColor = POS_COLOR[position] || "#c8b080";
+                    const posColor = POS_COLOR[position] || "var(--color-text)";
                     const isCap = player?.id === captainId;
                     const isVC = player?.id === viceCaptainId;
 
@@ -904,7 +904,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                           isCap={isCap} isVC={isVC}
                         />
                         <p className="text-[7px] font-black text-center leading-tight mt-1 truncate w-full"
-                          style={{ color: player ? "#c8b080" : "#2a2010" }}>
+                          style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
                           {player ? player.name.split(" ").pop() : position}
                         </p>
                       </div>
@@ -921,12 +921,12 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             return (
               <div className="w-full max-w-md mb-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                     Bank · {bench.filter(Boolean).length}/{benchSize}
                   </p>
                   {bench.length > benchSize && (
                     <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: "#2a0808", color: "#ff4d6d", border: "1px solid #ff4d6d40" }}>
+                      style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)", border: "1px solid var(--color-error)40" }}>
                       +{bench.length - benchSize} überschuss
                     </span>
                   )}
@@ -936,7 +936,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     const player = bench[i];
                     const isSelected = selectedSlot?.type === "bench" && selectedSlot.index === i;
                     const isOverflow = i >= benchSize;
-                    const posColor = player ? (POS_COLOR[player.position] || "#c8b080") : "#2a2010";
+                    const posColor = player ? (POS_COLOR[player.position] || "var(--color-text)") : "var(--color-border)";
                     return (
                       <div key={i}
                         onClick={() => {
@@ -952,18 +952,18 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                         style={{
                           cursor: isLocked ? "default" : "pointer",
                           width: "calc(25% - 6px)", minWidth: 64,
-                          background: isOverflow ? "#1a0808" : isSelected ? "#1a1208" : "#141008",
-                          border: `1px solid ${isOverflow ? "#ff4d6d40" : isSelected ? "#f5a623" : "#2a2010"}`,
+                          background: isOverflow ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : isSelected ? "var(--bg-elevated)" : "var(--bg-card)",
+                          border: `1px solid ${isOverflow ? "var(--color-error)40" : isSelected ? "var(--color-primary)" : "var(--color-border)"}`,
                         }}>
                         <PlayerCircle
-                          player={player} size={36} posColor={isOverflow ? "#ff4d6d" : posColor}
+                          player={player} size={36} posColor={isOverflow ? "var(--color-error)" : posColor}
                           selected={isSelected} posLabel={String(i + 1)}
                         />
                         {isOverflow && player && (
-                          <span className="text-[6px] font-black mt-0.5" style={{ color: "#ff4d6d" }}>!</span>
+                          <span className="text-[6px] font-black mt-0.5" style={{ color: "var(--color-error)" }}>!</span>
                         )}
                         <p className="text-[7px] font-black text-center mt-0.5 truncate w-full leading-tight"
-                          style={{ color: isOverflow ? "#c06060" : player ? "#c8b080" : "#2a2010" }}>
+                          style={{ color: isOverflow ? "var(--color-error)" : player ? "var(--color-text)" : "var(--color-border)" }}>
                           {player ? player.name.split(" ").pop() : "—"}
                         </p>
                       </div>
@@ -980,8 +980,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                    style={{ background: "#1a0808", border: "1px solid #ff4d6d", color: "#ff4d6d" }}>IR</span>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                    style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid var(--color-error)", color: "var(--color-error)" }}>IR</span>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                     Injured Reserve · min. {ligaSettings.ir_min_gameweeks || 4} GWs
                   </p>
                 </div>
@@ -990,9 +990,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     onClick={() => { setSelectingIR(v => !v); setSelectedSlot(null); }}
                     className="text-[8px] font-black px-2 py-1 rounded-lg transition-all"
                     style={{
-                      background: selectingIR ? "#ff4d6d" : "#1a0808",
-                      color: selectingIR ? "#0c0900" : "#ff4d6d",
-                      border: "1px solid #ff4d6d",
+                      background: selectingIR ? "var(--color-error)" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
+                      color: selectingIR ? "var(--bg-page)" : "var(--color-error)",
+                      border: "1px solid var(--color-error)",
                     }}>
                     {selectingIR ? "Abbrechen" : "+ Spieler"}
                   </button>
@@ -1004,30 +1004,30 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   const gwsLeft     = Math.max(0, slot.min_return_gw - activeGW);
                   return (
                     <div key={slot.id} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                      style={{ background: "#1a0808", border: `1px solid ${canReturn ? "#ff4d6d40" : "#3a1010"}` }}>
+                      style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: `1px solid ${canReturn ? "var(--color-error)40" : "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))"}` }}>
                       {slot.player?.photo_url ? (
                         <img src={slot.player.photo_url} className="w-9 h-9 rounded-full object-cover"
-                          style={{ border: `2px solid ${canReturn ? "#ff4d6d60" : "#ff4d6d20"}` }} alt="" />
+                          style={{ border: `2px solid ${canReturn ? "var(--color-error)60" : "var(--color-error)20"}` }} alt="" />
                       ) : (
                         <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                          style={{ border: "2px solid #3a1010", background: "#0c0900" }}>
-                          <span className="text-[10px] font-black" style={{ color: "#5a1010" }}>IR</span>
+                          style={{ border: "2px solid #3a1010", background: "var(--bg-page)" }}>
+                          <span className="text-[10px] font-black" style={{ color: "var(--color-error)" }}>IR</span>
                         </div>
                       )}
                       <p className="text-[7px] font-black text-center mt-1 truncate w-full leading-tight"
-                        style={{ color: "#c8b080" }}>
+                        style={{ color: "var(--color-text)" }}>
                         {slot.player?.name.split(" ").pop() || "—"}
                       </p>
                       <p className="text-[7px] font-black text-center"
-                        style={{ color: canReturn ? "#ff4d6d" : "#5a3010" }}>
+                        style={{ color: canReturn ? "var(--color-error)" : "var(--color-muted)" }}>
                         {canReturn ? "✓ Bereit" : `noch ${gwsLeft} GW${gwsLeft !== 1 ? "s" : ""}`}
                       </p>
                       <button onClick={() => returnFromIR(slot)}
                         className="text-[7px] font-black mt-1 px-1.5 py-0.5 rounded transition-all"
                         style={{
-                          background: canReturn ? "#3a1010" : "#1a0808",
-                          color: canReturn ? "#ff4d6d" : "#3a1010",
-                          border: `1px solid ${canReturn ? "#ff4d6d" : "#2a1010"}`,
+                          background: canReturn ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
+                          color: canReturn ? "var(--color-error)" : "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))",
+                          border: `1px solid ${canReturn ? "var(--color-error)" : "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))"}`,
                           cursor: canReturn ? "pointer" : "not-allowed",
                         }}>
                         Zurück
@@ -1037,33 +1037,33 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                 })}
                 {Array.from({ length: ligaSettings.ir_spots - irSlots.length }).map((_, i) => (
                   <div key={`empty-${i}`} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "#1a0808", border: "1px solid #2a1010" }}>
+                    style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #2a1010" }}>
                     <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ border: "2px solid #2a1010", background: "#0c0900" }}>
-                      <span className="text-[10px] font-black" style={{ color: "#3a1010" }}>IR</span>
+                      style={{ border: "2px solid #2a1010", background: "var(--bg-page)" }}>
+                      <span className="text-[10px] font-black" style={{ color: "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>IR</span>
                     </div>
-                    <p className="text-[7px] font-black text-center mt-1" style={{ color: "#3a1010" }}>Leer</p>
+                    <p className="text-[7px] font-black text-center mt-1" style={{ color: "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>Leer</p>
                   </div>
                 ))}
               </div>
               {selectingIR && (
                 <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
-                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "#5a1010" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-error)" }}>
                     Spieler auf IR setzen (mind. {ligaSettings.ir_min_gameweeks || 4} GWs gesperrt)
                   </p>
                   {draftPicks.filter(p => !irSlots.find(s => s.player_id === p.id)).map(p => (
                     <div key={p.id} onClick={() => placeOnIR(p)}
                       className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                      style={{ background: "#1a0808", border: "1px solid #2a1010" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "#ff4d6d"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "#2a1010"}>
+                      style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #2a1010" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-error)"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))"}>
                       <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
                         style={{ border: `1px solid ${POS_COLOR[p.position]}40` }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>{p.name}</p>
-                        <p className="text-[7px]" style={{ color: "#5a4020" }}>{p.position} · {p.team_name}</p>
+                        <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                        <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>{p.position} · {p.team_name}</p>
                       </div>
-                      <span className="text-[8px] font-black" style={{ color: "#ff4d6d" }}>+ IR</span>
+                      <span className="text-[8px] font-black" style={{ color: "var(--color-error)" }}>+ IR</span>
                     </div>
                   ))}
                 </div>
@@ -1077,8 +1077,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                    style={{ background: "#1a1a08", border: "1px solid #c8b080", color: "#c8b080" }}>U21</span>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-text)", color: "var(--color-text)" }}>U21</span>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                     Taxi Squad · {taxiSquad.length}/{ligaSettings.taxi_spots}
                   </p>
                 </div>
@@ -1087,9 +1087,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     onClick={() => { setSelectingTaxi(v => !v); setSelectedSlot(null); setSelectingIR(false); }}
                     className="text-[8px] font-black px-2 py-1 rounded-lg transition-all"
                     style={{
-                      background: selectingTaxi ? "#c8b080" : "#1a1a08",
-                      color: selectingTaxi ? "#0c0900" : "#c8b080",
-                      border: "1px solid #c8b080",
+                      background: selectingTaxi ? "var(--color-text)" : "var(--bg-elevated)",
+                      color: selectingTaxi ? "var(--bg-page)" : "var(--color-text)",
+                      border: "1px solid var(--color-text)",
                     }}>
                     {selectingTaxi ? "Abbrechen" : "+ Spieler"}
                   </button>
@@ -1098,30 +1098,30 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               <div className="flex gap-2 flex-wrap">
                 {taxiSquad.map((player) => (
                   <div key={player.id} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "#1a1a08", border: "1px solid #3a3010" }}>
+                    style={{ background: "var(--bg-elevated)", border: "1px solid #3a3010" }}>
                     {player.photo_url ? (
                       <img src={player.photo_url} className="w-9 h-9 rounded-full object-cover"
-                        style={{ border: "2px solid #c8b08040" }} alt="" />
+                        style={{ border: "2px solid var(--color-text)40" }} alt="" />
                     ) : (
                       <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                        style={{ border: "2px solid #3a3010", background: "#0c0900" }}>
-                        <span className="text-[8px] font-black" style={{ color: "#c8b080" }}>
+                        style={{ border: "2px solid #3a3010", background: "var(--bg-page)" }}>
+                        <span className="text-[8px] font-black" style={{ color: "var(--color-text)" }}>
                           {player.position}
                         </span>
                       </div>
                     )}
                     <p className="text-[7px] font-black text-center mt-1 truncate w-full leading-tight"
-                      style={{ color: "#c8b080" }}>
+                      style={{ color: "var(--color-text)" }}>
                       {player.name.split(" ").pop() || "—"}
                     </p>
-                    <p className="text-[7px] text-center" style={{ color: "#5a4020" }}>
+                    <p className="text-[7px] text-center" style={{ color: "var(--color-muted)" }}>
                       {player.fpts?.toFixed(0)} pts
                     </p>
                     <button onClick={() => promoteFromTaxi(player)}
                       className="text-[7px] font-black mt-1 px-1.5 py-0.5 rounded transition-all"
                       style={{
-                        background: "#2a2010",
-                        color: "#f5a623",
+                        background: "var(--color-border)",
+                        color: "var(--color-primary)",
                         border: "1px solid #3a3010",
                       }}>
                       ↑ Befördern
@@ -1130,33 +1130,33 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                 ))}
                 {Array.from({ length: Math.max(0, ligaSettings.taxi_spots - taxiSquad.length) }).map((_, i) => (
                   <div key={`empty-taxi-${i}`} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "#1a1a08", border: "1px solid #2a2a10" }}>
+                    style={{ background: "var(--bg-elevated)", border: "1px solid #2a2a10" }}>
                     <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ border: "2px solid #2a2a10", background: "#0c0900" }}>
-                      <span className="text-[9px] font-black" style={{ color: "#3a3010" }}>U21</span>
+                      style={{ border: "2px solid #2a2a10", background: "var(--bg-page)" }}>
+                      <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>U21</span>
                     </div>
-                    <p className="text-[7px] font-black text-center mt-1" style={{ color: "#3a3010" }}>Leer</p>
+                    <p className="text-[7px] font-black text-center mt-1" style={{ color: "var(--color-muted)" }}>Leer</p>
                   </div>
                 ))}
               </div>
               {selectingTaxi && (
                 <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
-                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "#5a4020" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
                     Spieler auf Taxi Squad setzen (kann nicht aufgestellt werden)
                   </p>
                   {draftPicks.filter(p => !irPlayerIds.has(p.id)).map(p => (
                     <div key={p.id} onClick={() => moveToTaxi(p)}
                       className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                      style={{ background: "#1a1a08", border: "1px solid #2a2a10" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "#c8b080"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "#2a2a10"}>
+                      style={{ background: "var(--bg-elevated)", border: "1px solid #2a2a10" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text)"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"}>
                       <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
                         style={{ border: `1px solid ${POS_COLOR[p.position]}40` }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>{p.name}</p>
-                        <p className="text-[7px]" style={{ color: "#5a4020" }}>{p.position} · {p.team_name}</p>
+                        <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                        <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>{p.position} · {p.team_name}</p>
                       </div>
-                      <span className="text-[8px] font-black" style={{ color: "#c8b080" }}>+ U21</span>
+                      <span className="text-[8px] font-black" style={{ color: "var(--color-text)" }}>+ U21</span>
                     </div>
                   ))}
                 </div>
@@ -1177,20 +1177,20 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     <div className="flex items-center gap-2">
                       {neededPos && (
                         <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                          style={{ background: (POS_COLOR[neededPos] || "#c8b080") + "20", color: POS_COLOR[neededPos] || "#c8b080" }}>
+                          style={{ background: (POS_COLOR[neededPos] || "var(--color-text)") + "20", color: POS_COLOR[neededPos] || "var(--color-text)" }}>
                           {neededPos}
                         </span>
                       )}
-                      <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                      <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                         {neededPos ? `${neededPos} wählen` : "Bank-Spieler wählen"}
-                        <span className="ml-1 normal-case font-normal" style={{ color: "#3a2a10" }}>
+                        <span className="ml-1 normal-case font-normal" style={{ color: "var(--color-border-subtle)" }}>
                           ({count} verfügbar)
                         </span>
                       </p>
                     </div>
                     <button onClick={() => setSelectedSlot(null)}
                       className="text-[9px] font-black px-2 py-1 rounded-lg"
-                      style={{ background: "#1a1208", color: "#5a4020" }}>✕</button>
+                      style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}>✕</button>
                   </div>
                 );
               })()}
@@ -1203,7 +1203,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     !neededPos || p.position === neededPos
                   );
                   if (filtered.length === 0) return (
-                    <p className="text-center text-[9px] py-4 font-black uppercase" style={{ color: "#2a2010" }}>
+                    <p className="text-center text-[9px] py-4 font-black uppercase" style={{ color: "var(--color-border)" }}>
                       Keine {neededPos || ""}-Spieler verfügbar
                     </p>
                   );
@@ -1213,33 +1213,33 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     return (
                       <div key={p.id} onClick={() => assignPlayer(p)}
                         className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                        style={{ background: "#141008", border: "1px solid #2a2010" }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "#f5a623"}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "#2a2010"}>
+                        style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-primary)"}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"}>
                         <div className="relative flex-shrink-0">
                           <img src={p.photo_url} className="w-8 h-8 rounded-full object-cover"
                             style={{ border: `1px solid ${posColor}40` }} alt="" />
                           {p.api_team_id && (
                             <img src={`https://media.api-sports.io/football/teams/${p.api_team_id}.png`}
                               className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full object-contain"
-                              style={{ background: "#141008", border: "1px solid #2a2010" }} alt="" />
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }} alt="" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-black text-xs truncate" style={{ color: "#c8b080" }}>{p.name}</p>
-                          <p className="text-[8px] truncate" style={{ color: "#5a4020" }}>{p.team_name}</p>
+                          <p className="font-black text-xs truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                          <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{p.team_name}</p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <div className="text-right">
-                            <p className="text-xs font-black" style={{ color: "#f5a623" }}>{p.fpts?.toFixed(0)}</p>
+                            <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{p.fpts?.toFixed(0)}</p>
                             <span className="text-[7px] font-black px-1 rounded"
                               style={{ background: posColor + "20", color: posColor }}>{p.position}</span>
                           </div>
                           {status && (
                             <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
                               style={{
-                                background: status === "XI" ? "#00ce7d20" : "#4a9eff20",
-                                color: status === "XI" ? "#00ce7d" : "#4a9eff",
+                                background: status === "XI" ? "var(--color-success)20" : "var(--color-info)20",
+                                color: status === "XI" ? "var(--color-success)" : "var(--color-info)",
                               }}>{status}</span>
                           )}
                           <button onClick={e => {
@@ -1248,7 +1248,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                             setModalData({ player: p, slotType: "none", slotIndex: -1 });
                           }}
                             className="text-[8px] font-black px-1.5 py-1 rounded"
-                            style={{ background: "#2a2010", color: "#5a4020" }}>↗</button>
+                            style={{ background: "var(--color-border)", color: "var(--color-muted)" }}>↗</button>
                         </div>
                       </div>
                     );
@@ -1276,9 +1276,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               <button key={key} onClick={() => setSquadSort(key)}
                 className="px-3 py-1.5 rounded-lg text-[9px] font-black transition-all"
                 style={{
-                  background: squadSort === key ? "#f5a623" : "#141008",
-                  color: squadSort === key ? "#0c0900" : "#5a4020",
-                  border: `1px solid ${squadSort === key ? "#f5a623" : "#2a2010"}`,
+                  background: squadSort === key ? "var(--color-primary)" : "var(--bg-card)",
+                  color: squadSort === key ? "var(--bg-page)" : "var(--color-muted)",
+                  border: `1px solid ${squadSort === key ? "var(--color-primary)" : "var(--color-border)"}`,
                 }}>
                 {label}
               </button>
@@ -1297,9 +1297,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                 : []),
             ].map(item => (
               <div key={item.label} className="flex-1 rounded-xl p-2 text-center"
-                style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                <p className="text-sm font-black" style={{ color: "#f5a623" }}>{item.value}</p>
-                <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>{item.label}</p>
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>{item.value}</p>
+                <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>{item.label}</p>
               </div>
             ))}
           </div>
@@ -1326,7 +1326,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             return (
               <div className="space-y-1.5">
                 {sorted.map(p => {
-                  const posColor = POS_COLOR[p.position] || "#c8b080";
+                  const posColor = POS_COLOR[p.position] || "var(--color-text)";
                   const status   = inXI.has(p.id) ? "XI" : inBench.has(p.id) ? "Bank" : inIR.has(p.id) ? "IR" : inTaxi.has(p.id) ? "Taxi" : "—";
                   const gwPts    = gwPoints[p.id];
                   const isCap    = captainId === p.id;
@@ -1336,50 +1336,50 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     <div key={p.id}
                       onClick={() => setModalData({ player: p, slotType: "none", slotIndex: -1 })}
                       className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                      style={{ background: "#141008", border: "1px solid #2a2010" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "#f5a623"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "#2a2010"}>
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-primary)"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"}>
                       <div className="relative flex-shrink-0">
                         {p.photo_url ? (
                           <img src={p.photo_url} className="w-10 h-10 rounded-full object-cover"
                             style={{ border: `2px solid ${posColor}40` }} alt="" />
                         ) : (
                           <div className="w-10 h-10 rounded-full flex items-center justify-center"
-                            style={{ border: `2px solid ${posColor}40`, background: "#0c0900" }}>
+                            style={{ border: `2px solid ${posColor}40`, background: "var(--bg-page)" }}>
                             <span className="text-xs font-black" style={{ color: posColor }}>{p.position}</span>
                           </div>
                         )}
                         {p.api_team_id && (
                           <img src={`https://media.api-sports.io/football/teams/${p.api_team_id}.png`}
                             className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full object-contain"
-                            style={{ background: "#141008", border: "1px solid #2a2010" }} alt="" />
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }} alt="" />
                         )}
                         {isCap && (
                           <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[7px] font-black flex items-center justify-center"
-                            style={{ background: "#f5a623", color: "#0c0900" }}>C</span>
+                            style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>C</span>
                         )}
                         {isVC && !isCap && (
                           <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[7px] font-black flex items-center justify-center"
-                            style={{ background: "#5a4020", color: "#f5a623" }}>V</span>
+                            style={{ background: "var(--color-muted)", color: "var(--color-primary)" }}>V</span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-black text-xs truncate" style={{ color: "#c8b080" }}>{p.name}</p>
-                        <p className="text-[8px] truncate" style={{ color: "#5a4020" }}>{p.team_name}</p>
+                        <p className="font-black text-xs truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                        <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{p.team_name}</p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <div className="text-right">
-                          <p className="text-xs font-black" style={{ color: "#f5a623" }}>{p.fpts?.toFixed(1)}</p>
+                          <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{p.fpts?.toFixed(1)}</p>
                           {gwPts !== undefined && (
-                            <p className="text-[7px] font-black" style={{ color: "#00ce7d" }}>GW {gwPts}pts</p>
+                            <p className="text-[7px] font-black" style={{ color: "var(--color-success)" }}>GW {gwPts}pts</p>
                           )}
                         </div>
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
                           style={{ background: posColor + "20", color: posColor }}>{p.position}</span>
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
                           style={{
-                            background: status === "XI" ? "#00ce7d20" : status === "Bank" ? "#4a9eff20" : status === "IR" ? "#ff4d6d20" : status === "Taxi" ? "#c8b08020" : "#2a2010",
-                            color:      status === "XI" ? "#00ce7d"   : status === "Bank" ? "#4a9eff"   : status === "IR" ? "#ff4d6d"   : status === "Taxi" ? "#c8b080"   : "#5a4020",
+                            background: status === "XI" ? "var(--color-success)20" : status === "Bank" ? "var(--color-info)20" : status === "IR" ? "var(--color-error)20" : status === "Taxi" ? "var(--color-text)20" : "var(--color-border)",
+                            color:      status === "XI" ? "var(--color-success)"   : status === "Bank" ? "var(--color-info)"   : status === "IR" ? "var(--color-error)"   : status === "Taxi" ? "var(--color-text)"   : "var(--color-muted)",
                           }}>
                           {status}
                         </span>
@@ -1388,7 +1388,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   );
                 })}
                 {sorted.length === 0 && (
-                  <p className="text-center text-[9px] py-6 font-black uppercase" style={{ color: "#2a2010" }}>
+                  <p className="text-center text-[9px] py-6 font-black uppercase" style={{ color: "var(--color-border)" }}>
                     Kein Spieler im Kader
                   </p>
                 )}
@@ -1404,8 +1404,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       {activeTab === "matches" && (
         <div className="w-full max-w-md space-y-2">
           {gameweeks.length === 0 ? (
-            <div className="rounded-xl p-4 text-center" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-              <p className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>
+            <div className="rounded-xl p-4 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+              <p className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
                 Noch keine Spieltage angelegt
               </p>
             </div>
@@ -1422,26 +1422,26 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   onClick={() => setActiveGW(gw.gameweek)}
                   className="rounded-xl p-3 cursor-pointer transition-all"
                   style={{
-                    background: isActive ? "#1a1208" : "#141008",
-                    border: `1px solid ${isActive ? "#f5a623" : isSelected ? "#3a2a10" : "#2a2010"}`,
+                    background: isActive ? "var(--bg-elevated)" : "var(--bg-card)",
+                    border: `1px solid ${isActive ? "var(--color-primary)" : isSelected ? "var(--color-border-subtle)" : "var(--color-border)"}`,
                   }}>
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black" style={{ color: isActive ? "#f5a623" : "#c8b080" }}>
+                      <span className="text-[10px] font-black" style={{ color: isActive ? "var(--color-primary)" : "var(--color-text)" }}>
                         Spieltag {gw.gameweek}
                       </span>
                       {isActive && (
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "#f5a623", color: "#0c0900" }}>AKTIV</span>
+                          style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>AKTIV</span>
                       )}
                       {isPast && (
                         <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "#1a2a1a", color: "#00ce7d" }}>✓ Abgeschlossen</span>
+                          style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)" }}>✓ Abgeschlossen</span>
                       )}
                     </div>
                     {isSelected && (
                       <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
-                        style={{ background: "#2a2010", color: "#f5a623" }}>● Ausgewählt</span>
+                        style={{ background: "var(--color-border)", color: "var(--color-primary)" }}>● Ausgewählt</span>
                     )}
                   </div>
 
@@ -1451,9 +1451,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                         <span key={lid}
                           className="text-[7px] font-black px-1.5 py-0.5 rounded"
                           style={{
-                            background: doubleLeagues.includes(lid) ? "#2a1a08" : "#0c0900",
-                            color: doubleLeagues.includes(lid) ? "#f5a623" : "#5a4020",
-                            border: `1px solid ${doubleLeagues.includes(lid) ? "#f5a62340" : "#2a2010"}`,
+                            background: doubleLeagues.includes(lid) ? "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))" : "var(--bg-page)",
+                            color: doubleLeagues.includes(lid) ? "var(--color-primary)" : "var(--color-muted)",
+                            border: `1px solid ${doubleLeagues.includes(lid) ? "var(--color-primary)40" : "var(--color-border)"}`,
                           }}>
                           {LEAGUE_NAMES[lid] || `Liga ${lid}`}
                           {doubleLeagues.includes(lid) && " ×2"}
@@ -1463,7 +1463,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   )}
 
                   {gw.notes && (
-                    <p className="text-[8px] mt-1" style={{ color: "#5a4020" }}>{gw.notes}</p>
+                    <p className="text-[8px] mt-1" style={{ color: "var(--color-muted)" }}>{gw.notes}</p>
                   )}
                 </div>
               );
@@ -1477,7 +1477,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       ════════════════════════════════ */}
       {modalData && (() => {
         const p        = modalData.player;
-        const posColor = POS_COLOR[p.position] || "#c8b080";
+        const posColor = POS_COLOR[p.position] || "var(--color-text)";
         const isCap    = captainId === p.id;
         const isVC     = viceCaptainId === p.id;
         const gwPts    = gwPoints[p.id];
@@ -1497,12 +1497,12 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             style={{ background: "rgba(0,0,0,0.85)" }}
             onClick={() => setModalData(null)}>
             <div className="w-full max-w-md rounded-t-3xl flex flex-col"
-              style={{ background: "#0f0d08", maxHeight: "90vh" }}
+              style={{ background: "var(--bg-page)", maxHeight: "90vh" }}
               onClick={e => e.stopPropagation()}>
 
               {/* Drag handle */}
               <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
-                <div className="w-10 h-1 rounded-full" style={{ background: "#2a2010" }} />
+                <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
               </div>
 
               {/* Hero */}
@@ -1520,11 +1520,11 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   {/* Cap / VC badge */}
                   {isCap && (
                     <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center z-10"
-                      style={{ background: "#f5a623", color: "#0c0900" }}>C</span>
+                      style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>C</span>
                   )}
                   {isVC && !isCap && (
                     <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center z-10"
-                      style={{ background: "#5a4020", color: "#f5a623" }}>V</span>
+                      style={{ background: "var(--color-muted)", color: "var(--color-primary)" }}>V</span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0 pt-1">
@@ -1532,21 +1532,21 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     {club?.badge && (
                       <img src={club.badge} alt={p.team_name} className="w-4 h-4 object-contain flex-shrink-0" />
                     )}
-                    <p className="text-[8px] font-black uppercase tracking-widest truncate" style={{ color: c1 || "#5a4020" }}>
+                    <p className="text-[8px] font-black uppercase tracking-widest truncate" style={{ color: c1 || "var(--color-muted)" }}>
                       {p.team_name}
                     </p>
                   </div>
-                  <p className="text-xl font-black leading-tight" style={{ color: "#f5f0e8" }}>{p.name}</p>
+                  <p className="text-xl font-black leading-tight" style={{ color: "var(--color-text)" }}>{p.name}</p>
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <span className="text-[8px] font-black px-2 py-0.5 rounded"
-                      style={{ background: posColor, color: "#0c0900" }}>{p.position}</span>
-                    <span className="text-sm font-black" style={{ color: "#f5a623" }}>
+                      style={{ background: posColor, color: "var(--bg-page)" }}>{p.position}</span>
+                    <span className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
                       {p.fpts?.toFixed(1)}
-                      <span className="text-[8px] ml-1" style={{ color: "#5a4020" }}>FPTS</span>
+                      <span className="text-[8px] ml-1" style={{ color: "var(--color-muted)" }}>FPTS</span>
                     </span>
                     {gwPts !== undefined && (
                       <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
-                        style={{ background: "#001a0d", color: "#00ce7d", border: "1px solid #00ce7d30" }}>
+                        style={{ background: "color-mix(in srgb, var(--color-success) 12%, var(--bg-page))", color: "var(--color-success)", border: "1px solid var(--color-success)30" }}>
                         GW{activeGW > 1 ? activeGW - 1 : activeGW}: {gwPts}pts
                       </span>
                     )}
@@ -1557,29 +1557,29 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                 </div>
                 <button onClick={() => setModalData(null)}
                   className="absolute top-3 right-4 w-7 h-7 flex items-center justify-center rounded-full z-10"
-                  style={{ background: "#1a1208", color: "#5a4020" }}>✕</button>
+                  style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}>✕</button>
               </div>
 
               {/* Action buttons */}
               <div className="flex flex-wrap gap-2 px-5 pb-3 pt-2 flex-shrink-0"
-                style={{ borderBottom: "1px solid #1a1208" }}>
+                style={{ borderBottom: "1px solid var(--bg-elevated)" }}>
                 {modalData.slotType === "xi" && (
                   <>
                     <button onClick={() => { toggleCaptain(p.id); setModalData(null); }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
                       style={{
-                        background: isCap ? "#f5a623" : "#1a1208",
-                        color: isCap ? "#0c0900" : "#f5a623",
-                        border: `1px solid ${isCap ? "#f5a623" : "#f5a62340"}`,
+                        background: isCap ? "var(--color-primary)" : "var(--bg-elevated)",
+                        color: isCap ? "var(--bg-page)" : "var(--color-primary)",
+                        border: `1px solid ${isCap ? "var(--color-primary)" : "var(--color-primary)40"}`,
                       }}>
                       {isCap ? "★ Kein Kapitän" : "★ Kapitän"}
                     </button>
                     <button onClick={() => { toggleVC(p.id); setModalData(null); }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
                       style={{
-                        background: isVC ? "#5a4020" : "#141008",
-                        color: isVC ? "#f5a623" : "#5a4020",
-                        border: `1px solid ${isVC ? "#5a4020" : "#2a2010"}`,
+                        background: isVC ? "var(--color-muted)" : "var(--bg-card)",
+                        color: isVC ? "var(--color-primary)" : "var(--color-muted)",
+                        border: `1px solid ${isVC ? "var(--color-muted)" : "var(--color-border)"}`,
                       }}>
                       {isVC ? "V Kein Vize" : "V Vize-Kap."}
                     </button>
@@ -1592,7 +1592,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                       setSelectedSlot({ type: modalData.slotType as "xi" | "bench", index: modalData.slotIndex });
                     }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
-                      style={{ background: "#141008", color: "#4a9eff", border: "1px solid #4a9eff40" }}>
+                      style={{ background: "var(--bg-card)", color: "var(--color-info)", border: "1px solid var(--color-info)40" }}>
                       ⇄ Tauschen
                     </button>
                     <button onClick={() => {
@@ -1600,7 +1600,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                       setModalData(null);
                     }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
-                      style={{ background: "#141008", color: "#c8b080", border: "1px solid #3a2a10" }}>
+                      style={{ background: "var(--bg-card)", color: "var(--color-text)", border: "1px solid var(--color-border-subtle)" }}>
                       ← Herausnehmen
                     </button>
                   </>
@@ -1610,32 +1610,32 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   taxiPlayerIds.has(p.id) ? (
                     <button onClick={() => promoteFromTaxi(p)}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
-                      style={{ background: "#1a1a08", color: "#c8b080", border: "1px solid #c8b08040" }}>
+                      style={{ background: "var(--bg-elevated)", color: "var(--color-text)", border: "1px solid var(--color-text)40" }}>
                       ↑ Aus Taxi befördern
                     </button>
                   ) : (
                     <button onClick={() => moveToTaxi(p)}
                       disabled={taxiSquad.length >= (ligaSettings?.taxi_spots || 0)}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-40"
-                      style={{ background: "#1a1a08", color: "#c8b080", border: "1px solid #c8b08040" }}>
+                      style={{ background: "var(--bg-elevated)", color: "var(--color-text)", border: "1px solid var(--color-text)40" }}>
                       → Taxi Squad
                     </button>
                   )
                 )}
                 <button onClick={() => dropPlayer(p.id)} disabled={dropping === p.id}
                   className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-50"
-                  style={{ background: "#1a0808", color: "#ff4d6d", border: "1px solid #ff4d6d40" }}>
+                  style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", color: "var(--color-error)", border: "1px solid var(--color-error)40" }}>
                   {dropping === p.id ? "..." : "✕ Aus Kader"}
                 </button>
               </div>
 
               {/* Tabs */}
-              <div className="flex border-b flex-shrink-0" style={{ borderColor: "#1a1208" }}>
+              <div className="flex border-b flex-shrink-0" style={{ borderColor: "var(--bg-elevated)" }}>
                 {(["summary", "gamelog", "history", "news"] as const).map(t => (
                   <button key={t} onClick={() => setPlayerTab(t)}
                     className="flex-1 py-2.5 text-[8px] font-black uppercase tracking-widest transition-all"
                     style={{
-                      color: playerTab === t ? posColor : "#2a2010",
+                      color: playerTab === t ? posColor : "var(--color-border)",
                       borderBottom: playerTab === t ? `2px solid ${posColor}` : "2px solid transparent",
                     }}>
                     {t === "summary" ? "Übersicht" : t === "gamelog" ? "Log" : t === "history" ? "Historie" : "News"}
@@ -1647,7 +1647,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               <div className="overflow-y-auto flex-1 pb-6">
                 {playerDetailLoading ? (
                   <div className="flex items-center justify-center py-12 text-[9px] font-black uppercase tracking-widest animate-pulse"
-                    style={{ color: "#2a2010" }}>Lade...</div>
+                    style={{ color: "var(--color-border)" }}>Lade...</div>
                 ) : (
                   <>
                     {playerTab === "summary" && (
@@ -1662,14 +1662,14 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                             { label: "Minuten", value: playerGameLog.reduce((s, g) => s + (g.minutes || 0), 0) },
                           ].map(({ label, value, hi }) => (
                             <div key={label} className="p-3 rounded-xl text-center"
-                              style={{ background: "#141008", border: `1px solid ${hi ? posColor + "40" : "#2a2010"}` }}>
-                              <p className="text-lg font-black" style={{ color: hi ? posColor : "#c8b080" }}>{value}</p>
-                              <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "#2a2010" }}>{label}</p>
+                              style={{ background: "var(--bg-card)", border: `1px solid ${hi ? posColor + "40" : "var(--color-border)"}` }}>
+                              <p className="text-lg font-black" style={{ color: hi ? posColor : "var(--color-text)" }}>{value}</p>
+                              <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-border)" }}>{label}</p>
                             </div>
                           ))}
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                          <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "#2a2010" }}>Saison-Statistiken</p>
+                        <div className="rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                          <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-border)" }}>Saison-Statistiken</p>
                           <div className="grid grid-cols-2 gap-y-2">
                             {[
                               ["Schüsse aufs Tor", playerGameLog.reduce((s,g)=>s+(g.shots_on||0),0)],
@@ -1682,8 +1682,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                               ["Clean Sheets", playerGameLog.filter(g=>g.clean_sheet).length],
                             ].map(([label, val]) => (
                               <div key={String(label)} className="flex items-center justify-between">
-                                <span className="text-[9px]" style={{ color: "#5a4020" }}>{label}</span>
-                                <span className="text-sm font-black" style={{ color: "#c8b080" }}>{val}</span>
+                                <span className="text-[9px]" style={{ color: "var(--color-muted)" }}>{label}</span>
+                                <span className="text-sm font-black" style={{ color: "var(--color-text)" }}>{val}</span>
                               </div>
                             ))}
                           </div>
@@ -1693,16 +1693,16 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                           <div className="flex gap-2">
                             {(p.yellow_cards || 0) > 0 && (
                               <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                                style={{ background: "#2a2000", border: "1px solid #f5a62340" }}>
-                                <div className="w-3 h-4 rounded-sm" style={{ background: "#f5a623" }} />
-                                <span className="text-[9px] font-black" style={{ color: "#f5a623" }}>{p.yellow_cards}× Gelb</span>
+                                style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid var(--color-primary)40" }}>
+                                <div className="w-3 h-4 rounded-sm" style={{ background: "var(--color-primary)" }} />
+                                <span className="text-[9px] font-black" style={{ color: "var(--color-primary)" }}>{p.yellow_cards}× Gelb</span>
                               </div>
                             )}
                             {(p.red_cards || 0) > 0 && (
                               <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                                style={{ background: "#2a0000", border: "1px solid #ff4d6d40" }}>
-                                <div className="w-3 h-4 rounded-sm" style={{ background: "#ff4d6d" }} />
-                                <span className="text-[9px] font-black" style={{ color: "#ff4d6d" }}>{p.red_cards}× Rot</span>
+                                style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", border: "1px solid var(--color-error)40" }}>
+                                <div className="w-3 h-4 rounded-sm" style={{ background: "var(--color-error)" }} />
+                                <span className="text-[9px] font-black" style={{ color: "var(--color-error)" }}>{p.red_cards}× Rot</span>
                               </div>
                             )}
                           </div>
@@ -1713,22 +1713,22 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     {playerTab === "gamelog" && (
                       <div className="p-4 space-y-2">
                         {playerGameLog.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
                             Noch keine Spieltag-Daten
                           </p>
                         ) : playerGameLog.map(g => (
                           <div key={g.id} className="rounded-xl overflow-hidden"
-                            style={{ background: "#141008", border: "1px solid #2a2010" }}>
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
                             <div className="px-3 py-1.5 flex items-center justify-between"
-                              style={{ borderBottom: "1px solid #1a1208" }}>
+                              style={{ borderBottom: "1px solid var(--bg-elevated)" }}>
                               <span className="text-[9px] font-black" style={{ color: posColor }}>GW{g.gameweek}</span>
                               <span className="text-sm font-black" style={{ color: posColor }}>{g.points?.toFixed(1) || "0.0"} Pts</span>
                             </div>
                             <div className="grid grid-cols-5 gap-1 px-3 py-2">
                               {[["TOR", g.goals||0],["ASS",g.assists||0],["MIN",g.minutes||0],["CS",g.clean_sheet?"✓":"—"],["KP",g.key_passes||0]].map(([l,v])=>(
                                 <div key={String(l)} className="text-center">
-                                  <p className="text-[7px] uppercase" style={{ color: "#2a2010" }}>{l}</p>
-                                  <p className="text-xs font-black" style={{ color: "#c8b080" }}>{v}</p>
+                                  <p className="text-[7px] uppercase" style={{ color: "var(--color-border)" }}>{l}</p>
+                                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{v}</p>
                                 </div>
                               ))}
                             </div>
@@ -1740,22 +1740,22 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     {playerTab === "history" && (
                       <div className="p-4">
                         {playerHistory.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>Keine Historie vorhanden</p>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine Historie vorhanden</p>
                         ) : (
                           <div className="relative pl-5">
-                            <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "#2a2010" }} />
+                            <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "var(--color-border)" }} />
                             {playerHistory.map((h, i) => {
-                              const hColor = { draft: "#f5a623", transfer_in: "#00ce7d", transfer_out: "#ff4d6d", trade: "#4a9eff" }[h.type as string] || "#c8b080";
+                              const hColor = { draft: "var(--color-primary)", transfer_in: "var(--color-success)", transfer_out: "var(--color-error)", trade: "var(--color-info)" }[h.type as string] || "var(--color-text)";
                               const hIcon = { draft: "🏈", transfer_in: "▲", transfer_out: "▼", trade: "⇄" }[h.type as string] || "·";
                               return (
                                 <div key={i} className="relative mb-3">
                                   <div className="absolute -left-3 top-3 w-2.5 h-2.5 rounded-full" style={{ background: hColor }} />
-                                  <div className="p-3 rounded-xl ml-2" style={{ background: "#141008", border: `1px solid ${hColor}25` }}>
+                                  <div className="p-3 rounded-xl ml-2" style={{ background: "var(--bg-card)", border: `1px solid ${hColor}25` }}>
                                     <div className="flex items-center justify-between mb-0.5">
                                       <span className="text-[9px] font-black uppercase" style={{ color: hColor }}>{hIcon} {h.detail}</span>
-                                      <span className="text-[7px]" style={{ color: "#2a2010" }}>{formatD(h.date)}</span>
+                                      <span className="text-[7px]" style={{ color: "var(--color-border)" }}>{formatD(h.date)}</span>
                                     </div>
-                                    <p className="text-xs font-black" style={{ color: "#c8b080" }}>{h.team}</p>
+                                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{h.team}</p>
                                   </div>
                                 </div>
                               );
@@ -1768,16 +1768,16 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     {playerTab === "news" && (
                       <div className="p-4 space-y-2">
                         {playerNewsLoading ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "#2a2010" }}>Lade News...</p>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "var(--color-border)" }}>Lade News...</p>
                         ) : playerNews.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "#2a2010" }}>Keine News gefunden</p>
+                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine News gefunden</p>
                         ) : playerNews.slice(0, 5).map((n: any, i: number) => (
                           <a key={i} href={n.link || "#"} target="_blank" rel="noopener noreferrer"
                             className="block p-3 rounded-xl transition-opacity hover:opacity-80"
-                            style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                            <p className="text-xs font-black leading-snug" style={{ color: "#c8b080" }}>{n.title}</p>
+                            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                            <p className="text-xs font-black leading-snug" style={{ color: "var(--color-text)" }}>{n.title}</p>
                             {n.pubDate && (
-                              <p className="text-[7px] font-black uppercase mt-1" style={{ color: "#3a2a10" }}>
+                              <p className="text-[7px] font-black uppercase mt-1" style={{ color: "var(--color-border-subtle)" }}>
                                 {new Date(n.pubDate).toLocaleDateString("de-DE", { day: "2-digit", month: "short" })}
                               </p>
                             )}

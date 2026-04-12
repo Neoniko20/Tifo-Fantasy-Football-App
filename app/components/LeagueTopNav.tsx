@@ -57,24 +57,24 @@ export function LeagueTopNav({ leagueId, leagueName, leagueStatus, isOwner, waiv
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50"
-      style={{ background: "#0c0900", borderBottom: "1px solid #1a1208" }}>
+      style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--bg-elevated)" }}>
       <div className="max-w-[480px] mx-auto">
         {/* Sub-header: League name + Admin link */}
         <div className="flex items-center justify-between px-4 pt-2 pb-0">
           <a href="/leagues"
             className="text-[8px] font-black uppercase tracking-widest flex items-center gap-1"
-            style={{ color: "#3a2a10" }}>
+            style={{ color: "var(--color-border-subtle)" }}>
             ‹ Ligen
           </a>
           <p className="text-[9px] font-black uppercase tracking-widest truncate mx-2"
-            style={{ color: "#5a4020" }}>
+            style={{ color: "var(--color-muted)" }}>
             {leagueName || "…"}
           </p>
           <div className="flex items-center gap-2">
             {isOwner && (
               <a href={`/leagues/${leagueId}/admin`}
                 className="text-[8px] font-black uppercase tracking-widest"
-                style={{ color: "#3a2a10" }}>
+                style={{ color: "var(--color-border-subtle)" }}>
                 Admin
               </a>
             )}
@@ -88,8 +88,8 @@ export function LeagueTopNav({ leagueId, leagueName, leagueStatus, isOwner, waiv
             <a key={tab.id} href={tab.href}
               className="flex-1 py-2.5 text-center text-[10px] font-black uppercase tracking-widest transition-all"
               style={{
-                color: tab.active ? "#f5a623" : "#5a4020",
-                borderBottom: `2px solid ${tab.active ? "#f5a623" : "transparent"}`,
+                color: tab.active ? "var(--color-primary)" : "var(--color-muted)",
+                borderBottom: `2px solid ${tab.active ? "var(--color-primary)" : "transparent"}`,
               }}>
               {tab.label}
             </a>

@@ -18,10 +18,10 @@ const TIMER_OPTIONS = [
 ];
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623",
-  DF: "#4a9eff",
-  MF: "#00ce7d",
-  FW: "#ff4d6d",
+  GK: "var(--color-primary)",
+  DF: "var(--color-info)",
+  MF: "var(--color-success)",
+  FW: "var(--color-error)",
 };
 
 type Player = {
@@ -491,10 +491,10 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     : 15;
   const noLimit = (draftSession?.seconds_per_pick || 0) === 0;
 
-  const timerColor = noLimit ? "#f5a623"
-    : timeLeft > 30 ? "#00ce7d"
-    : timeLeft > 10 ? "#f5a623"
-    : "#ff4d6d";
+  const timerColor = noLimit ? "var(--color-primary)"
+    : timeLeft > 30 ? "var(--color-success)"
+    : timeLeft > 10 ? "var(--color-primary)"
+    : "var(--color-error)";
 
   const availablePlayers = players.filter(p => {
     if (pickedIds.has(p.id)) return false;
@@ -531,27 +531,27 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
   /* ── PRE-DRAFT SCREEN ───────────────────────────────── */
   if (!draftSession) {
     return (
-      <main className="flex min-h-screen flex-col items-center p-4" style={{ background: "#0c0900" }}>
+      <main className="flex min-h-screen flex-col items-center p-4" style={{ background: "var(--bg-page)" }}>
         {/* Glow */}
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-          style={{ background: "#f5a623" }} />
+          style={{ background: "var(--color-primary)" }} />
 
         {/* Header */}
         <div className="w-full max-w-lg flex justify-between items-center mb-8">
           <button onClick={() => window.location.href = `/leagues/${leagueId}`}
-            className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+            className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
             ← Liga
           </button>
-          <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "#f5a623" }}>Draft</h1>
+          <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>Draft</h1>
           <div className="flex items-center gap-3">
-            <span className="text-[9px] font-black uppercase" style={{ color: "#5a4020" }}>{league?.name}</span>
+            <span className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>{league?.name}</span>
             <UserBadge teamName={myTeam?.name} />
           </div>
         </div>
 
         <div className="w-full max-w-lg">
           {/* Draft type selector */}
-          <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+          <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
             Draft-Modus
           </p>
           <div className="flex gap-3 mb-6">
@@ -562,17 +562,17 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
               <button key={t.id} onClick={() => setDraftType(t.id)}
                 className="flex-1 p-4 rounded-xl text-left transition-all"
                 style={{
-                  border: `1px solid ${draftType === t.id ? "#f5a623" : "#2a2010"}`,
-                  background: draftType === t.id ? "#1a1208" : "#141008",
+                  border: `1px solid ${draftType === t.id ? "var(--color-primary)" : "var(--color-border)"}`,
+                  background: draftType === t.id ? "var(--bg-elevated)" : "var(--bg-card)",
                 }}>
-                <p className="text-sm font-black" style={{ color: draftType === t.id ? "#f5a623" : "#c8b080" }}>{t.label}</p>
-                <p className="text-[10px] mt-1 leading-relaxed" style={{ color: "#5a4020" }}>{t.desc}</p>
+                <p className="text-sm font-black" style={{ color: draftType === t.id ? "var(--color-primary)" : "var(--color-text)" }}>{t.label}</p>
+                <p className="text-[10px] mt-1 leading-relaxed" style={{ color: "var(--color-muted)" }}>{t.desc}</p>
               </button>
             ))}
           </div>
 
           {/* Timer selector */}
-          <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+          <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
             Zeit pro Pick (echte Spieler)
           </p>
           <div className="flex flex-wrap gap-2 mb-6">
@@ -580,9 +580,9 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
               <button key={opt.value} onClick={() => setTimerSeconds(opt.value)}
                 className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
                 style={{
-                  background: timerSeconds === opt.value ? "#f5a623" : "#141008",
-                  color: timerSeconds === opt.value ? "#0c0900" : "#5a4020",
-                  border: `1px solid ${timerSeconds === opt.value ? "#f5a623" : "#2a2010"}`,
+                  background: timerSeconds === opt.value ? "var(--color-primary)" : "var(--bg-card)",
+                  color: timerSeconds === opt.value ? "var(--bg-page)" : "var(--color-muted)",
+                  border: `1px solid ${timerSeconds === opt.value ? "var(--color-primary)" : "var(--color-border)"}`,
                 }}>
                 {opt.label}
               </button>
@@ -590,18 +590,18 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
           </div>
 
           {/* Teams preview */}
-          <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "#5a4020" }}>
+          <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
             {teams.length} echte Teams
             {(league?.max_teams || 10) - teams.length > 0 && (
-              <span style={{ color: "#2a2010" }}> · {(league?.max_teams || 10) - teams.length} Bot-Teams werden beim Start erstellt</span>
+              <span style={{ color: "var(--color-border)" }}> · {(league?.max_teams || 10) - teams.length} Bot-Teams werden beim Start erstellt</span>
             )}
           </p>
           <div className="flex flex-wrap gap-2 mb-8">
             {teams.map((t: any) => (
               <div key={t.id} className="rounded-xl px-4 py-2.5 text-center"
-                style={{ background: "#141008", border: "1px solid #2a2010" }}>
-                <p className="font-black text-xs" style={{ color: "#c8b080" }}>{t.name}</p>
-                <p className="text-[9px] mt-0.5" style={{ color: "#5a4020" }}>{t.profiles?.username}</p>
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <p className="font-black text-xs" style={{ color: "var(--color-text)" }}>{t.name}</p>
+                <p className="text-[9px] mt-0.5" style={{ color: "var(--color-muted)" }}>{t.profiles?.username}</p>
               </div>
             ))}
           </div>
@@ -609,11 +609,11 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
           {isOwner ? (
             <button onClick={startDraft}
               className="w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest"
-              style={{ background: "#f5a623", color: "#0c0900" }}>
+              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
               Draft starten ⚽
             </button>
           ) : (
-            <p className="text-center text-sm font-black" style={{ color: "#5a4020" }}>
+            <p className="text-center text-sm font-black" style={{ color: "var(--color-muted)" }}>
               Warte auf Liga-Ersteller...
             </p>
           )}
@@ -630,32 +630,32 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     : draftSession.draft_type === "linear" ? "Dynasty" : "Snake";
 
   return (
-    <main className="flex flex-col overflow-hidden" style={{ background: "#0c0900", height: "100dvh" }}>
+    <main className="flex flex-col overflow-hidden" style={{ background: "var(--bg-page)", height: "100dvh" }}>
       {/* Header bar */}
       <div className="flex justify-between items-center px-4 py-2.5 flex-shrink-0"
-        style={{ borderBottom: "1px solid #2a2010" }}>
+        style={{ borderBottom: "1px solid var(--color-border)" }}>
         <button onClick={() => window.location.href = `/leagues/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
           ← Liga
         </button>
 
         {/* Center status */}
         <div className="text-center">
           {draftSession.status === "finished" ? (
-            <p className="font-black text-sm" style={{ color: "#f5a623" }}>🎉 Draft beendet!</p>
+            <p className="font-black text-sm" style={{ color: "var(--color-primary)" }}>🎉 Draft beendet!</p>
           ) : draftSession.status === "paused" ? (
             <>
-              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                 {draftTypeLabel} · R{currentRound} · Pick {draftSession.current_pick + 1}
               </p>
-              <p className="font-black text-xs mt-0.5" style={{ color: "#f5a623" }}>⏸ Pausiert</p>
+              <p className="font-black text-xs mt-0.5" style={{ color: "var(--color-primary)" }}>⏸ Pausiert</p>
             </>
           ) : (
             <>
-              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
                 {draftTypeLabel} · R{currentRound} · Pick {draftSession.current_pick + 1}
               </p>
-              <p className="font-black text-xs mt-0.5" style={{ color: isMyTurn ? "#f5a623" : "#c8b080" }}>
+              <p className="font-black text-xs mt-0.5" style={{ color: isMyTurn ? "var(--color-primary)" : "var(--color-text)" }}>
                 {isMyTurn ? "🟢 Du bist dran!" : `${currentTeam?.name || "—"} pickt...`}
               </p>
             </>
@@ -672,21 +672,21 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
           {isOwner && draftSession.status === "active" && (
             <button onClick={pauseDraft}
               className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-              style={{ background: "#2a1808", border: "1px solid #f5a623", color: "#f5a623" }}>
+              style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid var(--color-primary)", color: "var(--color-primary)" }}>
               ⏸
             </button>
           )}
           {isOwner && draftSession.status === "paused" && (
             <button onClick={resumeDraft}
               className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-              style={{ background: "#0a1a0a", border: "1px solid #00ce7d", color: "#00ce7d" }}>
+              style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid var(--color-success)", color: "var(--color-success)" }}>
               ▶
             </button>
           )}
           {draftSession.status === "finished" && (
             <button onClick={() => window.location.href = `/leagues/${leagueId}`}
               className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"
-              style={{ background: "#f5a623", color: "#0c0900" }}>
+              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
               Liga →
             </button>
           )}
@@ -703,22 +703,22 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
             <button onClick={() => setView("board")}
               className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all"
               style={{
-                background: view === "board" ? "#f5a623" : "#141008",
-                color: view === "board" ? "#0c0900" : "#5a4020",
-                border: `1px solid ${view === "board" ? "#f5a623" : "#2a2010"}`,
+                background: view === "board" ? "var(--color-primary)" : "var(--bg-card)",
+                color: view === "board" ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${view === "board" ? "var(--color-primary)" : "var(--color-border)"}`,
               }}>
               Board
             </button>
             <button onClick={() => setView("list")}
               className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all"
               style={{
-                background: view === "list" ? "#f5a623" : "#141008",
-                color: view === "list" ? "#0c0900" : "#5a4020",
-                border: `1px solid ${view === "list" ? "#f5a623" : "#2a2010"}`,
+                background: view === "list" ? "var(--color-primary)" : "var(--bg-card)",
+                color: view === "list" ? "var(--bg-page)" : "var(--color-muted)",
+                border: `1px solid ${view === "list" ? "var(--color-primary)" : "var(--color-border)"}`,
               }}>
               Kader
             </button>
-            <span className="ml-auto text-[9px] font-black self-center" style={{ color: "#2a2010" }}>
+            <span className="ml-auto text-[9px] font-black self-center" style={{ color: "var(--color-border)" }}>
               {draftPicks.length}/{draftSession.total_picks} Picks
             </span>
           </div>
@@ -727,7 +727,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
           {view === "board" && (
             <div className="overflow-x-auto">
               {/* Team headers */}
-              <div className="flex gap-1 mb-1 min-w-max sticky top-0 pb-1 z-10" style={{ background: "#0c0900" }}>
+              <div className="flex gap-1 mb-1 min-w-max sticky top-0 pb-1 z-10" style={{ background: "var(--bg-page)" }}>
                 {(draftSession.draft_order || []).map((teamId: string) => {
                   const team = teams.find((t: any) => t.id === teamId);
                   const isMe = team?.user_id === user?.id;
@@ -735,9 +735,9 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                     <div key={teamId}
                       className="w-28 p-2 rounded-lg text-center text-[9px] font-black uppercase truncate"
                       style={{
-                        background: isMe ? "#1a1208" : "#141008",
-                        border: `1px solid ${isMe ? "#f5a623" : "#2a2010"}`,
-                        color: isMe ? "#f5a623" : "#5a4020",
+                        background: isMe ? "var(--bg-elevated)" : "var(--bg-card)",
+                        border: `1px solid ${isMe ? "var(--color-primary)" : "var(--color-border)"}`,
+                        color: isMe ? "var(--color-primary)" : "var(--color-muted)",
                       }}>
                       {team?.name || "—"}
                     </div>
@@ -759,31 +759,31 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                       <div key={pickNum}
                         className="w-28 h-16 rounded-lg p-1.5 transition-all"
                         style={{
-                          border: `1px solid ${isCurrent ? "#f5a623" : pick ? (posColor ? posColor + "40" : "#2a2010") : isMe ? "#2a2010" : "#1a1610"}`,
-                          background: isCurrent ? "#1a1208" : pick ? (posColor ? posColor + "15" : "#141008") : isMe ? "#141008" : "#0e0c07",
+                          border: `1px solid ${isCurrent ? "var(--color-primary)" : pick ? (posColor ? posColor + "40" : "var(--color-border)") : isMe ? "var(--color-border)" : "var(--color-border)"}`,
+                          background: isCurrent ? "var(--bg-elevated)" : pick ? (posColor ? posColor + "15" : "var(--bg-card)") : isMe ? "var(--bg-card)" : "var(--bg-page)",
                           animation: isCurrent ? "pulse 2s infinite" : undefined,
                         }}>
                         {pick ? (
                           <div className="flex flex-col h-full justify-between">
-                            <p className="text-[9px] font-black truncate leading-tight" style={{ color: "#c8b080" }}>
+                            <p className="text-[9px] font-black truncate leading-tight" style={{ color: "var(--color-text)" }}>
                               {pick.players?.name}
                             </p>
                             <div className="flex items-center justify-between">
                               <span className="text-[7px] font-black px-1 rounded-sm"
-                                style={{ background: posColor ? posColor + "30" : "#2a2010", color: posColor || "#5a4020" }}>
+                                style={{ background: posColor ? posColor + "30" : "var(--color-border)", color: posColor || "var(--color-muted)" }}>
                                 {pos}
                               </span>
                               <div className="flex items-center gap-1">
-                                <span className="text-[7px] font-bold" style={{ color: "#2a2010" }}>{pickLabel}</span>
-                                <span className="text-[8px] font-black" style={{ color: "#5a4020" }}>{pick.players?.fpts?.toFixed(0)}</span>
+                                <span className="text-[7px] font-bold" style={{ color: "var(--color-border)" }}>{pickLabel}</span>
+                                <span className="text-[8px] font-black" style={{ color: "var(--color-muted)" }}>{pick.players?.fpts?.toFixed(0)}</span>
                               </div>
                             </div>
                           </div>
                         ) : (
                           <div className="flex flex-col h-full justify-between">
-                            <p className="text-[8px] font-black" style={{ color: isCurrent ? "#f5a623" : "#2a2010" }}>{pickLabel}</p>
+                            <p className="text-[8px] font-black" style={{ color: isCurrent ? "var(--color-primary)" : "var(--color-border)" }}>{pickLabel}</p>
                             {isCurrent && (
-                              <p className="text-[8px] font-black animate-pulse" style={{ color: "#f5a623" }}>← jetzt</p>
+                              <p className="text-[8px] font-black animate-pulse" style={{ color: "var(--color-primary)" }}>← jetzt</p>
                             )}
                           </div>
                         )}
@@ -804,11 +804,11 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                 return (
                   <div key={team.id} className="rounded-xl p-3"
                     style={{
-                      background: "#141008",
-                      border: `1px solid ${isMe ? "#3a2a10" : "#2a2010"}`,
+                      background: "var(--bg-card)",
+                      border: `1px solid ${isMe ? "var(--color-border-subtle)" : "var(--color-border)"}`,
                     }}>
                     <p className="text-[9px] font-black uppercase mb-2"
-                      style={{ color: isMe ? "#f5a623" : "#5a4020" }}>
+                      style={{ color: isMe ? "var(--color-primary)" : "var(--color-muted)" }}>
                       {team.name} ({teamPicks.length}/15)
                     </p>
                     <div className="flex flex-wrap gap-1">
@@ -819,9 +819,9 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                           <span key={pick.id}
                             className="text-[8px] font-bold px-2 py-0.5 rounded"
                             style={{
-                              background: posColor ? posColor + "20" : "#2a2010",
-                              border: `1px solid ${posColor ? posColor + "40" : "#2a2010"}`,
-                              color: posColor || "#5a4020",
+                              background: posColor ? posColor + "20" : "var(--color-border)",
+                              border: `1px solid ${posColor ? posColor + "40" : "var(--color-border)"}`,
+                              color: posColor || "var(--color-muted)",
                             }}>
                             {pick.players?.name?.split(" ").pop()}
                           </span>
@@ -829,7 +829,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                       })}
                       {Array.from({ length: 15 - teamPicks.length }).map((_, i) => (
                         <span key={i} className="text-[8px] px-2 py-0.5 rounded"
-                          style={{ border: "1px solid #1a1610", color: "#1a1610" }}>—</span>
+                          style={{ border: "1px solid #1a1610", color: "var(--color-border)" }}>—</span>
                       ))}
                     </div>
                   </div>
@@ -840,23 +840,23 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
         </div>
 
         {/* Right: Player picker */}
-        <div className="w-64 flex flex-col flex-shrink-0" style={{ borderLeft: "1px solid #2a2010" }}>
+        <div className="w-64 flex flex-col flex-shrink-0" style={{ borderLeft: "1px solid var(--color-border)" }}>
           {/* Search + filter */}
-          <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid #2a2010" }}>
-            <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "#2a2010" }}>
+          <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--color-border)" }}>
+            <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>
               {availablePlayers.length} verfügbar
             </p>
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Suchen..."
               className="w-full p-2 rounded-lg text-xs focus:outline-none mb-2"
-              style={{ background: "#141008", border: "1px solid #2a2010", color: "#c8b080" }} />
+              style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
             <div className="flex gap-0.5">
               {(["ALL", "GK", "DF", "MF", "FW"] as const).map(pos => (
                 <button key={pos} onClick={() => setPosFilter(pos)}
                   className="flex-1 py-1 rounded text-[8px] font-black transition-all"
                   style={{
-                    background: posFilter === pos ? (POS_COLOR[pos] || "#2a2010") : "transparent",
-                    color: posFilter === pos ? "#0c0900" : "#5a4020",
+                    background: posFilter === pos ? (POS_COLOR[pos] || "var(--color-border)") : "transparent",
+                    color: posFilter === pos ? "var(--bg-page)" : "var(--color-muted)",
                   }}>
                   {pos}
                 </button>
@@ -878,20 +878,20 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                     cursor: isMyTurn ? "pointer" : "not-allowed",
                     background: "transparent",
                   }}
-                  onMouseEnter={e => { if (isMyTurn) (e.currentTarget as HTMLElement).style.background = "#1a1208"; }}
+                  onMouseEnter={e => { if (isMyTurn) (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
                   <img src={p.photo_url} className="w-8 h-8 rounded-full flex-shrink-0"
-                    style={{ border: "1px solid #2a2010" }} alt="" />
+                    style={{ border: "1px solid var(--color-border)" }} alt="" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>{p.name}</p>
-                    <p className="text-[8px] truncate" style={{ color: "#5a4020" }}>{p.team_name}</p>
+                    <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                    <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{p.team_name}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs font-black" style={{ color: "#f5a623" }}>{p.fpts?.toFixed(0)}</p>
+                    <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{p.fpts?.toFixed(0)}</p>
                     <span className="text-[7px] font-black px-1 rounded-sm"
                       style={{
-                        background: posColor ? posColor + "20" : "#2a2010",
-                        color: posColor || "#5a4020",
+                        background: posColor ? posColor + "20" : "var(--color-border)",
+                        color: posColor || "var(--color-muted)",
                       }}>
                       {p.position}
                     </span>

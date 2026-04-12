@@ -14,8 +14,8 @@ interface TifoLogoProps {
 
 const COLORS = {
   default: {
-    primary: "#f5a623",
-    bg: "#0c0900",
+    primary: "var(--color-primary)",
+    bg: "var(--bg-page)",
     sub: "#3a3020",
     subText: "FANTASY FOOTBALL",
   },

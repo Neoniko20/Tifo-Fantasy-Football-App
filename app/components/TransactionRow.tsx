@@ -4,11 +4,11 @@ import type { LeagueTransaction, PlayerStub } from "@/lib/league-transactions";
 import { kindLabel, kindColor, formatDate, formatTime } from "@/lib/league-transactions";
 
 const POS_COLOR: Record<string, string> = {
-  GK: "#f5a623", DF: "#4a9eff", MF: "#00ce7d", FW: "#ff4d6d",
+  GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
 };
 
 const TRADE_STATUS_COLOR: Record<string, string> = {
-  pending: "#f5a623", accepted: "#00ce7d", rejected: "#ff4d6d", cancelled: "#5a4020",
+  pending: "var(--color-primary)", accepted: "var(--color-success)", rejected: "var(--color-error)", cancelled: "var(--color-muted)",
 };
 const TRADE_STATUS_LABEL: Record<string, string> = {
   pending: "Offen", accepted: "✓", rejected: "×", cancelled: "↶",
@@ -16,19 +16,19 @@ const TRADE_STATUS_LABEL: Record<string, string> = {
 
 function PlayerPill({ p, tone }: { p: PlayerStub | null | undefined; tone: "in" | "out" }) {
   if (!p) return null;
-  const bg    = tone === "in" ? "#0a1a0a" : "#1a0808";
-  const color = tone === "in" ? "#00ce7d" : "#ff4d6d";
+  const bg    = tone === "in" ? "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))";
+  const color = tone === "in" ? "var(--color-success)" : "var(--color-error)";
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-[7px] font-black px-1 py-0.5 rounded flex-shrink-0"
         style={{ background: bg, color }}>
         {tone === "in" ? "▲" : "▼"}
       </span>
-      <span className="text-[11px] font-black truncate" style={{ color: "#c8b080" }}>
+      <span className="text-[11px] font-black truncate" style={{ color: "var(--color-text)" }}>
         {p.name}
       </span>
       <span className="text-[8px] font-black ml-auto flex-shrink-0"
-        style={{ color: POS_COLOR[p.position] || "#5a4020" }}>
+        style={{ color: POS_COLOR[p.position] || "var(--color-muted)" }}>
         {p.position}
       </span>
     </div>
@@ -44,7 +44,7 @@ export function TransactionRow({ tx }: Props) {
 
   return (
     <div className="rounded-2xl p-3"
-      style={{ background: "#141008", border: `1px solid ${accent}20` }}>
+      style={{ background: "var(--bg-card)", border: `1px solid ${accent}20` }}>
       {/* Header row: kind badge + team(s) + timestamp */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -53,11 +53,11 @@ export function TransactionRow({ tx }: Props) {
             {kindLabel(tx.kind)}
           </span>
           {tx.kind === "trade" ? (
-            <span className="text-[10px] font-black truncate" style={{ color: "#c8b080" }}>
+            <span className="text-[10px] font-black truncate" style={{ color: "var(--color-text)" }}>
               {tx.proposer.name} ↔ {tx.receiver.name}
             </span>
           ) : (
-            <span className="text-[10px] font-black truncate" style={{ color: "#c8b080" }}>
+            <span className="text-[10px] font-black truncate" style={{ color: "var(--color-text)" }}>
               {tx.team.name}
             </span>
           )}
@@ -71,7 +71,7 @@ export function TransactionRow({ tx }: Props) {
             </span>
           )}
         </div>
-        <p className="text-[7px] font-black flex-shrink-0 ml-2" style={{ color: "#2a2010" }}>
+        <p className="text-[7px] font-black flex-shrink-0 ml-2" style={{ color: "var(--color-border)" }}>
           {formatDate(tx.created_at)} {formatTime(tx.created_at)}
           {tx.gameweek ? ` · GW${tx.gameweek}` : ""}
         </p>
@@ -88,13 +88,13 @@ export function TransactionRow({ tx }: Props) {
       {tx.kind === "trade" && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="text-[7px] font-black uppercase mb-1" style={{ color: "#ff4d6d" }}>
+            <p className="text-[7px] font-black uppercase mb-1" style={{ color: "var(--color-error)" }}>
               {tx.proposer.name} gibt
             </p>
             {tx.offerPlayers.map(p => <PlayerPill key={p.id} p={p} tone="out" />)}
           </div>
           <div>
-            <p className="text-[7px] font-black uppercase mb-1" style={{ color: "#00ce7d" }}>
+            <p className="text-[7px] font-black uppercase mb-1" style={{ color: "var(--color-success)" }}>
               {tx.receiver.name} gibt
             </p>
             {tx.requestPlayers.map(p => <PlayerPill key={p.id} p={p} tone="out" />)}
@@ -107,8 +107,8 @@ export function TransactionRow({ tx }: Props) {
           <PlayerPill p={tx.playerOut} tone="out" />
           <PlayerPill p={tx.playerIn}  tone="in" />
           {typeof tx.bidAmount === "number" && tx.bidAmount > 0 && (
-            <p className="text-[8px] font-black mt-1" style={{ color: "#5a4020" }}>
-              Bid: <span style={{ color: "#f5a623" }}>{tx.bidAmount} Bucks</span>
+            <p className="text-[8px] font-black mt-1" style={{ color: "var(--color-muted)" }}>
+              Bid: <span style={{ color: "var(--color-primary)" }}>{tx.bidAmount} Bucks</span>
             </p>
           )}
         </div>
