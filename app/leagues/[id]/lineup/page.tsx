@@ -915,13 +915,14 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               </div>
               <div className="flex gap-2 flex-wrap">
                 {irSlots.map((slot) => {
-                  const canReturn = activeGW >= slot.min_return_gw;
+                  const canReturn   = activeGW >= slot.min_return_gw;
+                  const gwsLeft     = Math.max(0, slot.min_return_gw - activeGW);
                   return (
                     <div key={slot.id} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                      style={{ background: "#1a0808", border: "1px solid #3a1010" }}>
+                      style={{ background: "#1a0808", border: `1px solid ${canReturn ? "#ff4d6d40" : "#3a1010"}` }}>
                       {slot.player?.photo_url ? (
                         <img src={slot.player.photo_url} className="w-9 h-9 rounded-full object-cover"
-                          style={{ border: "2px solid #ff4d6d40" }} alt="" />
+                          style={{ border: `2px solid ${canReturn ? "#ff4d6d60" : "#ff4d6d20"}` }} alt="" />
                       ) : (
                         <div className="w-9 h-9 rounded-full flex items-center justify-center"
                           style={{ border: "2px solid #3a1010", background: "#0c0900" }}>
@@ -932,8 +933,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                         style={{ color: "#c8b080" }}>
                         {slot.player?.name.split(" ").pop() || "—"}
                       </p>
-                      <p className="text-[7px] text-center" style={{ color: "#5a1010" }}>
-                        {canReturn ? "Bereit" : `ab GW${slot.min_return_gw}`}
+                      <p className="text-[7px] font-black text-center"
+                        style={{ color: canReturn ? "#ff4d6d" : "#5a3010" }}>
+                        {canReturn ? "✓ Bereit" : `noch ${gwsLeft} GW${gwsLeft !== 1 ? "s" : ""}`}
                       </p>
                       <button onClick={() => returnFromIR(slot)}
                         className="text-[7px] font-black mt-1 px-1.5 py-0.5 rounded transition-all"

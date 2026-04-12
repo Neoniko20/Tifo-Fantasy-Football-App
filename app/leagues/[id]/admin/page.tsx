@@ -93,6 +93,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [settingsStatus, setSettingsStatus] = useState("setup");
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [irOverview, setIrOverview] = useState<any[]>([]);
   const { toast } = useToast();
 
   // Liga-Settings (erweitert)
@@ -103,6 +104,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [squadSize, setSquadSize] = useState(15);
   const [benchSize, setBenchSize] = useState(4);
   const [irSpots, setIrSpots] = useState(0);
+  const [irMinGW, setIrMinGW] = useState(4);
   const [taxiSpots, setTaxiSpots] = useState(0);
   const [maxPerClub, setMaxPerClub] = useState<number | "">(3);
   const [posLimits, setPosLimits] = useState({
@@ -174,6 +176,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       setSquadSize(ls.squad_size || 15);
       setBenchSize(ls.bench_size || 4);
       setIrSpots(ls.ir_spots || 0);
+      setIrMinGW(ls.ir_min_gameweeks || 4);
       setTaxiSpots(ls.taxi_spots || 0);
       setMaxPerClub(ls.max_players_per_club ?? 3);
       if (ls.position_limits) setPosLimits(ls.position_limits);
@@ -207,10 +210,36 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
         if (!seen.has(p.player_id)) { seen.add(p.player_id); unique.push(p); }
       }
       setSquadPlayers(unique);
+
+      // IR-Übersicht laden
+      await loadIROverview(teamIds);
     }
 
     setLoading(false);
     loadAuditLog();
+  }
+
+  async function loadIROverview(teamIds?: string[]) {
+    const ids: string[] = teamIds ?? (await supabase
+      .from("teams").select("id").eq("league_id", leagueId)
+      .then(r => (r.data ?? []).map((t: any) => t.id)));
+    if (!ids.length) return;
+
+    const { data } = await supabase
+      .from("liga_ir_slots")
+      .select("id, team_id, player_id, placed_at_gw, min_return_gw, teams(name), players(name, position, photo_url)")
+      .in("team_id", ids)
+      .is("returned_at_gw", null)
+      .order("placed_at_gw");
+    setIrOverview(data || []);
+  }
+
+  async function adminForceReturn(irSlotId: string) {
+    await supabase.from("liga_ir_slots")
+      .update({ returned_at_gw: -1 })   // -1 = admin override
+      .eq("id", irSlotId);
+    toast("Spieler von IR befreit", "success");
+    await loadIROverview();
   }
 
   async function loadStatsForGW(gw: number) {
@@ -339,6 +368,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       squad_size: squadSize,
       bench_size: benchSize,
       ir_spots: irSpots,
+      ir_min_gameweeks: irMinGW,
       taxi_spots: taxiSpots,
       max_players_per_club: maxPerClub === "" ? null : Number(maxPerClub),
       position_limits: posLimits,
@@ -1298,10 +1328,11 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
             </p>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Kader-Größe", val: squadSize, set: setSquadSize, min: 10, max: 25 },
-                { label: "Bank-Plätze", val: benchSize, set: setBenchSize, min: 2, max: 7 },
-                { label: "IR-Spots", val: irSpots, set: setIrSpots, min: 0, max: 4 },
-                { label: "Taxi-Spots (U21)", val: taxiSpots, set: setTaxiSpots, min: 0, max: 5 },
+                { label: "Kader-Größe",       val: squadSize,  set: setSquadSize,  min: 10, max: 25 },
+                { label: "Bank-Plätze",        val: benchSize,  set: setBenchSize,  min: 2,  max: 7  },
+                { label: "IR-Spots",           val: irSpots,    set: setIrSpots,    min: 0,  max: 4  },
+                { label: "IR Min. GWs (Sperre)", val: irMinGW, set: setIrMinGW,   min: 1,  max: 12 },
+                { label: "Taxi-Spots (U21)",   val: taxiSpots,  set: setTaxiSpots,  min: 0,  max: 5  },
               ].map(({ label, val, set, min, max }) => (
                 <div key={label}>
                   <p className="text-[8px] font-black uppercase mb-1" style={{ color: "#8a6a40" }}>{label}</p>
@@ -1530,6 +1561,57 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
               {saving ? "Speichern..." : scoringSaved ? "✓ Punkteschema gespeichert" : "Punkteschema speichern"}
             </button>
           </div>
+
+          {/* IR-Übersicht */}
+          {irOverview.length > 0 && (
+            <div className="rounded-xl p-4 space-y-3" style={{ background: "#141008", border: "1px solid #2a2010" }}>
+              <div className="flex items-center justify-between">
+                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#5a4020" }}>
+                  Aktive IR-Sperren ({irOverview.length})
+                </p>
+                <button onClick={() => loadIROverview()}
+                  className="text-[8px] font-black px-2 py-1 rounded-lg"
+                  style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#5a4020" }}>
+                  ↻
+                </button>
+              </div>
+              <div className="space-y-2">
+                {irOverview.map((slot: any) => {
+                  const player = slot.players;
+                  const team   = slot.teams;
+                  return (
+                    <div key={slot.id} className="flex items-center gap-3 p-2.5 rounded-xl"
+                      style={{ background: "#0c0900", border: "1px solid #ff4d6d20" }}>
+                      {player?.photo_url ? (
+                        <img src={player.photo_url} className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                          style={{ border: "1px solid #ff4d6d30" }} alt="" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center"
+                          style={{ background: "#1a0808", border: "1px solid #ff4d6d30" }}>
+                          <span className="text-[8px] font-black" style={{ color: "#ff4d6d" }}>
+                            {player?.position || "?"}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black truncate" style={{ color: "#c8b080" }}>
+                          {player?.name || "—"}
+                        </p>
+                        <p className="text-[7px]" style={{ color: "#5a4020" }}>
+                          {team?.name} · GW{slot.placed_at_gw} → frei ab GW{slot.min_return_gw}
+                        </p>
+                      </div>
+                      <button onClick={() => adminForceReturn(slot.id)}
+                        className="flex-shrink-0 text-[8px] font-black px-2 py-1 rounded-lg transition-all"
+                        style={{ background: "#1a0808", border: "1px solid #ff4d6d40", color: "#ff4d6d" }}>
+                        Freigeben
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Liga löschen */}
           <div className="rounded-xl p-4 space-y-3"
