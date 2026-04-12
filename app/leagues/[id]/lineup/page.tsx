@@ -6,6 +6,7 @@ import { FORMATIONS, validateFormation } from "@/lib/wm-formations";
 import type { Position } from "@/lib/wm-types";
 import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
+import { PlayerCard } from "@/app/components/PlayerCard";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import { useToast } from "@/app/components/ToastProvider";
 
@@ -654,67 +655,18 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
   const benchSize = ligaSettings?.bench_size || 4;
 
-  // ── Small helper: player photo circle (reused in XI + bench) ────────
-  function PlayerCircle({
-    player, size = 44, posColor, selected, posLabel, isCap, isVC,
-  }: {
+  // ── PlayerCircle: thin wrapper around shared <PlayerCard> ───────────
+  function PlayerCircle(props: {
     player: Player | null; size?: number; posColor: string;
     selected?: boolean; posLabel?: string; isCap?: boolean; isVC?: boolean;
   }) {
     return (
-      <div className="rounded-full flex items-center justify-center relative flex-shrink-0"
-        style={{
-          width: size, height: size,
-          border: `2px solid ${selected ? "#f5a623" : player ? posColor : "#2a2010"}`,
-          background: player ? "#141008" : "#0c1a0c",
-          boxShadow: selected ? `0 0 10px ${posColor}50` : undefined,
-        }}>
-        {player?.photo_url ? (
-          <img src={player.photo_url} className="w-full h-full rounded-full object-cover" alt="" />
-        ) : (
-          <span style={{ fontSize: size > 36 ? 16 : 11, color: selected ? "#f5a623" : "#2a2010" }}>
-            {selected ? "+" : (posLabel || "?")}
-          </span>
-        )}
-        {isCap && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center"
-            style={{ background: "#f5a623", color: "#0c0900" }}>C</span>
-        )}
-        {isVC && !isCap && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center"
-            style={{ background: "#5a4020", color: "#f5a623" }}>V</span>
-        )}
-        {player?.api_team_id && (
-          <img
-            src={`https://media.api-sports.io/football/teams/${player.api_team_id}.png`}
-            className="absolute rounded-full object-contain"
-            style={{
-              width: size > 36 ? 16 : 14, height: size > 36 ? 16 : 14,
-              bottom: -2, left: -2,
-              background: "#141008", border: "1px solid #2a2010",
-            }}
-            alt=""
-          />
-        )}
-        {player && gwPoints[player.id] !== undefined && (
-          <span className="absolute text-[6px] font-black px-0.5 rounded leading-tight"
-            style={{ top: -2, right: isCap || isVC ? 14 : -2, background: "#001a0d", color: "#00ce7d", border: "1px solid #00ce7d40" }}>
-            {gwPoints[player.id]}
-          </span>
-        )}
-        {/* Live-swap: minute indicator — green if played, red/pulsing if 0 min */}
-        {player && canLiveSwap && gwMinutes[player.id] !== undefined && (
-          <span className="absolute text-[6px] font-black px-0.5 rounded leading-tight"
-            style={{
-              bottom: size > 36 ? 10 : 8, left: -2,
-              background: gwMinutes[player.id] > 0 ? "#001a0d" : "#2a0808",
-              color: gwMinutes[player.id] > 0 ? "#00ce7d" : "#ff4d6d",
-              border: `1px solid ${gwMinutes[player.id] > 0 ? "#00ce7d40" : "#ff4d6d40"}`,
-            }}>
-            {gwMinutes[player.id]}′
-          </span>
-        )}
-      </div>
+      <PlayerCard
+        {...props}
+        gwPoints={gwPoints}
+        canLiveSwap={canLiveSwap}
+        gwMinutes={gwMinutes}
+      />
     );
   }
 

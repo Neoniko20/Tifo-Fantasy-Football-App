@@ -47,29 +47,29 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40"
-      style={{ background: "#0c0900", borderTop: "1px solid #1a1208" }}>
+      style={{ background: "var(--bg-page)", borderTop: "1px solid var(--bg-elevated)" }}>
       <div className="flex max-w-[480px] mx-auto">
         {TABS.map(({ id, label, href, Icon }) => {
           const isActive = activeTab === id;
           return (
             <a key={id} href={href}
-              className="flex-1 flex flex-col items-center pt-2.5 pb-3 relative transition-all"
-              style={{ opacity: isActive ? 1 : 0.7 }}>
+              className="flex-1 flex flex-col items-center pt-2.5 pb-3 relative transition-all">
               {isActive && (
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
-                  style={{ background: "#f5a623" }} />
+                  style={{ background: "var(--color-primary)" }} />
               )}
-              <span className="relative" style={{ color: isActive ? "#f5a623" : "#9a7a50" }}>
+              <span className="relative"
+                style={{ color: isActive ? "var(--color-primary)" : "var(--color-muted)" }}>
                 <Icon />
                 {id === "liga" && unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-3 h-3 px-0.5 rounded-full flex items-center justify-center text-[7px] font-black"
-                    style={{ background: "#ff4d6d", color: "#0c0900" }}>
+                    style={{ background: "var(--color-error)", color: "var(--bg-page)" }}>
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
               </span>
               <span className="text-[8px] font-black tracking-widest mt-1"
-                style={{ color: isActive ? "#f5a623" : "#9a7a50" }}>
+                style={{ color: isActive ? "var(--color-primary)" : "var(--color-muted)" }}>
                 {label}
               </span>
             </a>

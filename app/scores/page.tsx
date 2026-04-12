@@ -23,11 +23,6 @@ function formatKickoff(dateStr: string) {
   return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
-}
-
 function addDays(base: string, n: number) {
   const d = new Date(base);
   d.setDate(d.getDate() + n);
@@ -82,28 +77,28 @@ export default function ScoresPage() {
   const liveCount  = visibleGroups.reduce((s, g) => s + g.fixtures.filter((f: any) => f.isLive).length, 0);
 
   return (
-    <main className="flex min-h-screen flex-col pb-24" style={{ background: "#0c0900" }}>
+    <main className="flex min-h-screen flex-col pb-24" style={{ background: "var(--bg-page)" }}>
 
       {/* Header */}
-      <div className="sticky top-0 z-40" style={{ background: "#0c0900", borderBottom: "1px solid #1a1208" }}>
+      <div className="sticky top-0 z-40" style={{ background: "var(--bg-page)", borderBottom: "1px solid var(--bg-elevated)" }}>
         <div className="max-w-[480px] mx-auto">
           {/* Title row */}
           <div className="flex items-center justify-between px-4 pt-3 pb-2">
-            <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "#c8b080" }}>
+            <h1 className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>
               Scores
             </h1>
             <div className="flex items-center gap-2">
               {liveCount > 0 && (
                 <span className="flex items-center gap-1 text-[8px] font-black uppercase"
-                  style={{ color: "#00ce7d" }}>
+                  style={{ color: "var(--color-success)" }}>
                   <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block"
-                    style={{ background: "#00ce7d" }} />
+                    style={{ background: "var(--color-success)" }} />
                   {liveCount} live
                 </span>
               )}
               <button onClick={() => loadFixtures(date, false)}
                 className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg"
-                style={{ background: "#141008", color: "#5a4020", border: "1px solid #2a2010" }}>
+                style={{ background: "var(--bg-card)", color: "var(--color-muted)", border: "1px solid var(--color-border)" }}>
                 ↻
               </button>
             </div>
@@ -118,16 +113,16 @@ export default function ScoresPage() {
                 <button key={d} onClick={() => setDate(d)}
                   className="flex-shrink-0 flex flex-col items-center px-3 py-1.5 rounded-xl transition-all"
                   style={{
-                    background: isActive ? "#f5a623" : "#141008",
-                    border: `1px solid ${isActive ? "#f5a623" : "#2a2010"}`,
+                    background: isActive ? "var(--color-primary)" : "var(--bg-card)",
+                    border: `1px solid ${isActive ? "var(--color-primary)" : "var(--color-border)"}`,
                     minWidth: 56,
                   }}>
                   <span className="text-[7px] font-black uppercase"
-                    style={{ color: isActive ? "#0c0900" : isToday ? "#f5a623" : "#5a4020" }}>
+                    style={{ color: isActive ? "var(--bg-page)" : isToday ? "var(--color-primary)" : "var(--color-muted)" }}>
                     {isToday ? "Heute" : new Date(d).toLocaleDateString("de-DE", { weekday: "short" })}
                   </span>
                   <span className="text-[9px] font-black"
-                    style={{ color: isActive ? "#0c0900" : "#c8b080" }}>
+                    style={{ color: isActive ? "var(--bg-page)" : "var(--color-text)" }}>
                     {new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })}
                   </span>
                 </button>
@@ -141,12 +136,12 @@ export default function ScoresPage() {
               <button key={l.id} onClick={() => setActiveLeague(l.id)}
                 className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all"
                 style={{
-                  background: activeLeague === l.id ? "#f5a623" : "#141008",
-                  border: `1px solid ${activeLeague === l.id ? "#f5a623" : "#2a2010"}`,
+                  background: activeLeague === l.id ? "var(--color-primary)" : "var(--bg-card)",
+                  border: `1px solid ${activeLeague === l.id ? "var(--color-primary)" : "var(--color-border)"}`,
                 }}>
                 <span className="text-xs">{l.flag}</span>
                 <span className="text-[8px] font-black uppercase tracking-widest"
-                  style={{ color: activeLeague === l.id ? "#0c0900" : "#5a4020" }}>
+                  style={{ color: activeLeague === l.id ? "var(--bg-page)" : "var(--color-muted)" }}>
                   {l.name}
                 </span>
               </button>
@@ -159,12 +154,12 @@ export default function ScoresPage() {
       <div className="max-w-[480px] mx-auto w-full px-4 pt-3">
         {loading ? (
           <div className="text-center py-16 text-[9px] font-black uppercase tracking-widest animate-pulse"
-            style={{ color: "#2a2010" }}>Lade Partien...</div>
+            style={{ color: "var(--color-border-subtle)" }}>Lade Partien...</div>
         ) : error ? (
           <div className="text-center py-12 text-[9px] font-black uppercase"
-            style={{ color: "#ff4d6d" }}>{error}</div>
+            style={{ color: "var(--color-error)" }}>{error}</div>
         ) : totalGames === 0 ? (
-          <div className="text-center py-16" style={{ color: "#2a2010" }}>
+          <div className="text-center py-16" style={{ color: "var(--color-border-subtle)" }}>
             <p className="text-3xl mb-3">⚽</p>
             <p className="text-[9px] font-black uppercase tracking-widest">
               Keine Spiele für diesen Tag
@@ -178,13 +173,13 @@ export default function ScoresPage() {
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-base">{group.flag}</span>
                   <span className="text-[9px] font-black uppercase tracking-widest"
-                    style={{ color: "#5a4020" }}>{group.name}</span>
-                  <span className="text-[8px] font-black" style={{ color: "#2a2010" }}>
+                    style={{ color: "var(--color-muted)" }}>{group.name}</span>
+                  <span className="text-[8px] font-black" style={{ color: "var(--color-border-subtle)" }}>
                     · {group.fixtures.length} Spiele
                   </span>
                   {group.fixtures.some((f: any) => f.isLive) && (
                     <span className="w-1.5 h-1.5 rounded-full animate-pulse ml-auto flex-shrink-0"
-                      style={{ background: "#00ce7d" }} />
+                      style={{ background: "var(--color-success)" }} />
                   )}
                 </div>
 
@@ -207,21 +202,22 @@ export default function ScoresPage() {
 function FixtureCard({ fixture: f }: { fixture: any }) {
   const isLive = f.isLive;
   const isFinished = f.isFinished;
-  const isScheduled = !isLive && !isFinished && f.status !== "PST" && f.status !== "CANC";
 
   return (
     <a href={`/scores/${f.id}`}
       className="flex items-center gap-3 p-3 rounded-xl transition-all"
       style={{
-        background: isLive ? "#0a1a0a" : "#141008",
-        border: `1px solid ${isLive ? "#00ce7d30" : "#2a2010"}`,
+        background: isLive
+          ? "color-mix(in srgb, var(--color-success) 8%, var(--bg-page))"
+          : "var(--bg-card)",
+        border: `1px solid ${isLive ? "color-mix(in srgb, var(--color-success) 20%, transparent)" : "var(--color-border)"}`,
         display: "flex",
       }}>
 
       {/* Home */}
       <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
         <p className="font-black text-xs truncate text-right"
-          style={{ color: f.home.winner === true ? "#f5a623" : f.home.winner === false ? "#5a4020" : "#c8b080" }}>
+          style={{ color: f.home.winner === true ? "var(--color-primary)" : f.home.winner === false ? "var(--color-muted)" : "var(--color-text)" }}>
           {f.home.name}
         </p>
         <img src={f.home.logo} alt="" className="w-6 h-6 object-contain flex-shrink-0"
@@ -232,35 +228,35 @@ function FixtureCard({ fixture: f }: { fixture: any }) {
       <div className="flex-shrink-0 text-center" style={{ minWidth: 64 }}>
         {isLive ? (
           <>
-            <p className="font-black text-base leading-none" style={{ color: "#f5a623" }}>
-              {f.goals.home ?? 0} <span style={{ color: "#3a2a10" }}>–</span> {f.goals.away ?? 0}
+            <p className="font-black text-base leading-none" style={{ color: "var(--color-primary)" }}>
+              {f.goals.home ?? 0} <span style={{ color: "var(--color-border-subtle)" }}>–</span> {f.goals.away ?? 0}
             </p>
             <p className="text-[7px] font-black mt-0.5 flex items-center justify-center gap-1"
-              style={{ color: "#00ce7d" }}>
+              style={{ color: "var(--color-success)" }}>
               <span className="w-1 h-1 rounded-full inline-block animate-pulse"
-                style={{ background: "#00ce7d" }} />
+                style={{ background: "var(--color-success)" }} />
               {f.elapsed ? `${f.elapsed}'` : STATUS_LABEL[f.status] || f.status}
             </p>
           </>
         ) : isFinished ? (
           <>
-            <p className="font-black text-base leading-none" style={{ color: "#c8b080" }}>
-              {f.goals.home ?? "–"} <span style={{ color: "#3a2a10" }}>–</span> {f.goals.away ?? "–"}
+            <p className="font-black text-base leading-none" style={{ color: "var(--color-text)" }}>
+              {f.goals.home ?? "–"} <span style={{ color: "var(--color-border-subtle)" }}>–</span> {f.goals.away ?? "–"}
             </p>
-            <p className="text-[7px] font-black mt-0.5" style={{ color: "#3a2a10" }}>
+            <p className="text-[7px] font-black mt-0.5" style={{ color: "var(--color-border-subtle)" }}>
               {STATUS_LABEL[f.status] || f.status}
             </p>
           </>
         ) : f.status === "PST" ? (
-          <p className="text-[8px] font-black" style={{ color: "#ff4d6d" }}>Versch.</p>
+          <p className="text-[8px] font-black" style={{ color: "var(--color-error)" }}>Versch.</p>
         ) : f.status === "CANC" ? (
-          <p className="text-[8px] font-black" style={{ color: "#ff4d6d" }}>Abges.</p>
+          <p className="text-[8px] font-black" style={{ color: "var(--color-error)" }}>Abges.</p>
         ) : (
           <>
-            <p className="font-black text-sm leading-none" style={{ color: "#c8b080" }}>
+            <p className="font-black text-sm leading-none" style={{ color: "var(--color-text)" }}>
               {formatKickoff(f.date)}
             </p>
-            <p className="text-[7px] mt-0.5" style={{ color: "#2a2010" }}>Uhr</p>
+            <p className="text-[7px] mt-0.5" style={{ color: "var(--color-border-subtle)" }}>Uhr</p>
           </>
         )}
       </div>
@@ -270,13 +266,13 @@ function FixtureCard({ fixture: f }: { fixture: any }) {
         <img src={f.away.logo} alt="" className="w-6 h-6 object-contain flex-shrink-0"
           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         <p className="font-black text-xs truncate"
-          style={{ color: f.away.winner === true ? "#f5a623" : f.away.winner === false ? "#5a4020" : "#c8b080" }}>
+          style={{ color: f.away.winner === true ? "var(--color-primary)" : f.away.winner === false ? "var(--color-muted)" : "var(--color-text)" }}>
           {f.away.name}
         </p>
       </div>
 
       {/* Arrow */}
-      <span className="text-[10px] flex-shrink-0" style={{ color: "#2a2010" }}>›</span>
+      <span className="text-[10px] flex-shrink-0" style={{ color: "var(--color-border-subtle)" }}>›</span>
     </a>
   );
 }

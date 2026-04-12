@@ -1,47 +1,128 @@
 @import "tailwindcss";
 
 @theme {
-  /* ── Tifo "Stadium Amber" ── */
-  --color-bg:        #0c0900;
-  --color-surface:   #141008;
-  --color-border:    #2a2010;
-  --color-amber:     #f5a623;
-  --color-amber-dim: #a06b10;
-  --color-text:      #c8b080;
-  --color-muted:     #5a4020;
+  /* ── Tifo Design Tokens (theme-aware via CSS vars) ── */
+  --bg-page:         var(--bg-page);
+  --bg-card:         var(--bg-card);
+  --bg-elevated:     var(--bg-elevated);
+  --color-primary:   var(--color-primary);
+  --color-success:   var(--color-success);
+  --color-error:     var(--color-error);
+  --color-info:      var(--color-info);
+  --color-text:      var(--color-text);
+  --color-muted:     var(--color-muted);
+  --color-dim:       var(--color-dim);
+  --color-border:    var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
 
-  /* Position badges */
-  --color-gk: #f5a623;
-  --color-df: #4a9eff;
-  --color-mf: #00ce7d;
-  --color-fw: #ff4d6d;
+  /* Position colors — immutable across all themes */
+  --pos-gk: #f5a623;
+  --pos-df: #4a9eff;
+  --pos-mf: #00ce7d;
+  --pos-fw: #ff4d6d;
 
-  /* UCL mode */
-  --color-ucl-bg:      #060810;
-  --color-ucl-surface: #080c18;
-  --color-ucl-primary: #7b9fff;
+  /* Legacy aliases (backward compat) */
+  --color-bg:        var(--bg-page);
+  --color-surface:   var(--bg-card);
+  --color-amber:     var(--color-primary);
+  --color-amber-dim: var(--color-dim);
+  --color-gk:        var(--pos-gk);
+  --color-df:        var(--pos-df);
+  --color-mf:        var(--pos-mf);
+  --color-fw:        var(--pos-fw);
 
   /* Font */
   --font-unbounded: var(--font-unbounded);
 }
 
+/* ══════════════════════════════════════════════════════
+   THEME: Stadium Amber (default)
+   ══════════════════════════════════════════════════════ */
+:root,
+[data-theme="amber"] {
+  --bg-page:            #0c0900;
+  --bg-card:            #141008;
+  --bg-elevated:        #1a1208;
+  --color-primary:      #f5a623;
+  --color-success:      #00ce7d;
+  --color-error:        #ff4d6d;
+  --color-info:         #4a9eff;
+  --color-text:         #c8b080;
+  --color-muted:        #5a4020;
+  --color-dim:          #9a7a50;
+  --color-border:       #2a2010;
+  --color-border-subtle:#3a2a10;
+}
+
+/* ══════════════════════════════════════════════════════
+   THEME: Flutlicht — harsh stadium floodlight contrast
+   ══════════════════════════════════════════════════════ */
+[data-theme="flutlicht"] {
+  --bg-page:            #050505;
+  --bg-card:            #0f0f0f;
+  --bg-elevated:        #181818;
+  --color-primary:      #f0e060;
+  --color-success:      #00ce7d;
+  --color-error:        #ff4d6d;
+  --color-info:         #4a9eff;
+  --color-text:         #e8e8e8;
+  --color-muted:        #666666;
+  --color-dim:          #888888;
+  --color-border:       #222222;
+  --color-border-subtle:#2a2a2a;
+}
+
+/* ══════════════════════════════════════════════════════
+   THEME: Tournament — World Cup / Euro navy + trophy gold
+   ══════════════════════════════════════════════════════ */
+[data-theme="tournament"] {
+  --bg-page:            #0a0f1e;
+  --bg-card:            #0f1628;
+  --bg-elevated:        #141d35;
+  --color-primary:      #e8c84a;
+  --color-success:      #00ce7d;
+  --color-error:        #ff4d6d;
+  --color-info:         #6a9fff;
+  --color-text:         #c8d4e8;
+  --color-muted:        #4a5a7a;
+  --color-dim:          #6a7a9a;
+  --color-border:       #1a2540;
+  --color-border-subtle:#202d4a;
+}
+
+/* ══════════════════════════════════════════════════════
+   THEME: Champions League — deep space navy + star blue
+   ══════════════════════════════════════════════════════ */
+[data-theme="ucl"] {
+  --bg-page:            #060810;
+  --bg-card:            #080c18;
+  --bg-elevated:        #0d1228;
+  --color-primary:      #7b9fff;
+  --color-success:      #00ce7d;
+  --color-error:        #ff4d6d;
+  --color-info:         #a0c0ff;
+  --color-text:         #a0b4d4;
+  --color-muted:        #2a3a5a;
+  --color-dim:          #4a5a7a;
+  --color-border:       #1a2040;
+  --color-border-subtle:#202850;
+}
+
 /* ── Base ─────────────────────────────────────────────── */
 html, body {
-  background-color: #0c0900;
-  color: #c8b080;
+  background-color: var(--bg-page);
+  color: var(--color-text);
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 body {
   font-family: var(--font-unbounded), system-ui, sans-serif;
 }
 
-/* ── UCL mode ─────────────────────────────────────────── */
-body.ucl {
-  background-color: #060810;
-  color: #c8d4ff;
-}
+/* ── Legacy UCL class (backward compat) ───────────────── */
+body.ucl { background-color: #060810; color: #c8d4ff; }
 body.ucl .tifo-surface  { background-color: #080c18 !important; }
 body.ucl .tifo-border   { border-color: #1a2040 !important; }
 body.ucl .tifo-accent   { color: #7b9fff !important; }
@@ -54,5 +135,5 @@ body.ucl .tifo-btn-primary {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* ── Safe area bottom padding for iOS ─────────────────── */
+/* ── Safe area ─────────────────────────────────────────── */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 16px); }
