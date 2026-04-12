@@ -86,6 +86,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [dropping, setDropping] = useState<number | null>(null);
   const [taxiSquad, setTaxiSquad] = useState<Player[]>([]);
   const [selectingTaxi, setSelectingTaxi] = useState(false);
+  const [gwMinutes, setGwMinutes] = useState<Record<number, number>>({}); // current GW minutes (live)
+  const [originalXIIds, setOriginalXIIds] = useState<number[]>([]); // snapshot at load time
   const { toast } = useToast();
 
   // Player card detail states
@@ -278,16 +280,30 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   }
 
   async function loadGWPoints(teamId: string, gw: number) {
+    // Previous GW → season form badges
     const prevGW = gw - 1;
-    if (prevGW < 1) { setGwPoints({}); return; }
-    const { data } = await supabase
+    if (prevGW >= 1) {
+      const { data } = await supabase
+        .from("liga_gameweek_points")
+        .select("player_id, points")
+        .eq("team_id", teamId)
+        .eq("gameweek", prevGW);
+      const map: Record<number, number> = {};
+      (data || []).forEach((row: any) => { map[row.player_id] = row.points; });
+      setGwPoints(map);
+    } else {
+      setGwPoints({});
+    }
+
+    // Current GW → minutes played (for live swap validation + badges)
+    const { data: cur } = await supabase
       .from("liga_gameweek_points")
-      .select("player_id, points")
+      .select("player_id, minutes")
       .eq("team_id", teamId)
-      .eq("gameweek", prevGW);
-    const map: Record<number, number> = {};
-    (data || []).forEach((row: any) => { map[row.player_id] = row.points; });
-    setGwPoints(map);
+      .eq("gameweek", gw);
+    const minMap: Record<number, number> = {};
+    (cur || []).forEach((row: any) => { minMap[row.player_id] = row.minutes ?? 0; });
+    setGwMinutes(minMap);
   }
 
   async function dropPlayer(playerId: number) {
@@ -389,6 +405,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
         .filter(Boolean) as Player[];
       setStartingXI(xi.length === 11 ? xi : Array(11).fill(null));
       setBench(benchArr);
+      setOriginalXIIds(lineup.starting_xi as number[]);
     } else {
       if (players.length > 0) {
         const config = FORMATIONS[formation];
@@ -536,6 +553,25 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     const validation = validateFormation(xi.map(p => p.position as Position), formation);
     if (!validation.valid) { toast(`Formation nicht erfüllt: ${validation.errors.join(", ")}`, "error"); return; }
 
+    // ── Live-Swap Validierung ──────────────────────────────────────────
+    if (canLiveSwap) {
+      const newXIIds = xi.map(p => p.id);
+      // Spieler die aus dem XI entfernt wurden
+      const removed = originalXIIds.filter(id => !newXIIds.includes(id));
+      const playedAndRemoved = removed.filter(id => (gwMinutes[id] ?? -1) > 0);
+      if (playedAndRemoved.length > 0) {
+        toast("Bereits gespielte Starter können nicht getauscht werden.", "error");
+        return;
+      }
+      // Spieler die neu ins XI kamen
+      const added = newXIIds.filter(id => !originalXIIds.includes(id));
+      const playedAndAdded = added.filter(id => (gwMinutes[id] ?? -1) > 0);
+      if (playedAndAdded.length > 0) {
+        toast("Bereits gespielte Bankspieler können nicht eingewechselt werden.", "error");
+        return;
+      }
+    }
+
     setSaving(true);
     await supabase.from("liga_lineups").upsert({
       team_id: myTeam.id,
@@ -551,6 +587,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     }, { onConflict: "team_id,gameweek" });
     setSaving(false);
     setSaved(true);
+    // Update snapshot so next live-swap validation uses the new XI
+    if (canLiveSwap) setOriginalXIIds(startingXI.filter(Boolean).map(p => p!.id));
     setTimeout(() => setSaved(false), 2000);
   }
 
@@ -566,9 +604,17 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const taxiPlayerIds = new Set(taxiSquad.map(p => p.id));
 
   // ── F-37: Lineup Lock ───────────────────────────────────────────────
-  const activeGWData  = gameweeks.find((g: any) => g.gameweek === activeGW);
+  const activeGWData   = gameweeks.find((g: any) => g.gameweek === activeGW);
   const activeGWStatus = activeGWData?.status as string | undefined;
-  const isLocked = activeGWStatus === "active" || activeGWStatus === "finished";
+  const lockMode       = (ligaSettings?.lineup_lock_mode || "locked") as "locked" | "pre_sub" | "live_swap";
+
+  // live_swap: only lock when finished; locked/pre_sub: lock when active OR finished
+  const isLocked = lockMode === "live_swap"
+    ? activeGWStatus === "finished"
+    : (activeGWStatus === "active" || activeGWStatus === "finished");
+
+  // live swap mode: during active GW, allow non-played ↔ non-played swaps
+  const canLiveSwap = lockMode === "live_swap" && activeGWStatus === "active";
 
   // Für den Selektor: alle Spieler außer IR, Taxi und dem aktuellen Slot-Inhaber
   const currentSlotPlayerId = selectedSlot
@@ -654,6 +700,18 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
           <span className="absolute text-[6px] font-black px-0.5 rounded leading-tight"
             style={{ top: -2, right: isCap || isVC ? 14 : -2, background: "#001a0d", color: "#00ce7d", border: "1px solid #00ce7d40" }}>
             {gwPoints[player.id]}
+          </span>
+        )}
+        {/* Live-swap: minute indicator — green if played, red/pulsing if 0 min */}
+        {player && canLiveSwap && gwMinutes[player.id] !== undefined && (
+          <span className="absolute text-[6px] font-black px-0.5 rounded leading-tight"
+            style={{
+              bottom: size > 36 ? 10 : 8, left: -2,
+              background: gwMinutes[player.id] > 0 ? "#001a0d" : "#2a0808",
+              color: gwMinutes[player.id] > 0 ? "#00ce7d" : "#ff4d6d",
+              border: `1px solid ${gwMinutes[player.id] > 0 ? "#00ce7d40" : "#ff4d6d40"}`,
+            }}>
+            {gwMinutes[player.id]}′
           </span>
         )}
       </div>
@@ -764,27 +822,68 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       ════════════════════════════════ */}
       {activeTab === "lineup" && (
         <>
-          {/* F-37: Lock-Banner */}
-          {isLocked && (
-            <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-              style={{
-                background: activeGWStatus === "finished" ? "#0a1a0a" : "#1a1208",
-                border: `1px solid ${activeGWStatus === "finished" ? "#00ce7d40" : "#f5a62340"}`,
-              }}>
-              <span className="text-base">{activeGWStatus === "finished" ? "✅" : "⚡"}</span>
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest"
-                  style={{ color: activeGWStatus === "finished" ? "#00ce7d" : "#f5a623" }}>
-                  {activeGWStatus === "finished" ? "Spieltag abgeschlossen" : "Live — Aufstellung gesperrt"}
-                </p>
-                <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
-                  {activeGWStatus === "finished"
-                    ? "Punkte wurden berechnet. Live-Subs wurden angewendet."
-                    : "Spieltag läuft. Aufstellung kann nicht mehr geändert werden."}
-                </p>
+          {/* F-37: Status-Banner */}
+          {(() => {
+            if (canLiveSwap) return (
+              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
+                style={{ background: "#0e1a10", border: "1px solid #f5a62350" }}>
+                <span className="text-base">⚡</span>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#f5a623" }}>
+                    Live-Tausch aktiv
+                  </p>
+                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                    Tausche Starter die noch nicht gespielt haben. Bereits gespielte Spieler sind gesperrt.
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+            if (lockMode === "pre_sub" && activeGWStatus === "upcoming") return (
+              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
+                style={{ background: "#0e1008", border: "1px solid #4a9eff40" }}>
+                <span className="text-base">🔄</span>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#4a9eff" }}>
+                    Auto-Sub Modus
+                  </p>
+                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                    Bankreihenfolge = Auto-Sub Priorität. Stelle sicher dass die Bank richtig sortiert ist.
+                  </p>
+                </div>
+              </div>
+            );
+            if (isLocked && activeGWStatus === "finished") return (
+              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
+                style={{ background: "#0a1a0a", border: "1px solid #00ce7d40" }}>
+                <span className="text-base">✅</span>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#00ce7d" }}>
+                    Spieltag abgeschlossen
+                  </p>
+                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                    Punkte berechnet. Auto-Subs wurden angewendet.
+                  </p>
+                </div>
+              </div>
+            );
+            if (isLocked) return (
+              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
+                style={{ background: "#1a1208", border: "1px solid #f5a62340" }}>
+                <span className="text-base">🔒</span>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#f5a623" }}>
+                    {lockMode === "pre_sub" ? "Live — Auto-Sub läuft" : "Live — Aufstellung gesperrt"}
+                  </p>
+                  <p className="text-[8px] mt-0.5" style={{ color: "#5a4020" }}>
+                    {lockMode === "pre_sub"
+                      ? "Spieltag läuft. Auto-Subs werden nach Bankreihenfolge angewendet."
+                      : "Spieltag läuft. Aufstellung kann nicht mehr geändert werden."}
+                  </p>
+                </div>
+              </div>
+            );
+            return null;
+          })()}
 
           {/* Punkte-Vorschau */}
           <div className="w-full max-w-md flex items-center justify-between mb-3 px-1">

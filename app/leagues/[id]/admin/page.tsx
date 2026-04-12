@@ -116,6 +116,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [allowedFormations, setAllowedFormations] = useState<string[]>(
     ["4-3-3","4-4-2","3-5-2","5-3-2","3-4-3","4-5-1","5-4-1","5-2-3","3-6-1"]
   );
+  const [lineupLockMode, setLineupLockMode] = useState<"locked" | "pre_sub" | "live_swap">("locked");
   const [loading, setLoading] = useState(true);
 
   // Auto-Generieren
@@ -182,6 +183,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       if (ls.position_limits) setPosLimits(ls.position_limits);
       if (ls.allowed_formations) setAllowedFormations(ls.allowed_formations);
       setScoringRules(mergeRules(ls.scoring_rules));
+      if (ls.lineup_lock_mode) setLineupLockMode(ls.lineup_lock_mode);
     }
 
     const { data: gwData } = await supabase
@@ -373,6 +375,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       max_players_per_club: maxPerClub === "" ? null : Number(maxPerClub),
       position_limits: posLimits,
       allowed_formations: allowedFormations,
+      lineup_lock_mode: lineupLockMode,
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase
@@ -1357,6 +1360,38 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 placeholder="kein Limit"
                 className="w-full p-2.5 rounded-xl text-sm font-black focus:outline-none"
                 style={{ background: "#0c0900", border: "1px solid #2a2010", color: "#c8b080" }} />
+            </div>
+
+            {/* Aufstellungs-Lock-Modus */}
+            <div>
+              <p className="text-[8px] font-black uppercase mb-2" style={{ color: "#8a6a40" }}>
+                Aufstellungs-Modus
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {([
+                  { id: "locked",    icon: "🔒", label: "Gesperrt",    desc: "Mit Spieltagsbeginn gesperrt. Auto-Sub nach Bankreihenfolge." },
+                  { id: "pre_sub",   icon: "🔄", label: "Vorab-Sub",   desc: "Gesperrt bei GW-Start. Bank-Reihenfolge = Auto-Sub Priorität (sichtbar im Lineup)." },
+                  { id: "live_swap", icon: "⚡", label: "Live-Tausch", desc: "Während Spieltag: nicht gespielte Starter gegen nicht gespielte Bank tauschen." },
+                ] as const).map(opt => (
+                  <button key={opt.id} onClick={() => setLineupLockMode(opt.id)}
+                    className="flex items-start gap-2.5 p-2.5 rounded-xl text-left transition-all"
+                    style={{
+                      background: lineupLockMode === opt.id ? "#1a1208" : "#0c0900",
+                      border: `1px solid ${lineupLockMode === opt.id ? "#f5a623" : "#2a2010"}`,
+                    }}>
+                    <span className="text-base flex-shrink-0 mt-0.5">{opt.icon}</span>
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest"
+                        style={{ color: lineupLockMode === opt.id ? "#f5a623" : "#8a6a40" }}>
+                        {opt.label}
+                      </p>
+                      <p className="text-[8px] leading-relaxed mt-0.5" style={{ color: "#5a4020" }}>
+                        {opt.desc}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
