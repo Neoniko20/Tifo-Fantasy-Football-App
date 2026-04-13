@@ -254,9 +254,9 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
 
       {/* Spielfeld */}
       <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4"
-        style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid #1a2a1a", minHeight: 360 }}>
+        style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-success) 15%, var(--bg-page))", minHeight: 360 }}>
         {/* Feld-Markierungen */}
-        <div className="relative p-3" style={{ background: "linear-gradient(180deg, #0a1a0a 0%, #081408 100%)" }}>
+        <div className="relative p-3" style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--color-success) 8%, var(--bg-page)) 0%, var(--bg-page) 100%)" }}>
           {/* Mittellinie */}
           <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "var(--color-success)" }} />
           <div className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full border opacity-10 -translate-x-1/2 -translate-y-1/2"

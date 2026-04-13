@@ -275,7 +275,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
               </div>
               {/* Tausch-Visualisierung */}
               <div className="flex gap-3">
-                <div className="flex-1 p-2 rounded-xl" style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid #1a3a1a" }}>
+                <div className="flex-1 p-2 rounded-xl" style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-success) 20%, var(--bg-page))" }}>
                   <p className="text-[7px] font-black uppercase mb-1.5" style={{ color: "var(--color-success)" }}>Du erhältst</p>
                   {(t.offer_player_ids || []).map((pid: number) => (
                     <p key={pid} className="text-[10px] font-black" style={{ color: "var(--color-text)" }}>
@@ -284,7 +284,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
                   ))}
                 </div>
                 <div className="flex items-center" style={{ color: "var(--color-border)" }}>⇄</div>
-                <div className="flex-1 p-2 rounded-xl" style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #3a1010" }}>
+                <div className="flex-1 p-2 rounded-xl" style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>
                   <p className="text-[7px] font-black uppercase mb-1.5" style={{ color: "var(--color-error)" }}>Du gibst ab</p>
                   {(t.request_player_ids || []).map((pid: number) => (
                     <p key={pid} className="text-[10px] font-black" style={{ color: "var(--color-text)" }}>
@@ -296,7 +296,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
               <div className="flex gap-2">
                 <button onClick={() => respondTrade(t.id, false)}
                   className="flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase"
-                  style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #3a1010", color: "var(--color-error)" }}>
+                  style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))", color: "var(--color-error)" }}>
                   Ablehnen
                 </button>
                 <button onClick={() => respondTrade(t.id, true)}

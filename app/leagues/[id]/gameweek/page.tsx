@@ -270,7 +270,7 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
                   }}>
                   <div className="flex items-center gap-3">
                     <span className="font-black text-sm w-5 text-center"
-                      style={{ color: i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-text)" : i === 2 ? "#a07040" : "var(--color-border)" }}>
+                      style={{ color: i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-text)" : i === 2 ? "var(--color-bronze)" : "var(--color-border)" }}>
                       {i + 1}
                     </span>
                     <div>

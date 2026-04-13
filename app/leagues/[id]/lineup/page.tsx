@@ -734,7 +734,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
           </div>
           {squadWarnings.map((w, i) => (
             <div key={i} className="px-3 py-2 flex items-start gap-2"
-              style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", borderTop: "1px solid #3a1010" }}>
+              style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", borderTop: "1px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>
               <span className="text-[9px] font-black flex-shrink-0"
                 style={{ color: w.type === "overflow" ? "var(--color-error)" : "var(--color-primary)" }}>
                 {w.type === "overflow" ? "● Überfüllt" : "● Position"}
@@ -869,9 +869,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
           {/* Spielfeld */}
           <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4"
-            style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid #1a2a1a", minHeight: 340 }}>
+            style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-success) 15%, var(--bg-page))", minHeight: 340 }}>
             <div className="relative p-3"
-              style={{ background: "linear-gradient(180deg, #0a1a0a 0%, #081408 100%)" }}>
+              style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--color-success) 8%, var(--bg-page)) 0%, var(--bg-page) 100%)" }}>
               <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "var(--color-success)" }} />
               <div className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full border opacity-10 -translate-x-1/2 -translate-y-1/2"
                 style={{ borderColor: "var(--color-success)" }} />
@@ -1010,7 +1010,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                           style={{ border: `2px solid ${canReturn ? "var(--color-error)60" : "var(--color-error)20"}` }} alt="" />
                       ) : (
                         <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                          style={{ border: "2px solid #3a1010", background: "var(--bg-page)" }}>
+                          style={{ border: "2px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))", background: "var(--bg-page)" }}>
                           <span className="text-[10px] font-black" style={{ color: "var(--color-error)" }}>IR</span>
                         </div>
                       )}
@@ -1037,9 +1037,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                 })}
                 {Array.from({ length: ligaSettings.ir_spots - irSlots.length }).map((_, i) => (
                   <div key={`empty-${i}`} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #2a1010" }}>
+                    style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" }}>
                     <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ border: "2px solid #2a1010", background: "var(--bg-page)" }}>
+                      style={{ border: "2px solid color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", background: "var(--bg-page)" }}>
                       <span className="text-[10px] font-black" style={{ color: "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>IR</span>
                     </div>
                     <p className="text-[7px] font-black text-center mt-1" style={{ color: "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>Leer</p>
@@ -1054,7 +1054,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   {draftPicks.filter(p => !irSlots.find(s => s.player_id === p.id)).map(p => (
                     <div key={p.id} onClick={() => placeOnIR(p)}
                       className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                      style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #2a1010" }}
+                      style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" }}
                       onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-error)"}
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))"}>
                       <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
@@ -1098,13 +1098,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               <div className="flex gap-2 flex-wrap">
                 {taxiSquad.map((player) => (
                   <div key={player.id} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid #3a3010" }}>
+                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border-subtle)" }}>
                     {player.photo_url ? (
                       <img src={player.photo_url} className="w-9 h-9 rounded-full object-cover"
                         style={{ border: "2px solid var(--color-text)40" }} alt="" />
                     ) : (
                       <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                        style={{ border: "2px solid #3a3010", background: "var(--bg-page)" }}>
+                        style={{ border: "2px solid var(--color-border-subtle)", background: "var(--bg-page)" }}>
                         <span className="text-[8px] font-black" style={{ color: "var(--color-text)" }}>
                           {player.position}
                         </span>
@@ -1122,7 +1122,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                       style={{
                         background: "var(--color-border)",
                         color: "var(--color-primary)",
-                        border: "1px solid #3a3010",
+                        border: "1px solid var(--color-border-subtle)",
                       }}>
                       ↑ Befördern
                     </button>
@@ -1130,9 +1130,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                 ))}
                 {Array.from({ length: Math.max(0, ligaSettings.taxi_spots - taxiSquad.length) }).map((_, i) => (
                   <div key={`empty-taxi-${i}`} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid #2a2a10" }}>
+                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)" }}>
                     <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ border: "2px solid #2a2a10", background: "var(--bg-page)" }}>
+                      style={{ border: "2px solid var(--color-border)", background: "var(--bg-page)" }}>
                       <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>U21</span>
                     </div>
                     <p className="text-[7px] font-black text-center mt-1" style={{ color: "var(--color-muted)" }}>Leer</p>
@@ -1147,7 +1147,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   {draftPicks.filter(p => !irPlayerIds.has(p.id)).map(p => (
                     <div key={p.id} onClick={() => moveToTaxi(p)}
                       className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                      style={{ background: "var(--bg-elevated)", border: "1px solid #2a2a10" }}
+                      style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)" }}
                       onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text)"}
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"}>
                       <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""

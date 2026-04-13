@@ -108,7 +108,7 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
   );
 
   const rankColor = (i: number) =>
-    i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-text)" : i === 2 ? "#a07040" : "var(--color-border-subtle)";
+    i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-text)" : i === 2 ? "var(--color-bronze)" : "var(--color-border-subtle)";
 
   return (
     <main className="flex min-h-screen flex-col items-center pb-28"

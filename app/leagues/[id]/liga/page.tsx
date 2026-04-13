@@ -329,7 +329,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                 </div>
                 {teams.map((t, i) => {
                   const isMine = t.user_id === user?.id;
-                  const rankColor = i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-text)" : i === 2 ? "#a07040" : "var(--color-border-subtle)";
+                  const rankColor = i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-text)" : i === 2 ? "var(--color-bronze)" : "var(--color-border-subtle)";
                   const pts = isH2H
                     ? (t.wins ?? 0) * 3 + (t.draws ?? 0)
                     : (t.total_points ?? 0);

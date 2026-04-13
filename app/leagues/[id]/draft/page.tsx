@@ -830,7 +830,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                       })}
                       {Array.from({ length: 15 - teamPicks.length }).map((_, i) => (
                         <span key={i} className="text-[8px] px-2 py-0.5 rounded"
-                          style={{ border: "1px solid #1a1610", color: "var(--color-border)" }}>—</span>
+                          style={{ border: "1px solid var(--color-border)", color: "var(--color-border)" }}>—</span>
                       ))}
                     </div>
                   </div>
@@ -874,7 +874,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                   onClick={() => isMyTurn && pickPlayer(p.id)}
                   className="flex items-center gap-2 p-2 transition-all"
                   style={{
-                    borderBottom: "1px solid #1a1610",
+                    borderBottom: "1px solid var(--color-border)",
                     opacity: isMyTurn ? 1 : 0.4,
                     cursor: isMyTurn ? "pointer" : "not-allowed",
                     background: "transparent",

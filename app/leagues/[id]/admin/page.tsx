@@ -963,7 +963,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     style={{
                       background: importing === gw.gameweek ? "var(--color-border)" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
                       color:      importing === gw.gameweek ? "var(--color-muted)" : "var(--color-error)",
-                      border:     "1px solid #ff8866",
+                      border:     "1px solid var(--color-error)",
                     }}>
                     ↻ Neu rechnen
                   </button>
@@ -1838,7 +1838,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                       const rows = dynastySeasonHistory.filter((r: any) => r.season === s);
                       return (
                         <div key={s} className="mb-3 rounded-xl overflow-hidden"
-                          style={{ border: "1px solid #1a2a3a" }}>
+                          style={{ border: "1px solid var(--color-border)" }}>
                           <div className="px-3 py-1.5" style={{ background: "var(--bg-elevated)" }}>
                             <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-info)" }}>
                               Saison {s}
@@ -1846,7 +1846,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                           </div>
                           {rows.map((r: any) => (
                             <div key={r.id} className="flex items-center justify-between px-3 py-1.5"
-                              style={{ background: "var(--bg-page)", borderTop: "1px solid #0d1a24" }}>
+                              style={{ background: "var(--bg-page)", borderTop: "1px solid var(--color-border)" }}>
                               <div className="flex items-center gap-2">
                                 <span className="text-[8px] font-black w-4 text-center"
                                   style={{ color: r.final_rank <= 3 ? "var(--color-primary)" : "var(--color-muted)" }}>
@@ -1872,7 +1872,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
           {/* Liga löschen */}
           <div className="rounded-xl p-4 space-y-3"
-            style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid #3a1010" }}>
+            style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>
             <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-error)" }}>
               Gefahrenzone
             </p>
@@ -1883,7 +1883,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
             {!deleteConfirm ? (
               <button onClick={() => setDeleteConfirm(true)}
                 className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                style={{ background: "var(--bg-page)", border: "1px solid #3a1010", color: "var(--color-error)" }}>
+                style={{ background: "var(--bg-page)", border: "1px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))", color: "var(--color-error)" }}>
                 Liga löschen
               </button>
             ) : (

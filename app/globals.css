@@ -21,6 +21,11 @@
   --pos-mf: #00ce7d;
   --pos-fw: #ff4d6d;
 
+  /* Rank medal colors — semantically fixed */
+  --color-gold:   var(--color-primary);
+  --color-silver: var(--color-text);
+  --color-bronze: #a07040;
+
   /* Legacy aliases (backward compat) */
   --color-bg:        var(--bg-page);
   --color-surface:   var(--bg-card);
