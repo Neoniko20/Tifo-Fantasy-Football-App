@@ -39,7 +39,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="de" className={unbounded.variable}>
+    <html lang="de" className={unbounded.variable} suppressHydrationWarning>
       <head>
         <meta name="theme-color" content="#0c0900" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
