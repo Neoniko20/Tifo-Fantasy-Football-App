@@ -8,6 +8,7 @@ import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import { PlayerCard } from "@/app/components/PlayerCard";
 import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import { useToast } from "@/app/components/ToastProvider";
 
@@ -1203,9 +1204,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     !neededPos || p.position === neededPos
                   );
                   if (filtered.length === 0) return (
-                    <p className="text-center text-[9px] py-4 font-black uppercase" style={{ color: "var(--color-border)" }}>
-                      Keine {neededPos || ""}-Spieler verfügbar
-                    </p>
+                    <EmptyState title={`Keine ${neededPos || ""}-Spieler verfügbar`} className="py-4" />
                   );
                   return filtered.map(p => {
                     const posColor = POS_COLOR[p.position];
@@ -1388,9 +1387,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   );
                 })}
                 {sorted.length === 0 && (
-                  <p className="text-center text-[9px] py-6 font-black uppercase" style={{ color: "var(--color-border)" }}>
-                    Kein Spieler im Kader
-                  </p>
+                  <EmptyState title="Kein Spieler im Kader" className="py-6" />
                 )}
               </div>
             );
@@ -1712,9 +1709,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     {playerTab === "gamelog" && (
                       <div className="p-4 space-y-2">
                         {playerGameLog.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                            Noch keine Spieltag-Daten
-                          </p>
+                          <EmptyState icon="📊" title="Noch keine Spieltag-Daten" />
                         ) : playerGameLog.map(g => (
                           <div key={g.id} className="rounded-xl overflow-hidden"
                             style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
@@ -1739,7 +1734,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     {playerTab === "history" && (
                       <div className="p-4">
                         {playerHistory.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine Historie vorhanden</p>
+                          <EmptyState icon="📋" title="Keine Historie vorhanden" />
                         ) : (
                           <div className="relative pl-5">
                             <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "var(--color-border)" }} />
@@ -1769,7 +1764,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                         {playerNewsLoading ? (
                           <Spinner text="Lade News..." />
                         ) : playerNews.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine News gefunden</p>
+                          <EmptyState icon="📰" title="Keine News gefunden" />
                         ) : playerNews.slice(0, 5).map((n: any, i: number) => (
                           <a key={i} href={n.link || "#"} target="_blank" rel="noopener noreferrer"
                             className="block p-3 rounded-xl transition-opacity hover:opacity-80"
