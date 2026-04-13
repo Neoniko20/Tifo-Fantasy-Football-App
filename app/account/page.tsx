@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { ThemeSwitcher } from "@/app/components/ThemeSwitcher";
+import { Spinner } from "@/app/components/ui/Spinner";
 
 type NotifSettings = {
   draftStart: boolean;
@@ -180,8 +181,7 @@ export default function AccountPage() {
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center"
       style={{ background: "var(--bg-page)" }}>
-      <p className="text-[9px] font-black uppercase tracking-widest animate-pulse"
-        style={{ color: "var(--color-border-subtle)" }}>Lade...</p>
+      <Spinner />
     </main>
   );
 

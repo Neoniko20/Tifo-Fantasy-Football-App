@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { TransactionsFeed } from "@/app/components/TransactionsFeed";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { Spinner } from "@/app/components/ui/Spinner";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)",
@@ -145,9 +146,8 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      Lade...
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner />
     </main>
   );
 

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { LEAGUE_META } from "@/lib/league-meta";
 import { LiveMatchupCard } from "@/app/components/LiveMatchupCard";
+import { Spinner } from "@/app/components/ui/Spinner";
 
 export default function GameweekPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
@@ -94,8 +95,9 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>Lade Spieltag...</main>
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner />
+    </main>
   );
 
   const isH2H = league?.scoring_type === "h2h";

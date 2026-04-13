@@ -1,6 +1,8 @@
 "use client";
 
 import { useNotifications } from "./NotificationsProvider";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 const KIND_ICON: Record<string, string> = {
   trade_proposed:  "↔",
@@ -73,17 +75,9 @@ export function NotificationsDrawer({ open, onClose }: Props) {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
-          {loading && (
-            <p className="text-center py-8 text-[9px] font-black uppercase tracking-widest animate-pulse"
-              style={{ color: "var(--color-border)" }}>Lade...</p>
-          )}
+          {loading && <Spinner />}
           {!loading && notifications.length === 0 && (
-            <div className="text-center py-16 px-4">
-              <p className="text-4xl mb-3">🔔</p>
-              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                Keine Benachrichtigungen
-              </p>
-            </div>
+            <EmptyState icon="🔔" title="Keine Benachrichtigungen" />
           )}
           {notifications.map(n => {
             const color = KIND_COLOR[n.kind] || "var(--color-text)";

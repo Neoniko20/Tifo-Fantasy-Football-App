@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { Spinner } from "@/app/components/ui/Spinner";
 import { calculateWMGameweekPoints } from "@/lib/wm-points";
 import type { WMNation, WMGameweek, WMLeagueSettings } from "@/lib/wm-types";
 import type { GWStats } from "@/lib/wm-points";
@@ -242,9 +243,8 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      Lade Admin...
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade Admin..." />
     </main>
   );
 

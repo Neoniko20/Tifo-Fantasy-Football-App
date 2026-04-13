@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { UserBadge } from "@/app/components/UserBadge";
 import { BottomNav } from "@/app/components/BottomNav";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 import type { WMNation, WMGameweek, WMLeagueSettings } from "@/lib/wm-types";
 
 const PHASE_LABEL: Record<string, string> = {
@@ -88,9 +90,8 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      Lade WM-Liga...
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade WM-Liga..." />
     </main>
   );
 
@@ -183,10 +184,7 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
       {tab === "standings" && (
         <div className="w-full max-w-md space-y-2">
           {teams.length === 0 ? (
-            <div className="text-center py-12" style={{ color: "var(--color-muted)" }}>
-              <p className="text-4xl mb-2">👥</p>
-              <p className="text-sm font-black">Noch keine Teams</p>
-            </div>
+            <EmptyState icon="👥" title="Noch keine Teams" />
           ) : teams.map((team, i) => (
             <div key={team.id} className="flex items-center justify-between p-4 rounded-2xl"
               style={{
@@ -233,13 +231,8 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
       {tab === "nations" && (
         <div className="w-full max-w-md space-y-4">
           {Object.keys(groups).length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-4xl mb-2">🌍</p>
-              <p className="text-sm font-black" style={{ color: "var(--color-muted)" }}>Noch keine Nationen geladen</p>
-              <p className="text-xs mt-1" style={{ color: "var(--color-border)" }}>
-                Werden nach Bekanntgabe der Gruppen geladen
-              </p>
-            </div>
+            <EmptyState icon="🌍" title="Noch keine Nationen geladen"
+              description="Werden nach Bekanntgabe der Gruppen geladen" />
           ) : Object.entries(groups).sort().map(([letter, groupNations]) => (
             <div key={letter}>
               <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>

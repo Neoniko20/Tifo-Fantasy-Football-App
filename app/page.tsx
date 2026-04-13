@@ -7,6 +7,8 @@ import { UserBadge } from "@/app/components/UserBadge";
 import { BottomNav } from "@/app/components/BottomNav";
 import { TifoIcon } from "@/app/components/TifoLogo";
 import { useToast } from "@/app/components/ToastProvider";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 const LEAGUES = [
   { id: 0, name: "Alle Ligen", flag: "🌍" },
@@ -54,9 +56,8 @@ function normalizePosition(pos: string): string {
 export default function Home() {
   return (
     <Suspense fallback={
-      <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-        style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-        Laden...
+      <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+        <Spinner text="Laden..." />
       </main>
     }>
       <HomeInner />
@@ -375,11 +376,8 @@ function HomeInner() {
         </div>
 
         {mySquad.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-4xl mb-3">👥</p>
-            <p className="text-sm font-black" style={{ color: "var(--color-muted)" }}>Kein Kader aufgestellt</p>
-            <p className="text-xs mt-1" style={{ color: "var(--color-border)" }}>Gehe zu HOME und füge Spieler hinzu</p>
-          </div>
+          <EmptyState icon="👥" title="Kein Kader aufgestellt"
+            description="Gehe zu HOME und füge Spieler hinzu" />
         ) : (
           <div className="w-full max-w-md space-y-2.5">
             {mySquad.map((item) => {
@@ -570,8 +568,7 @@ function HomeInner() {
       {/* Player list */}
       <div className="w-full max-w-md space-y-2">
         {loading ? (
-          <div className="text-center py-20 animate-pulse text-[9px] font-black uppercase tracking-widest"
-            style={{ color: "var(--color-border)" }}>Lade Datenbank...</div>
+          <Spinner text="Lade Datenbank..." />
         ) : filteredPlayers.length === 0 ? (
           <div className="text-center py-20 text-sm" style={{ color: "var(--color-muted)" }}>Keine Spieler gefunden.</div>
         ) : (

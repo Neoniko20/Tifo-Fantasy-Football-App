@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { Spinner } from "@/app/components/ui/Spinner";
 import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
 import {
@@ -753,8 +754,9 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>Lade Admin...</main>
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade Admin..." />
+    </main>
   );
 
   if (!isOwner) return (

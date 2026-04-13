@@ -8,6 +8,8 @@ import tsdbClubs from "@/lib/tsdb-clubs.json";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
 import { TransactionsFeed } from "@/app/components/TransactionsFeed";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 // Helper: club assets by team_name
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
@@ -256,9 +258,8 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      Lade...
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade..." />
     </main>
   );
 
@@ -303,10 +304,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
         {tab === "tabelle" && (
           <>
             {teams.length === 0 ? (
-              <div className="text-center py-16" style={{ color: "var(--color-border)" }}>
-                <p className="text-3xl mb-3">🏆</p>
-                <p className="text-[9px] font-black uppercase tracking-widest">Noch keine Teams</p>
-              </div>
+              <EmptyState icon="🏆" title="Noch keine Teams" />
             ) : (
               <div className="rounded-2xl overflow-hidden mb-3"
                 style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
@@ -735,8 +733,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
               {/* Tab content */}
               <div className="overflow-y-auto flex-1 pb-6">
                 {playerDetailLoading ? (
-                  <div className="flex items-center justify-center py-12 text-[9px] font-black uppercase tracking-widest animate-pulse"
-                    style={{ color: "var(--color-border)" }}>Lade...</div>
+                  <Spinner text="Lade..." />
                 ) : (
                   <>
                     {/* ÜBERSICHT */}

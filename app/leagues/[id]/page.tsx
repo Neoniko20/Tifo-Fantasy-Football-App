@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
+import { Spinner } from "@/app/components/ui/Spinner";
 
 export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
@@ -95,9 +96,8 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      <p className="text-[9px] font-black uppercase tracking-widest">Lade Spieltag…</p>
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner />
     </main>
   );
 

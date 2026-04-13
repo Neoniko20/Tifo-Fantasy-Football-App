@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { loadLeagueTransactions, type LeagueTransaction } from "@/lib/league-transactions";
 import { TransactionRow } from "./TransactionRow";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 interface Props {
   leagueId: string;
@@ -30,22 +32,12 @@ export function TransactionsFeed({ leagueId, onlyTeamId, kindFilter, emptyLabel,
   }, [leagueId, onlyTeamId, kindFilter?.join(",")]);
 
   if (loading) {
-    return (
-      <p className="text-center text-[9px] font-black uppercase tracking-widest py-8 animate-pulse"
-        style={{ color: "var(--color-border)" }}>
-        Lade…
-      </p>
-    );
+    return <Spinner text="Lade…" />;
   }
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-16" style={{ color: "var(--color-border)" }}>
-        <p className="text-3xl mb-3">📋</p>
-        <p className="text-[9px] font-black uppercase tracking-widest">
-          {emptyLabel || "Noch keine Transaktionen"}
-        </p>
-      </div>
+      <EmptyState icon="📋" title={emptyLabel || "Noch keine Transaktionen"} />
     );
   }
 

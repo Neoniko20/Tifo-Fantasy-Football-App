@@ -7,6 +7,7 @@ import type { Position } from "@/lib/wm-types";
 import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { Spinner } from "@/app/components/ui/Spinner";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import { useToast } from "@/app/components/ToastProvider";
 
@@ -594,9 +595,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      Lade Aufstellung...
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade Aufstellung..." />
     </main>
   );
 
@@ -1646,8 +1646,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
               {/* Tab content */}
               <div className="overflow-y-auto flex-1 pb-6">
                 {playerDetailLoading ? (
-                  <div className="flex items-center justify-center py-12 text-[9px] font-black uppercase tracking-widest animate-pulse"
-                    style={{ color: "var(--color-border)" }}>Lade...</div>
+                  <Spinner text="Lade..." />
                 ) : (
                   <>
                     {playerTab === "summary" && (
@@ -1768,7 +1767,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     {playerTab === "news" && (
                       <div className="p-4 space-y-2">
                         {playerNewsLoading ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "var(--color-border)" }}>Lade News...</p>
+                          <Spinner text="Lade News..." />
                         ) : playerNews.length === 0 ? (
                           <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine News gefunden</p>
                         ) : playerNews.slice(0, 5).map((n: any, i: number) => (

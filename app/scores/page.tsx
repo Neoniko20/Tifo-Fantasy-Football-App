@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { BottomNav } from "@/app/components/BottomNav";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 const LEAGUES = [
   { id: 0,   name: "Alle",  flag: "🌍" },
@@ -153,18 +155,12 @@ export default function ScoresPage() {
       {/* Content */}
       <div className="max-w-[480px] mx-auto w-full px-4 pt-3">
         {loading ? (
-          <div className="text-center py-16 text-[9px] font-black uppercase tracking-widest animate-pulse"
-            style={{ color: "var(--color-border-subtle)" }}>Lade Partien...</div>
+          <Spinner text="Lade Partien..." />
         ) : error ? (
           <div className="text-center py-12 text-[9px] font-black uppercase"
             style={{ color: "var(--color-error)" }}>{error}</div>
         ) : totalGames === 0 ? (
-          <div className="text-center py-16" style={{ color: "var(--color-border-subtle)" }}>
-            <p className="text-3xl mb-3">⚽</p>
-            <p className="text-[9px] font-black uppercase tracking-widest">
-              Keine Spiele für diesen Tag
-            </p>
-          </div>
+          <EmptyState icon="⚽" title="Keine Spiele für diesen Tag" />
         ) : (
           <div className="space-y-4">
             {visibleGroups.map(group => (

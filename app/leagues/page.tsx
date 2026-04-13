@@ -7,6 +7,8 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { DEFAULT_WM_SETTINGS } from "@/lib/wm-types";
 import { FORMATION_KEYS } from "@/lib/wm-formations";
 import { useToast } from "@/app/components/ToastProvider";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 type League = {
   id: string;
@@ -242,19 +244,20 @@ export default function LeaguesPage() {
       {view === "overview" && (
         <div className="w-full max-w-md space-y-3">
           {loading ? (
-            <div className="text-center py-20 text-[9px] font-black uppercase tracking-widest animate-pulse"
-              style={{ color: "var(--color-border)" }}>Lade Ligen...</div>
+            <Spinner text="Lade Ligen..." />
           ) : leagues.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-4xl mb-3">🏆</p>
-              <p className="text-sm font-black mb-1" style={{ color: "var(--color-muted)" }}>Noch keine Ligen.</p>
-              <p className="text-xs mb-5" style={{ color: "var(--color-border)" }}>Erstelle deine erste Liga oder tritt einer bei.</p>
-              <button onClick={() => setView("create")}
-                className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest"
-                style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
-                Erste Liga erstellen
-              </button>
-            </div>
+            <EmptyState
+              icon="🏆"
+              title="Noch keine Ligen."
+              description="Erstelle deine erste Liga oder tritt einer bei."
+              action={
+                <button onClick={() => setView("create")}
+                  className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest"
+                  style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+                  Erste Liga erstellen
+                </button>
+              }
+            />
           ) : (
             leagues.map((league) => (
               <div key={league.id} className="rounded-2xl p-4"

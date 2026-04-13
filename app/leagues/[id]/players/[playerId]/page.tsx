@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
@@ -173,9 +175,8 @@ export default function PlayerDetailPage({
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      Lade Spieler...
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade Spieler..." />
     </main>
   );
 
@@ -365,11 +366,7 @@ export default function PlayerDetailPage({
         {tab === "gamelog" && (
           <div className="space-y-2">
             {gameLog.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                  Noch keine Spieltag-Daten
-                </p>
-              </div>
+              <EmptyState title="Noch keine Spieltag-Daten" />
             ) : (
               <>
                 {/* Header */}

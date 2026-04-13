@@ -7,6 +7,8 @@ import { BottomNav } from "@/app/components/BottomNav";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
 const leagueAsset = (apId: number) => (tsdbLeagues as Record<string, any>)[String(apId)] || null;
@@ -344,9 +346,8 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>
-      Lade...
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade..." />
     </main>
   );
 
@@ -442,19 +443,11 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
 
         {/* Empty state — only for "all" with no filter */}
         {viewMode === "all" && search.length < 2 && posFilter === "ALL" ? (
-          <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
-            <p className="text-3xl mb-3">🔍</p>
-            <p className="text-[9px] font-black uppercase tracking-widest">
-              Name eingeben oder Position wählen
-            </p>
-          </div>
+          <EmptyState icon="🔍" title="Name eingeben oder Position wählen" />
         ) : searching ? (
-          <div className="text-center py-8 text-[9px] font-black uppercase tracking-widest animate-pulse"
-            style={{ color: "var(--color-border)" }}>Suche...</div>
+          <Spinner text="Suche..." />
         ) : players.length === 0 ? (
-          <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest">Keine Spieler gefunden</p>
-          </div>
+          <EmptyState title="Keine Spieler gefunden" />
         ) : (
           <>
             {/* Column header */}

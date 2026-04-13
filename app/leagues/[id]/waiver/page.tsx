@@ -6,6 +6,7 @@ import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
@@ -181,15 +182,11 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
         {/* Waivers disabled state */}
         {!settings?.waiver_enabled && (
-          <div className="text-center py-12">
-            <p className="text-4xl mb-2">📋</p>
-            <p className="text-sm font-black" style={{ color: "var(--color-muted)" }}>
-              Waiver Wire ist für diese Liga noch nicht aktiviert
-            </p>
-            <p className="text-[9px] font-black mt-1" style={{ color: "var(--color-border)" }}>
-              Der Liga-Admin kann die Funktion in den Einstellungen aktivieren
-            </p>
-          </div>
+          <EmptyState
+            icon="📋"
+            title="Waiver Wire ist für diese Liga noch nicht aktiviert"
+            description="Der Liga-Admin kann die Funktion in den Einstellungen aktivieren"
+          />
         )}
 
         {settings?.waiver_enabled && (
@@ -434,13 +431,11 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                 );
               })}
               {waiverWire.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-4xl mb-2">📋</p>
-                  <p className="text-sm font-black" style={{ color: "var(--color-muted)" }}>Keine Spieler auf Waiver Wire</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--color-border)" }}>
-                    Spieler erscheinen hier nach dem Draft
-                  </p>
-                </div>
+                <EmptyState
+                  icon="📋"
+                  title="Keine Spieler auf Waiver Wire"
+                  description="Spieler erscheinen hier nach dem Draft"
+                />
               )}
             </div>
           </>

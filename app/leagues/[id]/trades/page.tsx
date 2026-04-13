@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
+import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 import {
   createTradeProposal,
   createTradeResponse,
@@ -204,8 +206,9 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center text-[9px] font-black uppercase tracking-widest animate-pulse"
-      style={{ background: "var(--bg-page)", color: "var(--color-border)" }}>Lade Trades...</main>
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade Trades..." />
+    </main>
   );
 
   const inbox = trades.filter(t => t.receiver?.user_id === user?.id && t.status === "pending");
@@ -259,9 +262,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       {tab === "inbox" && (
         <div className="w-full max-w-md space-y-3">
           {inbox.length === 0 ? (
-            <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest">Keine offenen Trades</p>
-            </div>
+            <EmptyState title="Keine offenen Trades" />
           ) : inbox.map(t => (
             <div key={t.id} className="rounded-2xl p-4 space-y-3"
               style={{ background: "var(--bg-card)", border: "1px solid var(--color-border-subtle)" }}>
@@ -414,9 +415,7 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
       {tab === "sent" && (
         <div className="w-full max-w-md space-y-3">
           {sent.length === 0 ? (
-            <div className="text-center py-12" style={{ color: "var(--color-border)" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest">Noch keine Trades gesendet</p>
-            </div>
+            <EmptyState title="Noch keine Trades gesendet" />
           ) : sent.map(t => (
             <div key={t.id} className="rounded-2xl p-4"
               style={{ background: "var(--bg-card)", border: `1px solid ${STATUS_COLORS[t.status] || "var(--color-border)"}30` }}>
