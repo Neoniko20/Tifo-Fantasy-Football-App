@@ -51,6 +51,8 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
   const [league, setLeague] = useState<any>(null);
   const [ligaSettings, setLigaSettings] = useState<any>(null);
   const [teams, setTeams] = useState<any[]>([]);
+  const [activeGW, setActiveGW] = useState<number | null>(null);
+  const [gwPointsMap, setGwPointsMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<"tabelle" | "info" | "transfers">("tabelle");
@@ -121,6 +123,25 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
 
     const teamsWithStats = (teamsData || []).map((t: any) => ({ ...t, ...(wun[t.id] || {}) }));
     setTeams(teamsWithStats);
+
+    // Load active GW points
+    const { data: gwData } = await supabase
+      .from("liga_gameweeks")
+      .select("gameweek, status")
+      .eq("league_id", leagueId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (gwData) {
+      setActiveGW(gwData.gameweek);
+      const { data: pts } = await supabase
+        .from("liga_gameweek_points")
+        .select("team_id, points")
+        .eq("league_id", leagueId)
+        .eq("gameweek", gwData.gameweek);
+      const m: Record<string, number> = {};
+      for (const r of (pts || [])) m[r.team_id] = (m[r.team_id] || 0) + r.points;
+      setGwPointsMap(m);
+    }
 
     setLoading(false);
   }
@@ -320,6 +341,12 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                     <span className="text-[7px] font-black uppercase w-6 text-center" style={{ color: "var(--color-border)" }}>U</span>
                     <span className="text-[7px] font-black uppercase w-6 text-center" style={{ color: "var(--color-border)" }}>N</span>
                   </>}
+                  {activeGW && (
+                    <span className="text-[7px] font-black uppercase w-12 text-right flex items-center justify-end gap-0.5" style={{ color: "var(--color-primary)" }}>
+                      <span className="w-1 h-1 rounded-full animate-pulse inline-block" style={{ background: "var(--color-primary)" }} />
+                      GW{activeGW}
+                    </span>
+                  )}
                   <span className="text-[7px] font-black uppercase w-14 text-right" style={{ color: "var(--color-border)" }}>
                     {isH2H ? "Pts" : "FPTS"}
                   </span>
@@ -331,6 +358,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                   const pts = isH2H
                     ? (t.wins ?? 0) * 3 + (t.draws ?? 0)
                     : (t.total_points ?? 0);
+                  const gwPts = gwPointsMap[t.id] ?? null;
                   return (
                     <button key={t.id}
                       onClick={() => openTeam(t)}
@@ -354,6 +382,12 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                         <span className="text-[9px] font-black w-6 text-center" style={{ color: "var(--color-muted)" }}>{t.draws ?? 0}</span>
                         <span className="text-[9px] font-black w-6 text-center" style={{ color: "var(--color-error)" }}>{t.losses ?? 0}</span>
                       </>}
+                      {activeGW && (
+                        <span className="text-[9px] font-black w-12 text-right"
+                          style={{ color: gwPts !== null ? "var(--color-primary)" : "var(--color-border)" }}>
+                          {gwPts !== null ? gwPts.toFixed(1) : "–"}
+                        </span>
+                      )}
                       <span className="text-[9px] font-black w-14 text-right"
                         style={{ color: "var(--color-text)" }}>
                         {isH2H ? pts : (pts as number).toFixed(1)}
@@ -520,14 +554,11 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
             <div style={{ borderTop: "1px solid var(--bg-elevated)" }} />
 
             {loadingTeam ? (
-              <div className="flex-1 flex items-center justify-center py-16 text-[9px] font-black uppercase tracking-widest animate-pulse"
-                style={{ color: "var(--color-border)" }}>Lade Kader...</div>
-            ) : teamSquad.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center py-16">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                  Kein Kader vorhanden
-                </p>
+              <div className="flex-1 flex items-center justify-center">
+                <Spinner text="Lade Kader..." />
               </div>
+            ) : teamSquad.length === 0 ? (
+              <EmptyState icon="👥" title="Kein Kader vorhanden" />
             ) : (
               <div className="overflow-y-auto flex-1 pb-6">
                 {(() => {
@@ -853,16 +884,17 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                     {playerTab === "news" && (
                       <div className="p-4 space-y-2">
                         {playerNewsLoading ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "var(--color-border)" }}>Lade News...</p>
+                          <Spinner text="Lade News..." />
                         ) : playerNews.length === 0 ? (
-                          <div className="text-center py-10">
-                            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine News gefunden</p>
-                            <a href={`/leagues/${leagueId}/players/${selectedPlayer.id}`}
-                              className="inline-block mt-4 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
-                              style={{ background: "var(--bg-card)", color: "var(--color-primary)", border: "1px solid var(--color-primary)30" }}>
-                              Vollständiges Profil →
-                            </a>
-                          </div>
+                          <EmptyState icon="📰" title="Keine News gefunden"
+                            action={
+                              <a href={`/leagues/${leagueId}/players/${selectedPlayer.id}`}
+                                className="inline-block mt-1 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                                style={{ background: "var(--bg-card)", color: "var(--color-primary)", border: "1px solid var(--color-primary)30" }}>
+                                Vollständiges Profil →
+                              </a>
+                            }
+                          />
                         ) : playerNews.slice(0, 5).map((n: any, i: number) => (
                           <a key={i} href={n.link || "#"} target="_blank" rel="noopener noreferrer"
                             className="block p-3 rounded-xl transition-opacity hover:opacity-80"

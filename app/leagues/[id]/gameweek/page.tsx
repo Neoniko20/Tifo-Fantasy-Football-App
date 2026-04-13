@@ -6,6 +6,7 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { LEAGUE_META } from "@/lib/league-meta";
 import { LiveMatchupCard } from "@/app/components/LiveMatchupCard";
 import { Spinner } from "@/app/components/ui/Spinner";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 
 export default function GameweekPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
@@ -32,6 +33,16 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
     if (teams.length > 0) loadGWData(selectedGW);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedGW]);
+
+  // Live auto-refresh: poll every 60 s when the selected GW is active
+  useEffect(() => {
+    const activeGW = gameweeks.find(g => g.gameweek === selectedGW);
+    if (!activeGW || activeGW.status !== "active") return;
+    if (teams.length === 0) return;
+    const id = setInterval(() => loadGWData(selectedGW), 60_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGW, gameweeks, teams.length]);
 
   async function loadAll(userId: string) {
     const { data: leagueData } = await supabase
@@ -102,6 +113,8 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
 
   const isH2H = league?.scoring_type === "h2h";
   const myTeam = teams.find(t => t.user_id === user?.id);
+  const activeGWData = gameweeks.find(g => g.gameweek === selectedGW);
+  const isActiveGW = activeGWData?.status === "active";
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
@@ -125,17 +138,16 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
 
       {/* GW-Auswahl */}
       {gameweeks.length === 0 ? (
-        <div className="w-full max-w-md rounded-xl p-6 text-center mb-4"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-          <p className="text-sm font-black mb-1" style={{ color: "var(--color-muted)" }}>Noch keine Spieltage</p>
-          {league?.owner_id === user?.id && (
+        <EmptyState icon="📅" title="Noch keine Spieltage"
+          description="Spieltage werden vom Liga-Admin angelegt."
+          action={league?.owner_id === user?.id ? (
             <button onClick={() => window.location.href = `/leagues/${leagueId}/admin`}
-              className="mt-3 px-4 py-2 rounded-xl text-[10px] font-black uppercase"
+              className="mt-1 px-4 py-2 rounded-xl text-[10px] font-black uppercase"
               style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
               Im Admin anlegen →
             </button>
-          )}
-        </div>
+          ) : undefined}
+        />
       ) : (
         <>
           <div className="flex gap-1.5 w-full max-w-md mb-4 overflow-x-auto pb-1">
@@ -260,10 +272,16 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
           {/* RANGLISTE */}
           {tab === "ranking" && (
             <div className="w-full max-w-md space-y-2">
+              {isActiveGW && gwPoints.length > 0 && (
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-primary)" }} />
+                  <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
+                    Live · Aktualisiert alle 60s
+                  </span>
+                </div>
+              )}
               {gwPoints.length === 0 ? (
-                <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
-                  Noch keine Punkte für GW{selectedGW}
-                </p>
+                <EmptyState icon="📊" title={`Noch keine Punkte für GW${selectedGW}`} />
               ) : gwPoints.map((team, i) => (
                 <div key={team.id} className="flex items-center justify-between p-4 rounded-2xl"
                   style={{
@@ -303,9 +321,7 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
           {tab === "matchups" && (
             <div className="w-full max-w-md space-y-3">
               {matchups.length === 0 ? (
-                <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
-                  Noch keine Paarungen
-                </p>
+                <EmptyState icon="⚔️" title="Noch keine Paarungen" />
               ) : matchups.map((m: any) => {
                 const gwRow = gameweeks.find((g: any) => g.gameweek === selectedGW);
                 const gwIsActive = gwRow?.status === "active";
