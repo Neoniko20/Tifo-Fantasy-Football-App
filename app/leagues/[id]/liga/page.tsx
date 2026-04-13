@@ -815,9 +815,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                     {playerTab === "gamelog" && (
                       <div className="p-4 space-y-2">
                         {playerGameLog.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                            Noch keine Spieltag-Daten
-                          </p>
+                          <EmptyState icon="📊" title="Noch keine Spieltag-Daten" />
                         ) : playerGameLog.map(g => (
                           <div key={g.id} className="rounded-xl overflow-hidden"
                             style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
@@ -849,9 +847,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                     {playerTab === "history" && (
                       <div className="p-4">
                         {playerHistory.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                            Keine Historie vorhanden
-                          </p>
+                          <EmptyState icon="📋" title="Keine Historie vorhanden" />
                         ) : (
                           <div className="relative pl-5">
                             <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "var(--color-border)" }} />

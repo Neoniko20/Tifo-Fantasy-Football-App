@@ -496,20 +496,10 @@ export default function PlayerDetailPage({
         {tab === "news" && (
           <div className="space-y-3">
             {newsLoading ? (
-              <div className="text-center py-12 animate-pulse">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                  Lade News...
-                </p>
-              </div>
+              <Spinner text="Lade News..." />
             ) : news.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                  Keine aktuellen News gefunden
-                </p>
-                <p className="text-[8px] mt-2" style={{ color: "var(--bg-elevated)" }}>
-                  Google News · {player.name}
-                </p>
-              </div>
+              <EmptyState icon="📰" title="Keine aktuellen News gefunden"
+                description={`Google News · ${player.name}`} />
             ) : (
               news.map((item, i) => (
                 <a key={i} href={item.link} target="_blank" rel="noopener noreferrer"

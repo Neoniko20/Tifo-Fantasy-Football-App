@@ -737,8 +737,9 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
               {/* Tab content */}
               <div className="overflow-y-auto flex-1 pb-6">
                 {playerDetailLoading ? (
-                  <div className="flex items-center justify-center py-12 text-[9px] font-black uppercase tracking-widest animate-pulse"
-                    style={{ color: "var(--color-border)" }}>Lade...</div>
+                  <div className="flex items-center justify-center">
+                    <Spinner text="Lade..." />
+                  </div>
                 ) : (
                   <>
                     {/* ÜBERSICHT */}
@@ -789,9 +790,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {playerTab === "gamelog" && (
                       <div className="p-4 space-y-2">
                         {playerGameLog.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                            Noch keine Spieltag-Daten
-                          </p>
+                          <EmptyState icon="📊" title="Noch keine Spieltag-Daten" />
                         ) : playerGameLog.map(g => (
                           <div key={g.id} className="rounded-xl overflow-hidden"
                             style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
@@ -823,9 +822,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {playerTab === "history" && (
                       <div className="p-4">
                         {playerHistory.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-                            Keine Historie vorhanden
-                          </p>
+                          <EmptyState icon="📋" title="Keine Historie vorhanden" />
                         ) : (
                           <div className="relative pl-5">
                             <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "var(--color-border)" }} />
@@ -858,9 +855,9 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     {playerTab === "news" && (
                       <div className="p-4 space-y-2">
                         {playerNewsLoading ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "var(--color-border)" }}>Lade News...</p>
+                          <Spinner text="Lade News..." />
                         ) : playerNews.length === 0 ? (
-                          <p className="text-center py-10 text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>Keine News gefunden</p>
+                          <EmptyState icon="📰" title="Keine News gefunden" />
                         ) : playerNews.slice(0, 5).map((n: any, i: number) => (
                           <a key={i} href={n.link || "#"} target="_blank" rel="noopener noreferrer"
                             className="block p-3 rounded-xl transition-opacity hover:opacity-80"
