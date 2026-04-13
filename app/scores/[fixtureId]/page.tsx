@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { BottomNav } from "@/app/components/BottomNav";
+import { Spinner } from "@/app/components/ui/Spinner";
 
 const STATUS_LABEL: Record<string, string> = {
   NS: "Noch nicht angepfiffen", "1H": "1. Halbzeit", HT: "Halbzeitpause",
@@ -52,10 +53,8 @@ export default function FixtureDetailPage({ params }: { params: Promise<{ fixtur
   }
 
   if (loading) return (
-    <main className="flex min-h-screen items-center justify-center"
-      style={{ background: "var(--bg-page)" }}>
-      <p className="text-[9px] font-black uppercase tracking-widest animate-pulse"
-        style={{ color: "var(--color-border)" }}>Lade Partie...</p>
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade Partie..." />
     </main>
   );
 
