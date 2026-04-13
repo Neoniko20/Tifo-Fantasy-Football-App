@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { UserBadge } from "@/app/components/UserBadge";
 import { useToast } from "@/app/components/ToastProvider";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -880,8 +881,7 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
                   }}
                   onMouseEnter={e => { if (isMyTurn) (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                  <img src={p.photo_url} className="w-8 h-8 rounded-full flex-shrink-0"
-                    style={{ border: "1px solid var(--color-border)" }} alt="" />
+                  <PlayerCard player={p} posColor={posColor} size={32} />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
                     <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{p.team_name}</p>

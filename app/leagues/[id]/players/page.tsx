@@ -6,6 +6,7 @@ import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
 const leagueAsset = (apId: number) => (tsdbLeagues as Record<string, any>)[String(apId)] || null;
@@ -490,19 +491,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                     }}>
 
                     {/* Photo */}
-                    <div className="relative flex-shrink-0">
-                      <img src={p.photo_url || "/player-placeholder.png"} alt={p.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                        style={{ border: `2px solid ${POS_COLOR[p.position] || "var(--color-border)"}` }} />
-                      {p.api_team_id && (
-                        <img
-                          src={`https://media.api-sports.io/football/teams/${p.api_team_id}.png`}
-                          alt=""
-                          className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full object-contain"
-                          style={{ background: "var(--bg-page)", padding: 1 }}
-                        />
-                      )}
-                    </div>
+                    <PlayerCard player={p} posColor={POS_COLOR[p.position] || "var(--color-border)"} size={40} />
 
                     {/* Name + club */}
                     <div className="flex-1 min-w-0">
@@ -717,9 +706,7 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
                               background: playerOut?.id === sq.id ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "var(--bg-elevated)",
                               border: `1px solid ${playerOut?.id === sq.id ? "var(--color-error)" : "var(--color-border)"}`,
                             }}>
-                            <img src={sq.photo_url || "/player-placeholder.png"} alt={sq.name}
-                              className="w-7 h-7 rounded-full object-cover flex-shrink-0"
-                              style={{ border: `1px solid ${POS_COLOR[sq.position]}` }} />
+                            <PlayerCard player={sq} posColor={POS_COLOR[sq.position] || "var(--color-border)"} size={28} />
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{sq.name}</p>
                               <p className="text-[7px] font-black uppercase" style={{ color: "var(--color-muted)" }}>

@@ -7,6 +7,7 @@ import { BottomNav } from "@/app/components/BottomNav";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
 import { TransactionsFeed } from "@/app/components/TransactionsFeed";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 // Helper: club assets by team_name
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
@@ -546,16 +547,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                         style={{ background: `${POS_COLOR[p.position] || "var(--color-border)"}20`, color: POS_COLOR[p.position] || "var(--color-muted)" }}>
                         {p.position}
                       </span>
-                      <div className="relative flex-shrink-0">
-                        <img src={p.photo_url || "/player-placeholder.png"} alt={p.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                          style={{ border: `2px solid ${POS_COLOR[p.position] || "var(--color-border)"}60` }} />
-                        {p.api_team_id && (
-                          <img src={`https://media.api-sports.io/football/teams/${p.api_team_id}.png`}
-                            alt="" className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full object-contain"
-                            style={{ background: "var(--bg-page)", padding: 1 }} />
-                        )}
-                      </div>
+                      <PlayerCard player={p} posColor={POS_COLOR[p.position] || "var(--color-border)"} size={40} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
                         <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
@@ -287,8 +288,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                   Claim einreichen
                 </p>
                 <div className="flex items-center gap-3 mb-3">
-                  <img src={selectedPlayer.photo_url} className="w-10 h-10 rounded-full"
-                    style={{ border: `2px solid ${POS_COLOR[selectedPlayer.position]}` }} alt="" />
+                  <PlayerCard player={selectedPlayer} posColor={POS_COLOR[selectedPlayer.position] || "var(--color-border)"} size={40} />
                   <div>
                     <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{selectedPlayer.name}</p>
                     <p className="text-[9px]" style={{ color: "var(--color-muted)" }}>{selectedPlayer.team_name}</p>
@@ -412,8 +412,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                       cursor: alreadyClaimed ? "default" : "pointer",
                       opacity: alreadyClaimed ? 0.6 : 1,
                     }}>
-                    <img src={player.photo_url} className="w-10 h-10 rounded-full flex-shrink-0"
-                      style={{ border: `2px solid ${posColor}` }} alt="" />
+                    <PlayerCard player={player} posColor={posColor} size={40} />
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-sm truncate" style={{ color: "var(--color-text)" }}>{player.name}</p>
                       <p className="text-[9px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>

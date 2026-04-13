@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { UserBadge } from "@/app/components/UserBadge";
 import type { WMLeagueSettings } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -849,14 +850,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
                   }}
                   onMouseEnter={e => { if (isMyTurn) (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                  <div className="relative flex-shrink-0">
-                    <img src={p.photo_url} className="w-8 h-8 rounded-full"
-                      style={{ border: "1px solid var(--color-border)" }} alt="" />
-                    {nation?.flag_url && (
-                      <img src={nation.flag_url} className="absolute -bottom-0.5 -right-0.5 w-3.5 h-2.5 rounded-sm object-cover"
-                        style={{ border: "1px solid var(--bg-page)" }} alt="" />
-                    )}
-                  </div>
+                  <PlayerCard player={p} posColor={posColor} size={32} nationFlagUrl={nation?.flag_url} />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
                     <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>

@@ -6,6 +6,7 @@ import { FORMATIONS } from "@/lib/wm-formations";
 import { validateFormation } from "@/lib/wm-formations";
 import type { Position } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)",
@@ -276,29 +277,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                     className="flex flex-col items-center cursor-pointer transition-all"
                     style={{ width: 64 }}>
                     {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full flex items-center justify-center relative"
-                      style={{
-                        border: `2px solid ${isSelected ? "var(--color-primary)" : player ? posColor : "var(--color-border)"}`,
-                        background: player ? "var(--bg-card)" : "var(--bg-page)",
-                        boxShadow: isSelected ? `0 0 12px ${posColor}60` : undefined,
-                      }}>
-                      {player?.photo_url ? (
-                        <img src={player.photo_url} className="w-full h-full rounded-full object-cover" alt="" />
-                      ) : (
-                        <span className="text-lg" style={{ color: isSelected ? "var(--color-primary)" : "var(--color-border)" }}>
-                          {isSelected ? "+" : position}
-                        </span>
-                      )}
-                      {/* Captain-Badge */}
-                      {isCap && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center"
-                          style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>C</span>
-                      )}
-                      {isVC && !isCap && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-black flex items-center justify-center"
-                          style={{ background: "var(--color-muted)", color: "var(--color-primary)" }}>V</span>
-                      )}
-                    </div>
+                    <PlayerCard player={player} posColor={posColor} size={44} selected={isSelected} posLabel={position} isCap={isCap} isVC={isVC} />
                     {/* Name */}
                     <p className="text-[8px] font-black text-center leading-tight mt-1 truncate w-full"
                       style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
@@ -338,19 +317,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                   background: isSelected ? "var(--bg-elevated)" : "var(--bg-card)",
                   border: `1px solid ${isSelected ? "var(--color-primary)" : "var(--color-border)"}`,
                 }}>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                  style={{
-                    border: `2px solid ${player ? (POS_COLOR[player.position] || "var(--color-text)") : "var(--color-border)"}`,
-                    background: "var(--bg-page)",
-                  }}>
-                  {player?.photo_url ? (
-                    <img src={player.photo_url} className="w-full h-full rounded-full object-cover" alt="" />
-                  ) : (
-                    <span className="text-[10px]" style={{ color: isSelected ? "var(--color-primary)" : "var(--color-border)" }}>
-                      {isSelected ? "+" : i + 1}
-                    </span>
-                  )}
-                </div>
+                <PlayerCard player={player ?? null} posColor={player ? (POS_COLOR[player.position] || "var(--color-text)") : "var(--color-border)"} size={36} selected={isSelected} posLabel={String(i + 1)} />
                 <p className="text-[7px] font-black text-center truncate w-full mt-1"
                   style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
                   {player ? player.name.split(" ").pop() : "—"}
@@ -386,8 +353,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                     style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
                     onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--color-primary)")}
                     onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--color-border)")}>
-                    <img src={player.photo_url} className="w-8 h-8 rounded-full flex-shrink-0"
-                      style={{ border: `2px solid ${posColor}` }} alt="" />
+                    <PlayerCard player={player} posColor={posColor} size={32} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{player.name}</p>
                       <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>

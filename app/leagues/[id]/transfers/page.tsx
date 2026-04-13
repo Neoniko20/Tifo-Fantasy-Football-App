@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { TransactionsFeed } from "@/app/components/TransactionsFeed";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)",
@@ -253,9 +254,7 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
                     background: playerOut?.id === p.id ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "var(--bg-card)",
                     border: `1px solid ${playerOut?.id === p.id ? "var(--color-error)" : "var(--color-border)"}`,
                   }}>
-                  <img src={p.photo_url || "/player-placeholder.png"} alt={p.name}
-                    className="w-8 h-8 rounded-full object-cover"
-                    style={{ border: `1px solid ${POS_COLOR[p.position] || "var(--color-border)"}` }} />
+                  <PlayerCard player={p} posColor={POS_COLOR[p.position] || "var(--color-border)"} size={32} />
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-xs truncate" style={{ color: playerOut?.id === p.id ? "var(--color-error)" : "var(--color-text)" }}>
                       {p.name}
@@ -323,9 +322,7 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
                       background: playerIn?.id === p.id ? "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))" : "var(--bg-card)",
                       border: `1px solid ${playerIn?.id === p.id ? "var(--color-success)" : "var(--color-border)"}`,
                     }}>
-                    <img src={p.photo_url || "/player-placeholder.png"} alt={p.name}
-                      className="w-8 h-8 rounded-full object-cover"
-                      style={{ border: `1px solid ${POS_COLOR[p.position] || "var(--color-border)"}` }} />
+                    <PlayerCard player={p} posColor={POS_COLOR[p.position] || "var(--color-border)"} size={32} />
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-xs truncate" style={{ color: playerIn?.id === p.id ? "var(--color-success)" : "var(--color-text)" }}>
                         {p.name}
