@@ -311,9 +311,112 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
 
   return (
     <div className="w-full max-w-xl space-y-3">
-      <p className="text-center text-sm font-black py-4" style={{ color: "var(--color-muted)" }}>
-        Lädt…
-      </p>
+
+      {/* Auto-Generieren */}
+      <div className="rounded-xl p-4" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border-subtle)" }}>
+        <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-primary)" }}>
+          Auto-Generieren
+        </p>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="col-span-2">
+            <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Liga / Wettbewerb</p>
+            <select value={autoGenLeague}
+              onChange={e => {
+                const key = e.target.value;
+                setAutoGenLeague(key);
+                if (LIGA_PRESETS[key].start) setAutoStart(LIGA_PRESETS[key].start);
+                setAutoCount(LIGA_PRESETS[key].count);
+              }}
+              className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
+              {Object.entries(LIGA_PRESETS).map(([k, v]) => (
+                <option key={k} value={k}>{v.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Saisonstart</p>
+            <input type="date" value={autoStart} onChange={e => setAutoStart(e.target.value)}
+              className="w-full p-2 rounded-lg text-sm focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+          </div>
+          <div>
+            <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Anzahl Spieltage</p>
+            <input type="number" value={autoCount} min={1} max={50} onChange={e => setAutoCount(Number(e.target.value))}
+              className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+          </div>
+        </div>
+        <p className="text-[8px] mb-3" style={{ color: "var(--color-muted)" }}>
+          Generiert {autoCount} Spieltage à 7 Tage ab {autoStart || "?"}
+        </p>
+        <button onClick={autoGenerateGameweeks} disabled={autoGenerating}
+          className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+          style={{ background: autoGenerating ? "var(--color-border)" : "var(--color-border-subtle)", color: autoGenerating ? "var(--color-muted)" : "var(--color-primary)", border: "1px solid var(--color-primary)" }}>
+          {autoGenerating ? "Generiere..." : `Alle ${autoCount} Spieltage generieren`}
+        </button>
+      </div>
+
+      {/* Neuer GW */}
+      <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+        <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
+          Neuer Spieltag
+        </p>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <div>
+            <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Nummer</p>
+            <input type="number" value={newGWNum} onChange={e => setNewGWNum(Number(e.target.value))}
+              className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+          </div>
+          <div>
+            <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Label</p>
+            <input type="text" value={newGWLabel} onChange={e => setNewGWLabel(e.target.value)}
+              placeholder="z.B. Spieltag 1"
+              className="w-full p-2 rounded-lg text-sm focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+          </div>
+          <div>
+            <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Start</p>
+            <input type="date" value={newGWStart} onChange={e => setNewGWStart(e.target.value)}
+              className="w-full p-2 rounded-lg text-sm focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+          </div>
+          <div>
+            <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Ende</p>
+            <input type="date" value={newGWEnd} onChange={e => setNewGWEnd(e.target.value)}
+              className="w-full p-2 rounded-lg text-sm focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+          </div>
+        </div>
+        <button onClick={createGameweek}
+          className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
+          style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+          Spieltag {newGWNum} anlegen
+        </button>
+      </div>
+
+      {/* Bulk Import placeholder — implemented in Task 5 */}
+
+      {/* GW list placeholder — implemented in Task 4 */}
+      {gameweeks.length === 0 && (
+        <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
+          Noch keine Spieltage
+        </p>
+      )}
+
+      {importResult && (
+        <div className="rounded-xl p-4 text-center"
+          style={{
+            background: importResult.startsWith("Fehler") ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
+            border: `1px solid ${importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)"}`,
+          }}>
+          <p className="text-sm font-black"
+            style={{ color: importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)" }}>
+            {importResult}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
