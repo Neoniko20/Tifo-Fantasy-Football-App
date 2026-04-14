@@ -101,11 +101,18 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
       setWaiverWire([]);
     }
 
-    const { data: picks } = await supabase
-      .from("draft_picks")
+    // squad_players is source of truth after waivers; fall back to draft_picks
+    const { data: sqRows } = await supabase
+      .from("squad_players")
       .select("player_id, players(*)")
       .eq("team_id", team.id);
-    setMySquad((picks || []).map((p: any) => p.players).filter(Boolean));
+    let mySquadData = (sqRows || []).map((p: any) => p.players).filter(Boolean);
+    if (mySquadData.length === 0) {
+      const { data: picks } = await supabase
+        .from("draft_picks").select("player_id, players(*)").eq("team_id", team.id);
+      mySquadData = (picks || []).map((p: any) => p.players).filter(Boolean);
+    }
+    setMySquad(mySquadData);
 
     const { data: claims } = await supabase
       .from("waiver_claims")
