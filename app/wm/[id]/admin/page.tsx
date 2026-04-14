@@ -44,6 +44,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const [squadPlayers, setSquadPlayers] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<Record<number, Omit<GWStats, "position">>>({});
   const [saving, setSaving] = useState(false);
+  const [processingWaivers, setProcessingWaivers] = useState(false);
   const [tab, setTab] = useState<"points" | "nations" | "gameweeks">("points");
   const { toast } = useToast();
   const [eliminateNation, setEliminateNation] = useState<string>("");
@@ -233,6 +234,27 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       n.id === eliminateNation ? { ...n, eliminated_after_gameweek: selectedGW } : n
     ));
     setEliminateNation("");
+  }
+
+  async function processWaivers(gwNum: number) {
+    if (processingWaivers) return;
+    setProcessingWaivers(true);
+    try {
+      const res = await fetch("/api/process-waivers-wm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leagueId, gameweek: gwNum }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast(`Waivers verarbeitet: ${data.approved} genehmigt, ${data.rejected} abgelehnt`, "success");
+      } else {
+        toast("Fehler: " + (data.error || "Unbekannt"), "error");
+      }
+    } catch (e: any) {
+      toast("Fehler: " + e.message, "error");
+    }
+    setProcessingWaivers(false);
   }
 
   async function updateGameweekStatus(gwNum: number, status: "upcoming" | "active" | "finished") {
@@ -495,22 +517,35 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                   {PHASE_LABEL[gw.phase] || gw.phase}
                 </p>
               </div>
-              <div className="flex gap-1.5">
-                {(["upcoming", "active", "finished"] as const).map(s => (
-                  <button key={s} onClick={() => updateGameweekStatus(gw.gameweek, s)}
-                    className="px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
-                    style={{
-                      background: gw.status === s
-                        ? s === "active" ? "var(--color-primary)" : s === "finished" ? "var(--color-success)" : "var(--color-border)"
-                        : "var(--bg-page)",
-                      color: gw.status === s
-                        ? s === "active" ? "var(--bg-page)" : s === "finished" ? "var(--bg-page)" : "var(--color-text)"
-                        : "var(--color-muted)",
-                      border: `1px solid ${gw.status === s ? "transparent" : "var(--color-border)"}`,
-                    }}>
-                    {s === "upcoming" ? "Bald" : s === "active" ? "Aktiv" : "Fertig"}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-1.5 items-end">
+                <div className="flex gap-1.5">
+                  {(["upcoming", "active", "finished"] as const).map(s => (
+                    <button key={s} onClick={() => updateGameweekStatus(gw.gameweek, s)}
+                      className="px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all"
+                      style={{
+                        background: gw.status === s
+                          ? s === "active" ? "var(--color-primary)" : s === "finished" ? "var(--color-success)" : "var(--color-border)"
+                          : "var(--bg-page)",
+                        color: gw.status === s
+                          ? s === "active" ? "var(--bg-page)" : s === "finished" ? "var(--bg-page)" : "var(--color-text)"
+                          : "var(--color-muted)",
+                        border: `1px solid ${gw.status === s ? "transparent" : "var(--color-border)"}`,
+                      }}>
+                      {s === "upcoming" ? "Bald" : s === "active" ? "Aktiv" : "Fertig"}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => processWaivers(gw.gameweek)}
+                  disabled={processingWaivers}
+                  className="px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all disabled:opacity-50"
+                  style={{
+                    background: "color-mix(in srgb, var(--color-info) 15%, var(--bg-page))",
+                    color: "var(--color-info)",
+                    border: "1px solid var(--color-info)40",
+                  }}>
+                  {processingWaivers ? "..." : "Waivers ▶"}
+                </button>
               </div>
             </div>
           ))}
