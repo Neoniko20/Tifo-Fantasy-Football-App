@@ -59,13 +59,21 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
     setMyTeam(teamData);
 
     if (teamData) {
-      // My squad via draft_picks
-      const { data: picks } = await supabase
-        .from("draft_picks")
+      // squad_players is source of truth after waivers; fall back to draft_picks
+      const { data: sqRows } = await supabase
+        .from("squad_players")
         .select("player_id, players(id, name, photo_url, position, team_name, fpts)")
-        .eq("team_id", teamData.id)
-        .order("pick_number");
-      setMySquad((picks || []).map((p: any) => p.players).filter(Boolean));
+        .eq("team_id", teamData.id);
+      let squadPlayers = (sqRows || []).map((p: any) => p.players).filter(Boolean);
+      if (squadPlayers.length === 0) {
+        const { data: picks } = await supabase
+          .from("draft_picks")
+          .select("player_id, players(id, name, photo_url, position, team_name, fpts)")
+          .eq("team_id", teamData.id)
+          .order("pick_number");
+        squadPlayers = (picks || []).map((p: any) => p.players).filter(Boolean);
+      }
+      setMySquad(squadPlayers);
 
       // All taken player IDs in this league
       // Note: draft_picks has no league_id — filter via team_id of all teams in the league
@@ -112,21 +120,29 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
     if (!playerOut || !playerIn || !myTeam) return;
     setSaving(true);
 
-    // Update draft_picks: swap player
-    const { data: pickRow } = await supabase
-      .from("draft_picks")
-      .select("id, pick_number")
+    // Try squad_players first, then fall back to draft_picks
+    const { data: sqRow } = await supabase
+      .from("squad_players")
+      .select("id")
       .eq("team_id", myTeam.id)
       .eq("player_id", playerOut.id)
-      .single();
+      .maybeSingle();
 
-    if (!pickRow) { setSaving(false); return; }
-
-    // Replace the pick
-    await supabase
-      .from("draft_picks")
-      .update({ player_id: playerIn.id })
-      .eq("id", pickRow.id);
+    if (sqRow) {
+      // Squad_players path: delete out, insert in
+      await supabase.from("squad_players").delete().eq("id", sqRow.id);
+      await supabase.from("squad_players").insert({ team_id: myTeam.id, player_id: playerIn.id });
+    } else {
+      // Draft_picks fallback
+      const { data: pickRow } = await supabase
+        .from("draft_picks")
+        .select("id")
+        .eq("team_id", myTeam.id)
+        .eq("player_id", playerOut.id)
+        .maybeSingle();
+      if (!pickRow) { setSaving(false); return; }
+      await supabase.from("draft_picks").update({ player_id: playerIn.id }).eq("id", pickRow.id);
+    }
 
     // Log transfer
     await supabase.from("liga_transfers").insert({
