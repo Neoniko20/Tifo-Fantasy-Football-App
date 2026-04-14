@@ -108,6 +108,19 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId]);
 
+  // Close league picker on outside click
+  useEffect(() => {
+    if (!expandedLeaguePicker) return;
+    function handleClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-gw-card]")) {
+        setExpandedLeaguePicker(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [expandedLeaguePicker]);
+
   async function loadData() {
     // Load gameweeks
     const { data: gwData } = await supabase
@@ -398,12 +411,268 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
 
       {/* Bulk Import placeholder — implemented in Task 5 */}
 
-      {/* GW list placeholder — implemented in Task 4 */}
+      {/* GW list */}
+      {gameweeks.map(gw => {
+        const activeLgs: string[] = gw.active_leagues || [];
+        const doubleLgs: string[] = gw.double_gw_leagues || [];
+        const isBreak = activeLgs.length === 0 && !gw.notes?.includes("Winterpause");
+        const isImported = importedGWs.has(gw.gameweek);
+        const isProcessed = processedGWs.has(gw.gameweek);
+        const leaguePickerOpen = expandedLeaguePicker === gw.id;
+
+        // Chip done conditions
+        const ligaDone = activeLgs.length >= 1;
+        const importDone = isImported;
+        const waiverDone = waiverEnabled && gw.waiver_window_open === false && gw.status !== "upcoming";
+        const processDone = isProcessed;
+        const finishDone = gw.status === "finished";
+
+        return (
+          <div key={gw.id} className="rounded-xl overflow-hidden" data-gw-card=""
+            style={{ border: `1px solid ${gw.status === "active" ? "var(--color-primary)" : "var(--color-border)"}` }}>
+
+            {/* Top: identity + status toggles */}
+            <div className="p-3 flex items-start justify-between gap-2"
+              style={{ background: "var(--bg-card)" }}>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-sm truncate" style={{ color: "var(--color-text)" }}>
+                  <span style={{ color: "var(--color-primary)" }}>GW{gw.gameweek}</span>
+                  {" · "}
+                  {gw.label}
+                </p>
+                {gw.start_date && (
+                  <p className="text-[8px] font-black uppercase mt-0.5" style={{ color: "var(--color-muted)" }}>
+                    {gw.start_date} → {gw.end_date || "?"}
+                  </p>
+                )}
+                {gw.notes && (
+                  <p className="text-[8px] font-black mt-0.5" style={{ color: "var(--color-primary)" }}>
+                    ⚠ {gw.notes}
+                  </p>
+                )}
+              </div>
+              {/* Status toggle buttons */}
+              <div className="flex gap-1 flex-shrink-0">
+                {(["upcoming", "active", "finished"] as const).map(s => (
+                  <button key={s}
+                    onClick={() => updateGWStatus(gw.id, s, gw.gameweek)}
+                    className="px-2 py-1 rounded-lg text-[7px] font-black uppercase transition-all"
+                    style={{
+                      background: gw.status === s
+                        ? s === "active" ? "var(--color-primary)"
+                        : s === "finished" ? "var(--color-success)"
+                        : "var(--color-border)"
+                        : "var(--bg-page)",
+                      color: gw.status === s
+                        ? s === "upcoming" ? "var(--color-muted)" : "var(--bg-page)"
+                        : "var(--color-border)",
+                      border: `1px solid ${
+                        gw.status === s
+                          ? s === "active" ? "var(--color-primary)"
+                          : s === "finished" ? "var(--color-success)"
+                          : "var(--color-border)"
+                          : "var(--color-border)"
+                      }`,
+                    }}>
+                    {s === "upcoming" ? "Bald" : s === "active" ? "Aktiv" : "Fertig"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Bottom: 5-step chips */}
+            <div className="px-3 pb-3 pt-2 flex flex-wrap gap-1.5"
+              style={{ background: "var(--bg-card)" }}>
+
+              {/* Step 1: Ligen */}
+              <button
+                onClick={() => setExpandedLeaguePicker(leaguePickerOpen ? null : gw.id)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black transition-all"
+                style={{
+                  background: ligaDone ? "color-mix(in srgb, var(--color-success) 15%, var(--bg-page))" : "var(--bg-page)",
+                  border: `1px solid ${ligaDone ? "var(--color-success)" : "var(--color-border)"}`,
+                  color: ligaDone ? "var(--color-success)" : "var(--color-muted)",
+                }}>
+                {ligaDone ? "✓" : "⚽"} {activeLgs.length} Ligen
+              </button>
+
+              {/* Step 2: Import */}
+              <button
+                onClick={() => !importDone && importGWStats(gw.gameweek, false)}
+                disabled={importing === gw.gameweek}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black transition-all disabled:opacity-60"
+                style={{
+                  background: importDone ? "color-mix(in srgb, var(--color-success) 15%, var(--bg-page))" : "var(--bg-page)",
+                  border: `1px solid ${importing === gw.gameweek ? "var(--color-border)" : importDone ? "var(--color-success)" : "var(--color-border)"}`,
+                  color: importing === gw.gameweek ? "var(--color-muted)" : importDone ? "var(--color-success)" : "var(--color-muted)",
+                }}>
+                {importing === gw.gameweek ? "⏳" : importDone ? "✓" : "📥"} Import
+              </button>
+
+              {/* Step 3: Waiver (only if waiver_enabled) */}
+              {waiverEnabled && (
+                <button
+                  onClick={() => toggleWaiverWindow(gw.id, !gw.waiver_window_open)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black transition-all"
+                  style={{
+                    background: waiverDone ? "color-mix(in srgb, var(--color-success) 15%, var(--bg-page))" : gw.waiver_window_open ? "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))" : "var(--bg-page)",
+                    border: `1px solid ${waiverDone ? "var(--color-success)" : gw.waiver_window_open ? "var(--color-primary)" : "var(--color-border)"}`,
+                    color: waiverDone ? "var(--color-success)" : gw.waiver_window_open ? "var(--color-primary)" : "var(--color-muted)",
+                  }}>
+                  {waiverDone ? "✓" : gw.waiver_window_open ? "🔓" : "🔒"} Waiver
+                </button>
+              )}
+
+              {/* Step 4: Verarbeiten (only if waiver_enabled) */}
+              {waiverEnabled && (
+                <button
+                  onClick={() => !processDone && processWaivers(gw.gameweek)}
+                  disabled={processingWaivers}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black transition-all disabled:opacity-60"
+                  style={{
+                    background: processDone ? "color-mix(in srgb, var(--color-success) 15%, var(--bg-page))" : "var(--bg-page)",
+                    border: `1px solid ${processingWaivers ? "var(--color-border)" : processDone ? "var(--color-success)" : "var(--color-border)"}`,
+                    color: processingWaivers ? "var(--color-muted)" : processDone ? "var(--color-success)" : "var(--color-muted)",
+                  }}>
+                  {processingWaivers ? "⏳" : processDone ? "✓" : "▶"} Verarbeiten
+                </button>
+              )}
+
+              {/* Step 5: Fertig */}
+              <button
+                onClick={() => !finishDone && updateGWStatus(gw.id, "finished", gw.gameweek)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black transition-all"
+                style={{
+                  background: finishDone ? "color-mix(in srgb, var(--color-success) 15%, var(--bg-page))" : "var(--bg-page)",
+                  border: `1px solid ${finishDone ? "var(--color-success)" : "var(--color-border)"}`,
+                  color: finishDone ? "var(--color-success)" : "var(--color-muted)",
+                }}>
+                {finishDone ? "✓" : "✅"} Fertig
+              </button>
+
+              {/* Import re-run (always available for finished GWs) */}
+              {importDone && (
+                <button
+                  onClick={() => importGWStats(gw.gameweek, true)}
+                  disabled={importing === gw.gameweek}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black transition-all disabled:opacity-60"
+                  style={{
+                    background: "var(--bg-page)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-border)",
+                  }}>
+                  ↻ Neu
+                </button>
+              )}
+            </div>
+
+            {/* Inline league picker — expands below chips */}
+            {leaguePickerOpen && (
+              <div className="px-3 pb-3" style={{ background: "var(--bg-card)", borderTop: "1px solid var(--color-border)" }}>
+                <p className="text-[7px] font-black uppercase tracking-widest mb-1.5 mt-2" style={{ color: "var(--color-dim)" }}>
+                  Spielende Ligen
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_LEAGUES.map(key => {
+                    const meta = LEAGUE_META[key];
+                    const active = activeLgs.includes(key);
+                    const isDouble = doubleLgs.includes(key);
+                    return (
+                      <div key={key} className="flex items-center gap-0.5">
+                        <button onClick={() => toggleLeague(gw.id, key, "active_leagues")}
+                          className="px-2 py-1 rounded-lg text-[8px] font-black transition-all"
+                          style={{
+                            background: active ? "var(--bg-elevated)" : "var(--bg-page)",
+                            border: `1px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`,
+                            color: active ? "var(--color-primary)" : "var(--color-border)",
+                          }}>
+                          {meta.flag} {meta.short}
+                        </button>
+                        {active && (
+                          <button onClick={() => toggleLeague(gw.id, key, "double_gw_leagues")}
+                            title="Doppelspieltag"
+                            className="px-1.5 py-1 rounded-lg text-[8px] font-black transition-all"
+                            style={{
+                              background: isDouble ? "color-mix(in srgb, var(--color-primary) 10%, var(--bg-page))" : "var(--bg-page)",
+                              border: `1px solid ${isDouble ? "var(--color-primary)" : "var(--color-border)"}`,
+                              color: isDouble ? "var(--color-primary)" : "var(--color-border)",
+                            }}>
+                            ×2
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {isBreak && (
+                  <p className="text-[8px] mt-1.5 font-black" style={{ color: "var(--color-muted)" }}>
+                    Länderspielpause — keine Liga-Spiele
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
       {gameweeks.length === 0 && (
         <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
           Noch keine Spieltage
         </p>
       )}
+
+      {/* AUDIT LOG (collapsible) */}
+      <div className="rounded-xl p-4" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
+        <button
+          onClick={() => setAuditLogVisible(v => !v)}
+          className="w-full flex items-center justify-between text-[9px] font-black uppercase tracking-widest"
+          style={{ color: "var(--color-dim)" }}>
+          <span>📜 Admin-Verlauf ({auditLog.length})</span>
+          <span>{auditLogVisible ? "▲" : "▼"}</span>
+        </button>
+        {auditLogVisible && (
+          <div className="mt-3 space-y-1.5">
+            {auditLog.length === 0 && (
+              <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
+                Noch keine Einträge
+              </p>
+            )}
+            {auditLog.map(entry => (
+              <div key={entry.id}
+                className="flex items-start justify-between gap-2 py-1 border-b"
+                style={{ borderColor: "var(--bg-elevated)" }}>
+                <div className="flex-1">
+                  <p className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
+                    {actionLabel(entry.action)}{entry.gameweek ? ` · GW${entry.gameweek}` : ""}
+                  </p>
+                  {entry.metadata?.players_imported !== undefined && (
+                    <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>
+                      {entry.metadata.players_imported} Spieler · {entry.metadata.api_calls_used} API-Calls
+                    </p>
+                  )}
+                  {entry.metadata?.error && (
+                    <p className="text-[7px]" style={{ color: "var(--color-error)" }}>
+                      {entry.metadata.error}
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-[7px] font-black uppercase"
+                    style={{ color: entry.actor_label === "cron" ? "var(--color-success)" : "var(--color-primary)" }}>
+                    {entry.actor_label}
+                  </span>
+                  <span className="text-[7px]" style={{ color: "var(--color-muted)" }}>
+                    {new Date(entry.created_at).toLocaleString("de-DE", {
+                      day: "2-digit", month: "2-digit",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {importResult && (
         <div className="rounded-xl p-4 text-center"
