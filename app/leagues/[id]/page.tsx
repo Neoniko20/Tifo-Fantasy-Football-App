@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import { Spinner } from "@/app/components/ui/Spinner";
+import { TransactionsFeed } from "@/app/components/TransactionsFeed";
 
 export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
@@ -463,6 +464,13 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
                 )}
               </div>
             )}
+          {/* ── Letzte Transaktionen ── */}
+          <div className="mt-6">
+            <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border-subtle)" }}>
+              Letzte Aktivitäten
+            </p>
+            <TransactionsFeed leagueId={leagueId} maxHeight="40vh" />
+          </div>
           </>
         )}
       </div>

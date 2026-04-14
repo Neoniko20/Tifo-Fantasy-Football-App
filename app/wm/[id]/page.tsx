@@ -28,6 +28,7 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
   const [nations, setNations] = useState<WMNation[]>([]);
   const [gameweeks, setGameweeks] = useState<WMGameweek[]>([]);
   const [currentGW, setCurrentGW] = useState<WMGameweek | null>(null);
+  const [gwPointsMap, setGwPointsMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"standings" | "nations" | "settings">("standings");
 
@@ -84,6 +85,21 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
       const active = (gwData || []).find(gw => gw.status === "active")
         || (gwData || [])[0];
       setCurrentGW(active || null);
+
+      // GW points for active GW
+      if (active && teamsData && teamsData.length > 0) {
+        const teamIds = teamsData.map((t: any) => t.id);
+        const { data: gwPts } = await supabase
+          .from("wm_gameweek_points")
+          .select("team_id, points")
+          .eq("gameweek", active.gameweek)
+          .in("team_id", teamIds);
+        const map: Record<string, number> = {};
+        for (const r of (gwPts || [])) {
+          map[r.team_id] = (map[r.team_id] || 0) + r.points;
+        }
+        setGwPointsMap(map);
+      }
     }
 
     setLoading(false);
@@ -208,6 +224,16 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {currentGW?.status === "active" && (
+                  <div className="text-right">
+                    <p className="font-black text-base" style={{ color: gwPointsMap[team.id] != null ? "var(--color-success)" : "var(--color-border)" }}>
+                      {gwPointsMap[team.id] != null ? gwPointsMap[team.id].toFixed(1) : "—"}
+                    </p>
+                    <p className="text-[7px] font-black uppercase" style={{ color: "var(--color-border)" }}>
+                      GW{currentGW.gameweek}
+                    </p>
+                  </div>
+                )}
                 <div className="text-right">
                   <p className="font-black text-lg" style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
                     {team.total_points?.toFixed(1) || "0.0"}
