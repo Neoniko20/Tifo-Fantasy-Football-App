@@ -1,18 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react"; // useCallback used in Task 4
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/app/components/ToastProvider";
 import { LEAGUE_META, ALL_LEAGUES, calcActiveLeagues } from "@/lib/league-meta";
-import tsdbLeagues from "@/lib/tsdb-leagues.json";
-
-const LEAGUE_BADGES: Record<string, string> = {
-  "78":  (tsdbLeagues as any)["78"]?.badge  || "",
-  "39":  (tsdbLeagues as any)["39"]?.badge  || "",
-  "135": (tsdbLeagues as any)["135"]?.badge || "",
-  "61":  (tsdbLeagues as any)["61"]?.badge  || "",
-  "140": (tsdbLeagues as any)["140"]?.badge || "",
-};
 
 const LIGA_PRESETS: Record<string, { label: string; start: string; count: number }> = {
   bundesliga: { label: "Bundesliga 26/27",     start: "2026-08-28", count: 34 },
@@ -423,7 +414,7 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
         // Chip done conditions
         const ligaDone = activeLgs.length >= 1;
         const importDone = isImported;
-        const waiverDone = waiverEnabled && gw.waiver_window_open === false && gw.status !== "upcoming";
+        const waiverDone = waiverEnabled && !gw.waiver_window_open && gw.status !== "upcoming";
         const processDone = isProcessed;
         const finishDone = gw.status === "finished";
 
