@@ -48,6 +48,8 @@ export async function processWaivers(leagueId: string, gameweek: number): Promis
       return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     }
     if (a.priority !== b.priority) return a.priority - b.priority;
+    // Within same team priority, use claim_order (user-defined preference queue)
+    if ((a.claim_order ?? 0) !== (b.claim_order ?? 0)) return (a.claim_order ?? 0) - (b.claim_order ?? 0);
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 
