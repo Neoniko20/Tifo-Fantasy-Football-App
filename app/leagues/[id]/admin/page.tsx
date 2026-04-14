@@ -100,6 +100,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   // Liga-Settings (erweitert)
   const [ligaSettings, setLigaSettings] = useState<any>(null);
   const [initializing, setInitializing] = useState(false);
+  const [processingWaivers, setProcessingWaivers] = useState(false);
   const [scoringRules, setScoringRules] = useState<ScoringRules>(DEFAULT_SCORING_RULES);
   const [scoringSaved, setScoringSaved] = useState(false);
   const [squadSize, setSquadSize] = useState(15);
@@ -594,6 +595,30 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     setScoringRules(DEFAULT_SCORING_RULES);
   }
 
+  async function processWaivers() {
+    setProcessingWaivers(true);
+    try {
+      const res = await fetch("/api/process-waivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leagueId }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        toast(`✅ Waivers verarbeitet: ${json.approved} genehmigt, ${json.rejected} abgelehnt`, "success");
+        // Refresh gameweeks to reflect closed window
+        const { data: gwData } = await supabase
+          .from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
+        setGameweeks(gwData || []);
+      } else {
+        toast(`Fehler: ${json.error}`, "error");
+      }
+    } catch (e: any) {
+      toast(`Fehler: ${e.message}`, "error");
+    }
+    setProcessingWaivers(false);
+  }
+
   async function toggleWaiverWindow(gwId: string, open: boolean) {
     await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
     const { data: gwData } = await supabase
@@ -973,15 +998,26 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
                 {/* Waiver Window Toggle */}
                 {ligaSettings?.waiver_enabled && (
-                  <button onClick={() => toggleWaiverWindow(gw.id, !gw.waiver_window_open)}
-                    className="w-full py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
-                    style={{
-                      background: gw.waiver_window_open ? "var(--bg-elevated)" : "var(--bg-card)",
-                      color:      gw.waiver_window_open ? "var(--color-primary)" : "var(--color-muted)",
-                      border: `1px solid ${gw.waiver_window_open ? "var(--color-primary)" : "var(--color-border)"}`,
-                    }}>
-                    Waiver {gw.waiver_window_open ? "schließen" : "öffnen"}
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => toggleWaiverWindow(gw.id, !gw.waiver_window_open)}
+                      className="flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                      style={{
+                        background: gw.waiver_window_open ? "var(--bg-elevated)" : "var(--bg-card)",
+                        color:      gw.waiver_window_open ? "var(--color-primary)" : "var(--color-muted)",
+                        border: `1px solid ${gw.waiver_window_open ? "var(--color-primary)" : "var(--color-border)"}`,
+                      }}>
+                      Waiver {gw.waiver_window_open ? "schließen" : "öffnen"}
+                    </button>
+                    <button onClick={processWaivers} disabled={processingWaivers}
+                      className="flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                      style={{
+                        background: processingWaivers ? "var(--color-border)" : "color-mix(in srgb, var(--color-primary) 20%, var(--bg-page))",
+                        color: processingWaivers ? "var(--color-muted)" : "var(--color-primary)",
+                        border: `1px solid ${processingWaivers ? "var(--color-border)" : "var(--color-primary)40"}`,
+                      }}>
+                      {processingWaivers ? "..." : "Verarbeiten ▶"}
+                    </button>
+                  </div>
                 )}
 
                 {/* Liga-Toggles */}
@@ -1669,11 +1705,18 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                     className="w-16 px-2 py-1 rounded text-xs font-black text-right"
                     style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
                 </div>
-                <button onClick={initWaiverWire} disabled={initializing}
-                  className="w-full mt-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                  style={{ background: initializing ? "var(--color-border)" : "var(--color-primary)", color: "var(--bg-page)" }}>
-                  {initializing ? "Lade Waiver Wire..." : "Waiver Wire initialisieren"}
-                </button>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={initWaiverWire} disabled={initializing}
+                    className="flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                    style={{ background: initializing ? "var(--color-border)" : "var(--bg-elevated)", color: initializing ? "var(--color-muted)" : "var(--color-text)", border: "1px solid var(--color-border)" }}>
+                    {initializing ? "Initialisiere..." : "Wire initialisieren"}
+                  </button>
+                  <button onClick={processWaivers} disabled={processingWaivers}
+                    className="flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                    style={{ background: processingWaivers ? "var(--color-border)" : "var(--color-primary)", color: "var(--bg-page)" }}>
+                    {processingWaivers ? "Verarbeite..." : "Waivers verarbeiten"}
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -32,6 +32,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
   const [allPriorities, setAllPriorities] = useState<any[]>([]);
   const [waiverWire, setWaiverWire]       = useState<Player[]>([]);
   const [myClaims, setMyClaims]           = useState<any[]>([]);
+  const [reordering, setReordering]       = useState(false);
   const [mySquad, setMySquad]             = useState<Player[]>([]);
   const [currentGW, setCurrentGW]         = useState(1);
   const [windowOpen, setWindowOpen]       = useState(false);
@@ -127,6 +128,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
     }
 
     setSubmitting(true);
+    const nextOrder = pendingClaims.length + 1;
     const { error } = await supabase.from("waiver_claims").insert({
       league_id: leagueId,
       team_id: myTeam.id,
@@ -134,6 +136,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
       player_out: playerOut || null,
       gameweek: currentGW,
       priority: myPriority || 999,
+      claim_order: nextOrder,
       bid_amount: settings?.waiver_budget_enabled ? bidAmount : 0,
       status: "pending",
     });
@@ -152,6 +155,31 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
   async function cancelClaim(claimId: string) {
     await supabase.from("waiver_claims").delete().eq("id", claimId);
+    // Renumber remaining claims
+    const remaining = pendingClaims.filter(c => c.id !== claimId);
+    for (let i = 0; i < remaining.length; i++) {
+      await supabase.from("waiver_claims").update({ claim_order: i + 1 }).eq("id", remaining[i].id);
+    }
+    loadAll(user.id);
+  }
+
+  async function moveClaim(claimId: string, direction: "up" | "down") {
+    if (reordering) return;
+    setReordering(true);
+    const sorted = [...pendingClaims].sort((a, b) => (a.claim_order ?? 0) - (b.claim_order ?? 0));
+    const idx = sorted.findIndex(c => c.id === claimId);
+    if (idx === -1) { setReordering(false); return; }
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) { setReordering(false); return; }
+
+    // Swap orders
+    const a = sorted[idx];
+    const b = sorted[swapIdx];
+    await Promise.all([
+      supabase.from("waiver_claims").update({ claim_order: b.claim_order ?? swapIdx + 1 }).eq("id", a.id),
+      supabase.from("waiver_claims").update({ claim_order: a.claim_order ?? idx + 1 }).eq("id", b.id),
+    ]);
+    setReordering(false);
     loadAll(user.id);
   }
 
@@ -161,7 +189,9 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
     return true;
   });
 
-  const pendingClaims = myClaims.filter(c => c.status === "pending");
+  const pendingClaims = myClaims
+    .filter(c => c.status === "pending")
+    .sort((a, b) => (a.claim_order ?? 0) - (b.claim_order ?? 0));
   const maxClaims = settings?.waiver_max_claims_per_gameweek || 3;
   const claimsLeft = settings?.waiver_claims_limit_enabled
     ? maxClaims - pendingClaims.length
@@ -240,17 +270,49 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
             {/* Offene Claims */}
             {pendingClaims.length > 0 && (
               <div className="w-full max-w-md mb-4">
-                <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
-                  Offene Claims ({pendingClaims.length})
-                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                    Offene Claims ({pendingClaims.length})
+                  </p>
+                  <p className="text-[8px]" style={{ color: "var(--color-border-subtle)" }}>
+                    ↕ Reihenfolge = Priorität
+                  </p>
+                </div>
                 <div className="space-y-2">
-                  {pendingClaims.map((claim: any) => {
+                  {pendingClaims.map((claim: any, idx: number) => {
                     const playerIn = waiverWire.find(p => p.id === claim.player_in);
                     const playerOutObj = mySquad.find(p => p.id === claim.player_out);
+                    const isFirst = idx === 0;
+                    const isLast = idx === pendingClaims.length - 1;
                     return (
-                      <div key={claim.id} className="flex items-center justify-between p-3 rounded-xl"
+                      <div key={claim.id} className="flex items-center gap-2 p-3 rounded-xl"
                         style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                        <div>
+                        {/* Order number */}
+                        <span className="text-base font-black w-5 text-center flex-shrink-0"
+                          style={{ color: idx === 0 ? "var(--color-primary)" : "var(--color-border)" }}>
+                          {idx + 1}
+                        </span>
+
+                        {/* Up/Down buttons */}
+                        <div className="flex flex-col gap-0.5 flex-shrink-0">
+                          <button
+                            onClick={() => moveClaim(claim.id, "up")}
+                            disabled={isFirst || reordering}
+                            className="w-5 h-5 flex items-center justify-center rounded text-[9px] disabled:opacity-20"
+                            style={{ background: "var(--bg-elevated)", color: "var(--color-text)" }}>
+                            ▲
+                          </button>
+                          <button
+                            onClick={() => moveClaim(claim.id, "down")}
+                            disabled={isLast || reordering}
+                            className="w-5 h-5 flex items-center justify-center rounded text-[9px] disabled:opacity-20"
+                            style={{ background: "var(--bg-elevated)", color: "var(--color-text)" }}>
+                            ▼
+                          </button>
+                        </div>
+
+                        {/* Claim info */}
+                        <div className="flex-1 min-w-0">
                           <p className="text-xs font-black" style={{ color: "var(--color-success)" }}>
                             + {playerIn?.name || `Spieler #${claim.player_in}`}
                           </p>
@@ -265,10 +327,11 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
                             </p>
                           )}
                         </div>
+
                         <button onClick={() => cancelClaim(claim.id)}
-                          className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase"
+                          className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase flex-shrink-0"
                           style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)" }}>
-                          Zurückziehen
+                          ✕
                         </button>
                       </div>
                     );
