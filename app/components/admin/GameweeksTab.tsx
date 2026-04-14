@@ -313,6 +313,50 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
     setProcessingWaivers(false);
   }
 
+  async function runBulkImport() {
+    if (bulkRunning || bulkSelected.size === 0) return;
+    setBulkRunning(true);
+
+    // Build ordered list (ascending GW number)
+    const toImport = [...bulkSelected].sort((a, b) => a - b);
+
+    // Initialize progress
+    const initialProgress: Record<number, "pending" | "running" | "done" | "error"> = {};
+    for (const gwNum of toImport) initialProgress[gwNum] = "pending";
+    setBulkProgress(initialProgress);
+
+    for (const gwNum of toImport) {
+      setBulkProgress(prev => ({ ...prev, [gwNum]: "running" }));
+      try {
+        const res = await fetch("/api/import-gw-stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leagueId, gameweek: gwNum }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Fehler");
+        setBulkProgress(prev => ({ ...prev, [gwNum]: "done" }));
+        setImportedGWs(prev => new Set([...prev, gwNum]));
+        await logAdminAction(leagueId, userId, "gw_imported", gwNum, {
+          api_calls_used: json.apiCallsUsed,
+          players_imported: json.playersImported,
+        });
+      } catch (e: any) {
+        setBulkProgress(prev => ({ ...prev, [gwNum]: "error" }));
+        await logAdminAction(leagueId, userId, "gw_import_failed", gwNum, { error: e.message });
+      }
+    }
+
+    setBulkRunning(false);
+    loadAuditLog();
+    // Refresh import status
+    const { data: importedData } = await supabase
+      .from("liga_gameweek_points")
+      .select("gameweek")
+      .eq("league_id", leagueId);
+    setImportedGWs(new Set((importedData || []).map((r: any) => r.gameweek)));
+  }
+
   return (
     <div className="w-full max-w-xl space-y-3">
 
@@ -400,7 +444,154 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
         </button>
       </div>
 
-      {/* Bulk Import placeholder — implemented in Task 5 */}
+      {/* Bulk Import ("Aufholen") */}
+      {(() => {
+        const unimportedGWs = gameweeks.filter(g => !importedGWs.has(g.gameweek));
+        const allImported = unimportedGWs.length === 0 && gameweeks.length > 0;
+
+        if (allImported) {
+          return (
+            <div className="rounded-xl px-4 py-3 flex items-center gap-2"
+              style={{ background: "color-mix(in srgb, var(--color-success) 8%, var(--bg-page))", border: "1px solid var(--color-success)" }}>
+              <span className="text-[8px] font-black" style={{ color: "var(--color-success)" }}>
+                ✅ Alle GWs aktuell
+              </span>
+            </div>
+          );
+        }
+
+        if (gameweeks.length === 0) return null;
+
+        return (
+          <div className="rounded-xl overflow-hidden"
+            style={{ border: "1px solid var(--color-border)" }}>
+
+            {/* Collapsible header */}
+            <button
+              onClick={() => setBulkExpanded(v => !v)}
+              className="w-full px-4 py-3 flex items-center justify-between"
+              style={{ background: "var(--bg-card)" }}>
+              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
+                ▶ Vergangene GWs nachholen
+              </span>
+              <span className="text-[8px] font-black"
+                style={{ background: "var(--color-primary)", color: "var(--bg-page)", borderRadius: "999px", padding: "1px 6px" }}>
+                {unimportedGWs.length} GWs ohne Import
+              </span>
+            </button>
+
+            {bulkExpanded && (
+              <div className="px-4 pb-4" style={{ background: "var(--bg-card)" }}>
+
+                {/* Select all toggle */}
+                <div className="flex items-center justify-between py-2 mb-1"
+                  style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <label className="flex items-center gap-2 cursor-pointer text-[8px] font-black uppercase"
+                    style={{ color: "var(--color-muted)" }}>
+                    <input type="checkbox"
+                      checked={bulkSelected.size === gameweeks.length}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setBulkSelected(new Set(gameweeks.map((g: any) => g.gameweek)));
+                        } else {
+                          setBulkSelected(new Set(unimportedGWs.map((g: any) => g.gameweek)));
+                        }
+                      }}
+                    />
+                    Alle auswählen
+                  </label>
+                </div>
+
+                {/* GW checkboxes */}
+                <div className="space-y-1 mt-2 max-h-64 overflow-y-auto">
+                  {gameweeks.map(gw => {
+                    const isAlreadyImported = importedGWs.has(gw.gameweek);
+                    const isChecked = bulkSelected.has(gw.gameweek);
+                    const progress = bulkProgress[gw.gameweek];
+                    return (
+                      <label key={gw.gameweek}
+                        className="flex items-center justify-between gap-2 py-1.5 cursor-pointer"
+                        style={{ opacity: isAlreadyImported && !isChecked ? 0.5 : 1 }}>
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox"
+                            checked={isChecked}
+                            onChange={e => {
+                              const next = new Set(bulkSelected);
+                              if (e.target.checked) next.add(gw.gameweek);
+                              else next.delete(gw.gameweek);
+                              setBulkSelected(next);
+                            }}
+                          />
+                          <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
+                            GW{gw.gameweek} · {gw.label}
+                          </span>
+                          {gw.start_date && (
+                            <span className="text-[7px]" style={{ color: "var(--color-muted)" }}>
+                              ({gw.start_date})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {isAlreadyImported && !progress && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>
+                              bereits importiert ↺ neu?
+                            </span>
+                          )}
+                          {!isAlreadyImported && !progress && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-error)" }}>
+                              kein Import
+                            </span>
+                          )}
+                          {progress === "running" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-primary)" }}>
+                              ⏳ läuft...
+                            </span>
+                          )}
+                          {progress === "done" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-success)" }}>
+                              ✓ importiert
+                            </span>
+                          )}
+                          {progress === "error" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-error)" }}>
+                              ✗ Fehler
+                            </span>
+                          )}
+                          {progress === "pending" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>
+                              ○ ausstehend
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* Action button */}
+                {!bulkRunning && (
+                  <button
+                    onClick={runBulkImport}
+                    disabled={bulkSelected.size === 0}
+                    className="w-full mt-3 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
+                    style={{
+                      background: "var(--color-primary)",
+                      color: "var(--bg-page)",
+                    }}>
+                    Ausgewählte importieren ({bulkSelected.size})
+                  </button>
+                )}
+                {bulkRunning && (
+                  <div className="mt-3 py-2 text-center text-[9px] font-black"
+                    style={{ color: "var(--color-primary)" }}>
+                    ⏳ Import läuft — bitte nicht schließen...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* GW list */}
       {gameweeks.map(gw => {
