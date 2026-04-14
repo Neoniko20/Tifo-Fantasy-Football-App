@@ -221,7 +221,8 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
   }
 
   async function updateGWStatus(gwId: string, status: string, gwNum?: number) {
-    await supabase.from("liga_gameweeks").update({ status }).eq("id", gwId);
+    const { error } = await supabase.from("liga_gameweeks").update({ status }).eq("id", gwId);
+    if (error) { toast("Fehler: " + error.message, "error"); return; }
     setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, status } : g));
     if (gwNum !== undefined) {
       const action =
@@ -240,7 +241,8 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
     const updated = current.includes(leagueKey)
       ? current.filter((l: string) => l !== leagueKey)
       : [...current, leagueKey];
-    await supabase.from("liga_gameweeks").update({ [field]: updated }).eq("id", gwId);
+    const { error } = await supabase.from("liga_gameweeks").update({ [field]: updated }).eq("id", gwId);
+    if (error) { toast("Fehler: " + error.message, "error"); return; }
     setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, [field]: updated } : g));
   }
 
@@ -273,7 +275,8 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
   }
 
   async function toggleWaiverWindow(gwId: string, open: boolean) {
-    await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
+    const { error } = await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
+    if (error) { toast("Fehler: " + error.message, "error"); return; }
     setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, waiver_window_open: open } : g));
   }
 
