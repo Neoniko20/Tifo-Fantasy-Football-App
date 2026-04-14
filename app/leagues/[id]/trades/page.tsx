@@ -12,6 +12,7 @@ import {
   markLeagueKindAsRead,
 } from "@/lib/notifications";
 import { useToast } from "@/app/components/ToastProvider";
+import { PlayerCard } from "@/app/components/PlayerCard";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
@@ -70,14 +71,16 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
     }
 
     // Load all players across all teams for name lookups in trade history
-    const { data: allPicks } = await supabase
-      .from("draft_picks")
-      .select("player_id, players(id, name)")
-      .in("team_id", (teamsData || []).map((t: any) => t.id));
+    // Check both draft_picks and squad_players
+    const teamIds = (teamsData || []).map((t: any) => t.id);
+    const [{ data: allPicks }, { data: allSquad }] = await Promise.all([
+      supabase.from("draft_picks").select("player_id, players(id, name)").in("team_id", teamIds),
+      supabase.from("squad_players").select("player_id, players(id, name)").in("team_id", teamIds),
+    ]);
     const lookup: Record<number, string> = {};
-    (allPicks || []).forEach((p: any) => {
-      if (p.players) lookup[p.players.id] = p.players.name;
-    });
+    for (const p of [...(allPicks || []), ...(allSquad || [])]) {
+      if ((p as any).players) lookup[(p as any).players.id] = (p as any).players.name;
+    }
     setAllPlayers(lookup);
 
     await loadTrades(userId);
@@ -85,6 +88,15 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
   }
 
   async function loadSquad(teamId: string) {
+    // squad_players is the post-draft source of truth (waiver claims write here)
+    const { data: sqRows } = await supabase
+      .from("squad_players")
+      .select("player_id, players(id, name, photo_url, position, team_name, fpts)")
+      .eq("team_id", teamId);
+    if (sqRows && sqRows.length > 0) {
+      return sqRows.map((p: any) => p.players).filter(Boolean);
+    }
+    // Fall back to draft_picks for leagues that haven't processed waivers yet
     const { data: picks } = await supabase
       .from("draft_picks")
       .select("player_id, players(id, name, photo_url, position, team_name, fpts)")
@@ -141,25 +153,38 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
     setSending(false);
   }
 
+  /** Move a single player from one team to another, checking squad_players then draft_picks. */
+  async function movePlayer(playerId: number, fromTeamId: string, toTeamId: string) {
+    // Try squad_players first
+    const { data: sqRow } = await supabase
+      .from("squad_players")
+      .select("id")
+      .eq("team_id", fromTeamId)
+      .eq("player_id", playerId)
+      .maybeSingle();
+    if (sqRow) {
+      await supabase.from("squad_players").update({ team_id: toTeamId }).eq("id", sqRow.id);
+      return;
+    }
+    // Fall back to draft_picks
+    await supabase.from("draft_picks")
+      .update({ team_id: toTeamId })
+      .eq("team_id", fromTeamId)
+      .eq("player_id", playerId);
+  }
+
   async function respondTrade(tradeId: string, accept: boolean) {
     if (accept) {
-      // Spieler tauschen
       const trade = trades.find(t => t.id === tradeId);
       if (!trade) return;
 
-      // Offer-Spieler: vom proposer zum receiver
+      // Offer-Spieler: proposer → receiver
       for (const pid of (trade.offer_player_ids || [])) {
-        await supabase.from("draft_picks")
-          .update({ team_id: trade.receiver_team_id })
-          .eq("team_id", trade.proposer_team_id)
-          .eq("player_id", pid);
+        await movePlayer(pid, trade.proposer_team_id, trade.receiver_team_id);
       }
-      // Request-Spieler: vom receiver zum proposer
+      // Request-Spieler: receiver → proposer
       for (const pid of (trade.request_player_ids || [])) {
-        await supabase.from("draft_picks")
-          .update({ team_id: trade.proposer_team_id })
-          .eq("team_id", trade.receiver_team_id)
-          .eq("player_id", pid);
+        await movePlayer(pid, trade.receiver_team_id, trade.proposer_team_id);
       }
     }
 
@@ -203,6 +228,28 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
 
   function toggleId(list: number[], setList: (v: number[]) => void, id: number) {
     setList(list.includes(id) ? list.filter(x => x !== id) : [...list, id]);
+  }
+
+  async function startCounterOffer(trade: any) {
+    // Cancel the original trade
+    await supabase.from("liga_trades")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("id", trade.id);
+
+    const proposerUserId = trade.proposer?.user_id;
+    if (proposerUserId && myTeam) {
+      await createTradeCancelled({ tradeId: trade.id, leagueId, receiverUserId: proposerUserId, proposerTeamName: myTeam.name });
+    }
+
+    // Pre-fill propose tab with swapped players and target team
+    setTargetTeamId(trade.proposer_team_id);
+    // offer = what the original proposer wanted from us (request_player_ids)
+    setOfferIds(trade.request_player_ids || []);
+    // request = what the original proposer offered us (offer_player_ids)
+    setRequestIds(trade.offer_player_ids || []);
+    setTab("propose");
+    await loadTrades(user.id);
+    toast("Gegenangebot vorbereitet — passe die Spieler an und sende ab.", "success");
   }
 
   if (loading) return (
@@ -300,6 +347,11 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
                   style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))", color: "var(--color-error)" }}>
                   Ablehnen
                 </button>
+                <button onClick={() => startCounterOffer(t)}
+                  className="flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase"
+                  style={{ background: "color-mix(in srgb, var(--color-info) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-info) 30%, var(--bg-page))", color: "var(--color-info)" }}>
+                  Gegenangebot
+                </button>
                 <button onClick={() => respondTrade(t.id, true)}
                   className="flex-1 py-2.5 rounded-xl text-[9px] font-black uppercase"
                   style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid var(--color-success)", color: "var(--color-success)" }}>
@@ -341,26 +393,32 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
                 <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-error)" }}>
                   Ich biete an ({offerIds.length})
                 </p>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {mySquad.map((p: any) => (
-                    <button key={p.id} onClick={() => toggleId(offerIds, setOfferIds, p.id)}
-                      className="w-full flex items-center gap-2 p-2.5 rounded-xl text-left transition-all"
-                      style={{
-                        background: offerIds.includes(p.id) ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "var(--bg-page)",
-                        border: `1px solid ${offerIds.includes(p.id) ? "var(--color-error)" : "var(--color-border)"}`,
-                      }}>
-                      <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
-                        style={{ background: POS_COLOR[p.position] + "20", color: POS_COLOR[p.position] }}>
-                        {p.position}
-                      </span>
-                      <span className="flex-1 text-xs font-black" style={{ color: offerIds.includes(p.id) ? "var(--color-error)" : "var(--color-text)" }}>
-                        {p.name}
-                      </span>
-                      <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>
-                        {p.fpts?.toFixed(0)} pts
-                      </span>
-                    </button>
-                  ))}
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {mySquad.map((p: any) => {
+                    const sel = offerIds.includes(p.id);
+                    const posColor = POS_COLOR[p.position] || "var(--color-text)";
+                    return (
+                      <button key={p.id} onClick={() => toggleId(offerIds, setOfferIds, p.id)}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all"
+                        style={{
+                          background: sel ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "var(--bg-page)",
+                          border: `1px solid ${sel ? "var(--color-error)" : "var(--color-border)"}`,
+                        }}>
+                        <PlayerCard player={p} posColor={posColor} size={32} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black truncate" style={{ color: sel ? "var(--color-error)" : "var(--color-text)" }}>
+                            {p.name}
+                          </p>
+                          <p className="text-[8px]" style={{ color: "var(--color-muted)" }}>{p.team_name}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-[9px] font-black" style={{ color: posColor }}>{p.fpts?.toFixed(0)}</p>
+                          <p className="text-[7px] font-black uppercase" style={{ color: posColor }}>{p.position}</p>
+                        </div>
+                        {sel && <span className="text-[10px] flex-shrink-0" style={{ color: "var(--color-error)" }}>✓</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -370,30 +428,34 @@ export default function TradesPage({ params }: { params: Promise<{ id: string }>
                   Ich möchte ({requestIds.length})
                 </p>
                 {targetSquad.length === 0 ? (
-                  <p className="text-[9px] py-4 text-center font-black uppercase" style={{ color: "var(--color-border)" }}>
-                    Kader wird geladen...
-                  </p>
+                  <Spinner text="Lade Kader..." />
                 ) : (
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {targetSquad.map((p: any) => (
-                      <button key={p.id} onClick={() => toggleId(requestIds, setRequestIds, p.id)}
-                        className="w-full flex items-center gap-2 p-2.5 rounded-xl text-left transition-all"
-                        style={{
-                          background: requestIds.includes(p.id) ? "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))" : "var(--bg-page)",
-                          border: `1px solid ${requestIds.includes(p.id) ? "var(--color-success)" : "var(--color-border)"}`,
-                        }}>
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
-                          style={{ background: POS_COLOR[p.position] + "20", color: POS_COLOR[p.position] }}>
-                          {p.position}
-                        </span>
-                        <span className="flex-1 text-xs font-black" style={{ color: requestIds.includes(p.id) ? "var(--color-success)" : "var(--color-text)" }}>
-                          {p.name}
-                        </span>
-                        <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>
-                          {p.fpts?.toFixed(0)} pts
-                        </span>
-                      </button>
-                    ))}
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                    {targetSquad.map((p: any) => {
+                      const sel = requestIds.includes(p.id);
+                      const posColor = POS_COLOR[p.position] || "var(--color-text)";
+                      return (
+                        <button key={p.id} onClick={() => toggleId(requestIds, setRequestIds, p.id)}
+                          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-left transition-all"
+                          style={{
+                            background: sel ? "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))" : "var(--bg-page)",
+                            border: `1px solid ${sel ? "var(--color-success)" : "var(--color-border)"}`,
+                          }}>
+                          <PlayerCard player={p} posColor={posColor} size={32} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black truncate" style={{ color: sel ? "var(--color-success)" : "var(--color-text)" }}>
+                              {p.name}
+                            </p>
+                            <p className="text-[8px]" style={{ color: "var(--color-muted)" }}>{p.team_name}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-[9px] font-black" style={{ color: posColor }}>{p.fpts?.toFixed(0)}</p>
+                            <p className="text-[7px] font-black uppercase" style={{ color: posColor }}>{p.position}</p>
+                          </div>
+                          {sel && <span className="text-[10px] flex-shrink-0" style={{ color: "var(--color-success)" }}>✓</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>
