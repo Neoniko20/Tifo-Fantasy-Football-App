@@ -1,9 +1,47 @@
+# Admin GameweeksTab Refactor Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Extract the Gameweeks tab from `app/leagues/[id]/admin/page.tsx` into a self-contained `GameweeksTab` component with an inline 5-step stepper per GW row and a collapsible Bulk Import ("Aufholen") section.
+
+**Architecture:** `GameweeksTab` is a self-contained component that fetches its own data (liga_gameweeks, liga_gameweek_points for import status, waiver_claims for processing status, liga_settings for waiver_enabled). The parent `admin/page.tsx` passes `leagueId`, `userId`, and `onGWSelect` (callback so the Points tab can still react to the active GW). All GW state and functions live inside the component.
+
+**Tech Stack:** Next.js 16 App Router, React 19, Supabase JS v2, Tailwind v4 (CSS custom properties via `var(--token)`), TypeScript — no test framework (validate with `npx tsc --noEmit`).
+
+---
+
+## File Structure
+
+| File | Action | Responsibility |
+|---|---|---|
+| `app/components/admin/GameweeksTab.tsx` | **Create** | All GW state, functions, stepper UI, bulk import |
+| `app/leagues/[id]/admin/page.tsx` | **Modify** | Remove extracted state/functions/UI, render `<GameweeksTab>`, pass `onGWSelect` |
+
+---
+
+### Task 1: Create `GameweeksTab.tsx` skeleton with data loading
+
+**Files:**
+- Create: `app/components/admin/GameweeksTab.tsx`
+
+- [ ] **Step 1: Create the file with imports and props interface**
+
+```tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "@/app/components/ToastProvider";
 import { LEAGUE_META, ALL_LEAGUES, calcActiveLeagues } from "@/lib/league-meta";
+import tsdbLeagues from "@/lib/tsdb-leagues.json";
+
+const LEAGUE_BADGES: Record<string, string> = {
+  "78":  (tsdbLeagues as any)["78"]?.badge  || "",
+  "39":  (tsdbLeagues as any)["39"]?.badge  || "",
+  "135": (tsdbLeagues as any)["135"]?.badge || "",
+  "61":  (tsdbLeagues as any)["61"]?.badge  || "",
+  "140": (tsdbLeagues as any)["140"]?.badge || "",
+};
 
 const LIGA_PRESETS: Record<string, { label: string; start: string; count: number }> = {
   bundesliga: { label: "Bundesliga 26/27",     start: "2026-08-28", count: 34 },
@@ -52,10 +90,9 @@ export interface GameweeksTabProps {
   leagueId: string;
   userId: string;
   onGWSelect?: (gwNum: number) => void;
-  onGameweeksChange?: (gameweeks: any[]) => void;
 }
 
-export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }: GameweeksTabProps) {
+export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps) {
   const { toast } = useToast();
 
   // GW list + form state
@@ -99,23 +136,6 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
     loadData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId]);
-
-  useEffect(() => {
-    onGameweeksChange?.(gameweeks);
-  }, [gameweeks, onGameweeksChange]);
-
-  // Close league picker on outside click
-  useEffect(() => {
-    if (!expandedLeaguePicker) return;
-    function handleClick(e: MouseEvent) {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-gw-card]")) {
-        setExpandedLeaguePicker(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [expandedLeaguePicker]);
 
   async function loadData() {
     // Load gameweeks
@@ -174,6 +194,44 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
     setAuditLog(data || []);
   }
 
+  return (
+    <div className="w-full max-w-xl space-y-3">
+      <p className="text-center text-sm font-black py-4" style={{ color: "var(--color-muted)" }}>
+        Lädt…
+      </p>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Verify TypeScript compiles**
+
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -30
+```
+
+Expected: no errors (or only pre-existing errors unrelated to this file).
+
+- [ ] **Step 3: Commit skeleton**
+
+```bash
+cd /Users/nikoko/my-fantasy-app
+git add app/components/admin/GameweeksTab.tsx
+git commit -m "feat: add GameweeksTab skeleton with data loading"
+```
+
+---
+
+### Task 2: Implement GW management functions in `GameweeksTab`
+
+**Files:**
+- Modify: `app/components/admin/GameweeksTab.tsx`
+
+- [ ] **Step 1: Add all GW management functions inside the component (before the `return` statement)**
+
+Replace the placeholder `return` block with the full functions first. Add these functions after `loadAuditLog`:
+
+```tsx
   async function createGameweek() {
     if (!newGWLabel.trim()) { toast("Label eingeben", "error"); return; }
     const { error } = await supabase.from("liga_gameweeks").insert({
@@ -230,8 +288,7 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
   }
 
   async function updateGWStatus(gwId: string, status: string, gwNum?: number) {
-    const { error } = await supabase.from("liga_gameweeks").update({ status }).eq("id", gwId);
-    if (error) { toast("Fehler: " + error.message, "error"); return; }
+    await supabase.from("liga_gameweeks").update({ status }).eq("id", gwId);
     setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, status } : g));
     if (gwNum !== undefined) {
       const action =
@@ -250,8 +307,7 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
     const updated = current.includes(leagueKey)
       ? current.filter((l: string) => l !== leagueKey)
       : [...current, leagueKey];
-    const { error } = await supabase.from("liga_gameweeks").update({ [field]: updated }).eq("id", gwId);
-    if (error) { toast("Fehler: " + error.message, "error"); return; }
+    await supabase.from("liga_gameweeks").update({ [field]: updated }).eq("id", gwId);
     setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, [field]: updated } : g));
   }
 
@@ -284,8 +340,7 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
   }
 
   async function toggleWaiverWindow(gwId: string, open: boolean) {
-    const { error } = await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
-    if (error) { toast("Fehler: " + error.message, "error"); return; }
+    await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
     setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, waiver_window_open: open } : g));
   }
 
@@ -317,55 +372,36 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
     }
     setProcessingWaivers(false);
   }
+```
 
-  async function runBulkImport() {
-    if (bulkRunning || bulkSelected.size === 0) return;
-    setBulkRunning(true);
+- [ ] **Step 2: Run TypeScript check**
 
-    // Build ordered list (ascending GW number)
-    const toImport = [...bulkSelected].sort((a, b) => a - b);
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -30
+```
 
-    // Clear previous run's progress, then initialize new
-    setBulkProgress({});
-    const initialProgress: Record<number, "pending" | "running" | "done" | "error"> = {};
-    for (const gwNum of toImport) initialProgress[gwNum] = "pending";
-    setBulkProgress(initialProgress);
+Expected: no new errors.
 
-    for (const gwNum of toImport) {
-      setBulkProgress(prev => ({ ...prev, [gwNum]: "running" }));
-      try {
-        const res = await fetch("/api/import-gw-stats", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ leagueId, gameweek: gwNum }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Fehler");
-        setBulkProgress(prev => ({ ...prev, [gwNum]: "done" }));
-        setImportedGWs(prev => new Set([...prev, gwNum]));
-        await logAdminAction(leagueId, userId, "gw_imported", gwNum, {
-          api_calls_used: json.apiCallsUsed,
-          players_imported: json.playersImported,
-        });
-      } catch (e: any) {
-        setBulkProgress(prev => ({ ...prev, [gwNum]: "error" }));
-        await logAdminAction(leagueId, userId, "gw_import_failed", gwNum, { error: e.message });
-      }
-    }
+- [ ] **Step 3: Commit**
 
-    setBulkRunning(false);
-    loadAuditLog();
-    // Refresh import status
-    const { data: importedData } = await supabase
-      .from("liga_gameweek_points")
-      .select("gameweek")
-      .eq("league_id", leagueId);
-    const refreshed = new Set<number>((importedData || []).map((r: any) => r.gameweek));
-    setImportedGWs(refreshed);
-    // Reset selection to only remaining unimported GWs
-    setBulkSelected(new Set([...gameweeks.map((g: any) => g.gameweek)].filter(n => !refreshed.has(n))));
-  }
+```bash
+cd /Users/nikoko/my-fantasy-app
+git add app/components/admin/GameweeksTab.tsx
+git commit -m "feat: add GW management functions to GameweeksTab"
+```
 
+---
+
+### Task 3: Implement Auto-Generate + New GW form UI in `GameweeksTab`
+
+**Files:**
+- Modify: `app/components/admin/GameweeksTab.tsx`
+
+- [ ] **Step 1: Replace the placeholder return block with the full UI**
+
+Replace the current `return (...)` with:
+
+```tsx
   return (
     <div className="w-full max-w-xl space-y-3">
 
@@ -453,159 +489,64 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
         </button>
       </div>
 
-      {/* Bulk Import ("Aufholen") */}
-      {(() => {
-        const unimportedGWs = gameweeks.filter(g => !importedGWs.has(g.gameweek));
-        const allImported = unimportedGWs.length === 0 && gameweeks.length > 0;
+      {/* Bulk Import placeholder — implemented in Task 5 */}
 
-        if (allImported) {
-          return (
-            <div className="rounded-xl px-4 py-3 flex items-center gap-2"
-              style={{ background: "color-mix(in srgb, var(--color-success) 8%, var(--bg-page))", border: "1px solid var(--color-success)" }}>
-              <span className="text-[8px] font-black" style={{ color: "var(--color-success)" }}>
-                ✅ Alle GWs aktuell
-              </span>
-            </div>
-          );
-        }
+      {/* GW list placeholder — implemented in Task 4 */}
+      {gameweeks.length === 0 && (
+        <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
+          Noch keine Spieltage
+        </p>
+      )}
 
-        if (gameweeks.length === 0) return null;
+      {importResult && (
+        <div className="rounded-xl p-4 text-center"
+          style={{
+            background: importResult.startsWith("Fehler") ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
+            border: `1px solid ${importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)"}`,
+          }}>
+          <p className="text-sm font-black"
+            style={{ color: importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)" }}>
+            {importResult}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+```
 
-        return (
-          <div className="rounded-xl overflow-hidden"
-            style={{ border: "1px solid var(--color-border)" }}>
+- [ ] **Step 2: Verify TypeScript**
 
-            {/* Collapsible header */}
-            <button
-              onClick={() => setBulkExpanded(v => !v)}
-              className="w-full px-4 py-3 flex items-center justify-between"
-              style={{ background: "var(--bg-card)" }}>
-              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
-                ▶ Vergangene GWs nachholen
-              </span>
-              <span className="text-[8px] font-black"
-                style={{ background: "var(--color-primary)", color: "var(--bg-page)", borderRadius: "999px", padding: "1px 6px" }}>
-                {unimportedGWs.length} GWs ohne Import
-              </span>
-            </button>
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -30
+```
 
-            {bulkExpanded && (
-              <div className="px-4 pb-4" style={{ background: "var(--bg-card)" }}>
+Expected: no new errors.
 
-                {/* Select all toggle */}
-                <div className="flex items-center justify-between py-2 mb-1"
-                  style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <label className="flex items-center gap-2 cursor-pointer text-[8px] font-black uppercase"
-                    style={{ color: "var(--color-muted)" }}>
-                    <input type="checkbox"
-                      checked={bulkSelected.size === gameweeks.length}
-                      disabled={bulkRunning}
-                      onChange={e => {
-                        if (e.target.checked) {
-                          setBulkSelected(new Set(gameweeks.map((g: any) => g.gameweek)));
-                        } else {
-                          setBulkSelected(new Set());
-                        }
-                      }}
-                    />
-                    Alle / Keine
-                  </label>
-                </div>
+- [ ] **Step 3: Commit**
 
-                {/* GW checkboxes */}
-                <div className="space-y-1 mt-2 max-h-64 overflow-y-auto">
-                  {gameweeks.map(gw => {
-                    const isAlreadyImported = importedGWs.has(gw.gameweek);
-                    const isChecked = bulkSelected.has(gw.gameweek);
-                    const progress = bulkProgress[gw.gameweek];
-                    return (
-                      <label key={gw.gameweek}
-                        className="flex items-center justify-between gap-2 py-1.5 cursor-pointer"
-                        style={{ opacity: isAlreadyImported && !isChecked ? 0.5 : 1 }}>
-                        <div className="flex items-center gap-2">
-                          <input type="checkbox"
-                            checked={isChecked}
-                            disabled={bulkRunning}
-                            onChange={e => {
-                              setBulkSelected(prev => {
-                                const next = new Set(prev);
-                                if (e.target.checked) next.add(gw.gameweek);
-                                else next.delete(gw.gameweek);
-                                return next;
-                              });
-                            }}
-                          />
-                          <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
-                            GW{gw.gameweek} · {gw.label}
-                          </span>
-                          {gw.start_date && (
-                            <span className="text-[7px]" style={{ color: "var(--color-muted)" }}>
-                              ({gw.start_date})
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {isAlreadyImported && !progress && (
-                            <span className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>
-                              bereits importiert ↺ neu?
-                            </span>
-                          )}
-                          {!isAlreadyImported && !progress && (
-                            <span className="text-[7px] font-black" style={{ color: "var(--color-error)" }}>
-                              kein Import
-                            </span>
-                          )}
-                          {progress === "running" && (
-                            <span className="text-[7px] font-black" style={{ color: "var(--color-primary)" }}>
-                              ⏳ läuft...
-                            </span>
-                          )}
-                          {progress === "done" && (
-                            <span className="text-[7px] font-black" style={{ color: "var(--color-success)" }}>
-                              ✓ importiert
-                            </span>
-                          )}
-                          {progress === "error" && (
-                            <span className="text-[7px] font-black" style={{ color: "var(--color-error)" }}>
-                              ✗ Fehler
-                            </span>
-                          )}
-                          {progress === "pending" && (
-                            <span className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>
-                              ○ ausstehend
-                            </span>
-                          )}
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
+```bash
+cd /Users/nikoko/my-fantasy-app
+git add app/components/admin/GameweeksTab.tsx
+git commit -m "feat: add auto-generate and new GW form UI to GameweeksTab"
+```
 
-                {/* Action button */}
-                {!bulkRunning && (
-                  <button
-                    onClick={runBulkImport}
-                    disabled={bulkSelected.size === 0}
-                    className="w-full mt-3 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
-                    style={{
-                      background: "var(--color-primary)",
-                      color: "var(--bg-page)",
-                    }}>
-                    Ausgewählte importieren ({bulkSelected.size})
-                  </button>
-                )}
-                {bulkRunning && (
-                  <div className="mt-3 py-2 text-center text-[9px] font-black"
-                    style={{ color: "var(--color-primary)" }}>
-                    ⏳ Import läuft — bitte nicht schließen...
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })()}
+---
 
+### Task 4: Implement the 5-step inline stepper per GW row
+
+**Files:**
+- Modify: `app/components/admin/GameweeksTab.tsx`
+
+This is the core visual feature. Each GW card shows:
+- **Top row:** GW number + label + date range + 3 status toggle buttons
+- **Bottom row:** 5 action chips (Ligen, Import, Waiver, Verarbeiten, Fertig)
+- **League picker:** expands inline below the Ligen chip when clicked
+
+- [ ] **Step 1: Replace the GW list placeholder comment with the full stepper UI**
+
+Find the comment `{/* GW list placeholder — implemented in Task 4 */}` and replace it (plus the `gameweeks.length === 0` block) with:
+
+```tsx
       {/* GW list */}
       {gameweeks.map(gw => {
         const activeLgs: string[] = gw.active_leagues || [];
@@ -618,12 +559,12 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
         // Chip done conditions
         const ligaDone = activeLgs.length >= 1;
         const importDone = isImported;
-        const waiverDone = waiverEnabled && !gw.waiver_window_open && gw.status !== "upcoming";
+        const waiverDone = waiverEnabled && gw.waiver_window_open === false && gw.status !== "upcoming";
         const processDone = isProcessed;
         const finishDone = gw.status === "finished";
 
         return (
-          <div key={gw.id} className="rounded-xl overflow-hidden" data-gw-card=""
+          <div key={gw.id} className="rounded-xl overflow-hidden"
             style={{ border: `1px solid ${gw.status === "active" ? "var(--color-primary)" : "var(--color-border)"}` }}>
 
             {/* Top: identity + status toggles */}
@@ -815,7 +756,38 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
           Noch keine Spieltage
         </p>
       )}
+```
 
+- [ ] **Step 2: Add click-outside handler to close league picker**
+
+Add this `useEffect` after the existing `useEffect` (the one that calls `loadData`):
+
+```tsx
+  // Close league picker on outside click
+  useEffect(() => {
+    if (!expandedLeaguePicker) return;
+    function handleClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-gw-card]")) {
+        setExpandedLeaguePicker(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [expandedLeaguePicker]);
+```
+
+Then add `data-gw-card=""` attribute to each GW card's outer `<div>`. Find the `<div key={gw.id} className="rounded-xl overflow-hidden"` and add the attribute:
+
+```tsx
+            <div key={gw.id} className="rounded-xl overflow-hidden" data-gw-card=""
+```
+
+- [ ] **Step 3: Add Audit Log section (carried over from original)**
+
+After the `{gameweeks.length === 0 && ...}` block, add:
+
+```tsx
       {/* AUDIT LOG (collapsible) */}
       <div className="rounded-xl p-4" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
         <button
@@ -868,19 +840,442 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
           </div>
         )}
       </div>
+```
 
-      {importResult && (
-        <div className="rounded-xl p-4 text-center"
-          style={{
-            background: importResult.startsWith("Fehler") ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
-            border: `1px solid ${importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)"}`,
-          }}>
-          <p className="text-sm font-black"
-            style={{ color: importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)" }}>
-            {importResult}
-          </p>
-        </div>
+- [ ] **Step 4: Verify TypeScript**
+
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -30
+```
+
+Expected: no new errors.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /Users/nikoko/my-fantasy-app
+git add app/components/admin/GameweeksTab.tsx
+git commit -m "feat: implement 5-step inline stepper and audit log in GameweeksTab"
+```
+
+---
+
+### Task 5: Implement Bulk Import ("Aufholen") section
+
+**Files:**
+- Modify: `app/components/admin/GameweeksTab.tsx`
+
+The Bulk Import section sits at the top of the GW list area. It is:
+- Hidden when all GWs are imported
+- Shows `✅ Alle GWs aktuell` (collapsed, no expand) when complete
+- Otherwise: collapsible header with count of unimported GWs
+- When expanded: checkbox list of GWs, with unimported pre-selected and imported ones optionally selectable for re-import
+- Progress shown inline after clicking "Importieren"
+
+- [ ] **Step 1: Add the `runBulkImport` function (before the `return` statement)**
+
+```tsx
+  async function runBulkImport() {
+    if (bulkRunning || bulkSelected.size === 0) return;
+    setBulkRunning(true);
+
+    // Build ordered list (ascending GW number)
+    const toImport = [...bulkSelected].sort((a, b) => a - b);
+
+    // Initialize progress
+    const initialProgress: Record<number, "pending" | "running" | "done" | "error"> = {};
+    for (const gwNum of toImport) initialProgress[gwNum] = "pending";
+    setBulkProgress(initialProgress);
+
+    for (const gwNum of toImport) {
+      setBulkProgress(prev => ({ ...prev, [gwNum]: "running" }));
+      try {
+        const res = await fetch("/api/import-gw-stats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leagueId, gameweek: gwNum }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Fehler");
+        setBulkProgress(prev => ({ ...prev, [gwNum]: "done" }));
+        setImportedGWs(prev => new Set([...prev, gwNum]));
+        await logAdminAction(leagueId, userId, "gw_imported", gwNum, {
+          api_calls_used: json.apiCallsUsed,
+          players_imported: json.playersImported,
+        });
+      } catch (e: any) {
+        setBulkProgress(prev => ({ ...prev, [gwNum]: "error" }));
+        await logAdminAction(leagueId, userId, "gw_import_failed", gwNum, { error: e.message });
+      }
+    }
+
+    setBulkRunning(false);
+    loadAuditLog();
+    // Refresh import status
+    const { data: importedData } = await supabase
+      .from("liga_gameweek_points")
+      .select("gameweek")
+      .eq("league_id", leagueId);
+    setImportedGWs(new Set((importedData || []).map((r: any) => r.gameweek)));
+  }
+```
+
+- [ ] **Step 2: Replace the `{/* Bulk Import placeholder */}` comment with the full Bulk Import UI**
+
+Find the comment `{/* Bulk Import placeholder — implemented in Task 5 */}` and replace it with:
+
+```tsx
+      {/* Bulk Import ("Aufholen") */}
+      {(() => {
+        const unimportedGWs = gameweeks.filter(g => !importedGWs.has(g.gameweek));
+        const allImported = unimportedGWs.length === 0 && gameweeks.length > 0;
+
+        if (allImported) {
+          return (
+            <div className="rounded-xl px-4 py-3 flex items-center gap-2"
+              style={{ background: "color-mix(in srgb, var(--color-success) 8%, var(--bg-page))", border: "1px solid var(--color-success)" }}>
+              <span className="text-[8px] font-black" style={{ color: "var(--color-success)" }}>
+                ✅ Alle GWs aktuell
+              </span>
+            </div>
+          );
+        }
+
+        if (gameweeks.length === 0) return null;
+
+        return (
+          <div className="rounded-xl overflow-hidden"
+            style={{ border: "1px solid var(--color-border)" }}>
+
+            {/* Collapsible header */}
+            <button
+              onClick={() => setBulkExpanded(v => !v)}
+              className="w-full px-4 py-3 flex items-center justify-between"
+              style={{ background: "var(--bg-card)" }}>
+              <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
+                ▶ Vergangene GWs nachholen
+              </span>
+              <span className="text-[8px] font-black"
+                style={{ background: "var(--color-primary)", color: "var(--bg-page)", borderRadius: "999px", padding: "1px 6px" }}>
+                {unimportedGWs.length} GWs ohne Import
+              </span>
+            </button>
+
+            {bulkExpanded && (
+              <div className="px-4 pb-4" style={{ background: "var(--bg-card)" }}>
+
+                {/* Select all toggle */}
+                <div className="flex items-center justify-between py-2 mb-1"
+                  style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <label className="flex items-center gap-2 cursor-pointer text-[8px] font-black uppercase"
+                    style={{ color: "var(--color-muted)" }}>
+                    <input type="checkbox"
+                      checked={bulkSelected.size === gameweeks.length}
+                      onChange={e => {
+                        if (e.target.checked) {
+                          setBulkSelected(new Set(gameweeks.map((g: any) => g.gameweek)));
+                        } else {
+                          setBulkSelected(new Set(unimportedGWs.map((g: any) => g.gameweek)));
+                        }
+                      }}
+                    />
+                    Alle auswählen
+                  </label>
+                </div>
+
+                {/* GW checkboxes */}
+                <div className="space-y-1 mt-2 max-h-64 overflow-y-auto">
+                  {gameweeks.map(gw => {
+                    const isAlreadyImported = importedGWs.has(gw.gameweek);
+                    const isChecked = bulkSelected.has(gw.gameweek);
+                    const progress = bulkProgress[gw.gameweek];
+                    return (
+                      <label key={gw.gameweek}
+                        className="flex items-center justify-between gap-2 py-1.5 cursor-pointer"
+                        style={{ opacity: isAlreadyImported && !isChecked ? 0.5 : 1 }}>
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox"
+                            checked={isChecked}
+                            onChange={e => {
+                              const next = new Set(bulkSelected);
+                              if (e.target.checked) next.add(gw.gameweek);
+                              else next.delete(gw.gameweek);
+                              setBulkSelected(next);
+                            }}
+                          />
+                          <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
+                            GW{gw.gameweek} · {gw.label}
+                          </span>
+                          {gw.start_date && (
+                            <span className="text-[7px]" style={{ color: "var(--color-muted)" }}>
+                              ({gw.start_date})
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {isAlreadyImported && !progress && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>
+                              bereits importiert ↺ neu?
+                            </span>
+                          )}
+                          {!isAlreadyImported && !progress && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-error)" }}>
+                              kein Import
+                            </span>
+                          )}
+                          {progress === "running" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-primary)" }}>
+                              ⏳ läuft...
+                            </span>
+                          )}
+                          {progress === "done" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-success)" }}>
+                              ✓ importiert
+                            </span>
+                          )}
+                          {progress === "error" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-error)" }}>
+                              ✗ Fehler
+                            </span>
+                          )}
+                          {progress === "pending" && (
+                            <span className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>
+                              ○ ausstehend
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* Action button */}
+                {!bulkRunning && (
+                  <button
+                    onClick={runBulkImport}
+                    disabled={bulkSelected.size === 0}
+                    className="w-full mt-3 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
+                    style={{
+                      background: "var(--color-primary)",
+                      color: "var(--bg-page)",
+                    }}>
+                    Ausgewählte importieren ({bulkSelected.size})
+                  </button>
+                )}
+                {bulkRunning && (
+                  <div className="mt-3 py-2 text-center text-[9px] font-black"
+                    style={{ color: "var(--color-primary)" }}>
+                    ⏳ Import läuft — bitte nicht schließen...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+```
+
+- [ ] **Step 3: Verify TypeScript**
+
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -30
+```
+
+Expected: no new errors.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd /Users/nikoko/my-fantasy-app
+git add app/components/admin/GameweeksTab.tsx
+git commit -m "feat: add bulk import Aufholen section to GameweeksTab"
+```
+
+---
+
+### Task 6: Wire `GameweeksTab` into `admin/page.tsx`
+
+**Files:**
+- Modify: `app/leagues/[id]/admin/page.tsx`
+
+The parent page needs to:
+1. Import `GameweeksTab`
+2. Pass `onGWSelect` so the points tab can still follow the active GW
+3. Remove all GW-specific state/functions from the page
+4. Replace the gameweeks tab JSX with `<GameweeksTab ...>`
+
+- [ ] **Step 1: Add `GameweeksTab` import to `admin/page.tsx`**
+
+Find the import block at the top of `admin/page.tsx`. After the last import line, add:
+
+```tsx
+import { GameweeksTab } from "@/app/components/admin/GameweeksTab";
+```
+
+- [ ] **Step 2: Remove GW-specific `useState` declarations**
+
+In `admin/page.tsx`, remove these state declarations (they move into the component):
+
+```tsx
+  const [gameweeks, setGameweeks] = useState<any[]>([]);
+  // NOTE: keep [selectedGW, setSelectedGW] — used by Points tab
+  const [importing, setImporting] = useState<number | null>(null);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(false);
+  const [processingWaivers, setProcessingWaivers] = useState(false);
+  const [autoGenLeague, setAutoGenLeague] = useState("bundesliga");
+  const [autoGenerating, setAutoGenerating] = useState(false);
+  const [autoStart, setAutoStart] = useState(LIGA_PRESETS.bundesliga.start);
+  const [autoCount, setAutoCount] = useState(LIGA_PRESETS.bundesliga.count);
+  const [newGWNum, setNewGWNum] = useState(1);
+  const [newGWLabel, setNewGWLabel] = useState("");
+  const [newGWStart, setNewGWStart] = useState("");
+  const [newGWEnd, setNewGWEnd] = useState("");
+  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [auditLogVisible, setAuditLogVisible] = useState(false);
+```
+
+Keep `selectedGW` and `setSelectedGW` — the Points tab still needs it.
+
+- [ ] **Step 3: Remove GW-related code from `loadAll`**
+
+In the `loadAll` function, remove these lines:
+
+```typescript
+    const { data: gwData } = await supabase
+      .from("liga_gameweeks")
+      .select("*").eq("league_id", leagueId).order("gameweek");
+    setGameweeks(gwData || []);
+
+    const active = (gwData || []).find((g: any) => g.status === "active");
+    if (active) setSelectedGW(active.gameweek);
+    if (gwData && gwData.length > 0) setNewGWNum(gwData.length + 1);
+```
+
+Also remove the `loadAuditLog()` call at the end of `loadAll` (it moves into the component).
+
+- [ ] **Step 4: Remove GW functions that moved to the component**
+
+Remove these entire functions from `admin/page.tsx`:
+- `createGameweek` (lines ~390-407)
+- `autoGenerateGameweeks` (lines ~409-443)
+- `updateGWStatus` (lines ~445-455)
+- `toggleLeague` (lines ~666-675)
+- `importGWStats` (lines ~629-664)
+- `toggleWaiverWindow` (lines ~622-627)
+- `processWaivers` (lines ~598-620)
+- `loadAuditLog` (lines ~556-564)
+
+Also remove the `actionLabel` function (lines ~55-66) — it moves into the component.
+
+Also remove the `LIGA_PRESETS` constant — it moves into the component.
+
+- [ ] **Step 5: Replace the gameweeks tab JSX with the component**
+
+Find the `{tab === "gameweeks" && (` block (lines ~829-1142) and replace the entire block with:
+
+```tsx
+      {tab === "gameweeks" && (
+        <GameweeksTab
+          leagueId={leagueId}
+          userId={user.id}
+          onGWSelect={setSelectedGW}
+        />
       )}
-    </div>
-  );
-}
+```
+
+- [ ] **Step 6: Verify TypeScript — expect errors, fix them**
+
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -50
+```
+
+Fix any remaining references to removed variables. Common issues:
+- `gameweeks` still referenced somewhere → remove or replace
+- `auditLog` / `auditLogVisible` still referenced → remove
+- `LIGA_PRESETS` referenced elsewhere → check; if not used, the removal is fine
+
+- [ ] **Step 7: Final TypeScript check must be clean**
+
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -30
+```
+
+Expected: 0 errors (or only pre-existing errors).
+
+- [ ] **Step 8: Commit**
+
+```bash
+cd /Users/nikoko/my-fantasy-app
+git add app/leagues/[id]/admin/page.tsx app/components/admin/GameweeksTab.tsx
+git commit -m "refactor: extract GameweeksTab component from admin/page.tsx"
+```
+
+---
+
+### Task 7: Final integration check
+
+**Files:**
+- Read: `app/leagues/[id]/admin/page.tsx`
+- Read: `app/components/admin/GameweeksTab.tsx`
+
+- [ ] **Step 1: Verify page size reduced**
+
+```bash
+wc -l /Users/nikoko/my-fantasy-app/app/leagues/\\[id\\]/admin/page.tsx
+wc -l /Users/nikoko/my-fantasy-app/app/components/admin/GameweeksTab.tsx
+```
+
+Expected: admin/page.tsx ~1100 lines or less, GameweeksTab.tsx ~400 lines or less.
+
+- [ ] **Step 2: Verify the Points tab still works by checking `selectedGW` is used**
+
+```bash
+cd /Users/nikoko/my-fantasy-app && grep -n "selectedGW" app/leagues/\\[id\\]/admin/page.tsx
+```
+
+Expected: `selectedGW` is still present in state, used in `loadStatsForGW`, the Points tab GW picker, and passed as `onGWSelect={setSelectedGW}` to `<GameweeksTab>`.
+
+- [ ] **Step 3: Final TypeScript clean**
+
+```bash
+cd /Users/nikoko/my-fantasy-app && npx tsc --noEmit 2>&1 | head -30
+```
+
+Expected: 0 errors.
+
+- [ ] **Step 4: Commit final state**
+
+```bash
+cd /Users/nikoko/my-fantasy-app
+git add -A
+git commit -m "feat: admin GameweeksTab refactor complete — inline stepper + bulk import"
+```
+
+---
+
+## Spec coverage check
+
+| Spec requirement | Covered in |
+|---|---|
+| Extract GameweeksTab as self-contained component | Tasks 1–6 |
+| Props: `leagueId: string`, `userId: string` | Task 1 |
+| Component fetches own data (gameweeks, liga_gameweek_points, waiver_claims, liga_settings) | Task 1 |
+| admin/page.tsx renders `<GameweeksTab leagueId={leagueId} userId={user.id} />` | Task 6 |
+| Points tab still reacts to active GW (onGWSelect callback) | Task 6 |
+| 5-step inline stepper: Ligen / Import / Waiver / Verarbeiten / Fertig | Task 4 |
+| Step 1 "Ligen" — done when active_leagues.length >= 1, inline league picker | Task 4 |
+| Step 2 "Import" — done when liga_gameweek_points exists for GW | Task 1 + 4 |
+| Step 3 "Waiver" — done when waiver_window_open === false | Task 4 |
+| Step 4 "Verarbeiten" — done when approved/rejected claims > 0 for GW | Task 1 + 4 |
+| Step 5 "Fertig" — done when status === "finished" | Task 4 |
+| Status toggle buttons (upcoming/active/finished) per row | Task 4 |
+| Bulk Import "Aufholen" collapsible section | Task 5 |
+| Only visible when ≥1 GW without import | Task 5 |
+| Pre-selects unimported GWs | Task 1 + 5 |
+| Sequential (not parallel) bulk import | Task 5 |
+| Inline progress per GW during bulk import | Task 5 |
+| Error resilience: marks GW ✗, continues to next | Task 5 |
+| "Alle GWs aktuell" when complete | Task 5 |
+| Audit log (collapsible, carries over) | Task 4 |
+| No new API routes or DB schema changes | ✅ confirmed |

@@ -36,6 +36,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [user, setUser] = useState<any>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [league, setLeague] = useState<any>(null);
+  // Populated via GameweeksTab's onGameweeksChange callback — needed for the Points tab GW selector
   const [gameweeks, setGameweeks] = useState<any[]>([]);
   const [selectedGW, setSelectedGW] = useState<number>(1);
   const [squadPlayers, setSquadPlayers] = useState<any[]>([]);
