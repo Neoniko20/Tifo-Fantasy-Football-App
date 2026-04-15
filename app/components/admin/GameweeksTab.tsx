@@ -52,9 +52,10 @@ export interface GameweeksTabProps {
   leagueId: string;
   userId: string;
   onGWSelect?: (gwNum: number) => void;
+  onGameweeksChange?: (gameweeks: any[]) => void;
 }
 
-export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps) {
+export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }: GameweeksTabProps) {
   const { toast } = useToast();
 
   // GW list + form state
@@ -98,6 +99,11 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
     loadData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId]);
+
+  useEffect(() => {
+    if (onGameweeksChange) onGameweeksChange(gameweeks);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameweeks]);
 
   // Close league picker on outside click
   useEffect(() => {

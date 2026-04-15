@@ -9,8 +9,8 @@ import {
   calcPoints, DEFAULT_SCORING_RULES, mergeRules, RULE_GROUPS,
   type ScoringRules,
 } from "@/lib/scoring";
-import { LEAGUE_META, ALL_LEAGUES, calcActiveLeagues } from "@/lib/league-meta";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
+import { GameweeksTab } from "@/app/components/admin/GameweeksTab";
 
 // api-sports league id → tsdb badge
 const LEAGUE_BADGES: Record<string, string> = {
@@ -30,41 +30,6 @@ const EMPTY_STATS = {
   saves: 0, clean_sheet: false, yellow_cards: 0, red_cards: 0,
 };
 
-async function logAdminAction(
-  leagueId: string,
-  userId: string,
-  action: string,
-  gameweek: number | null,
-  metadata: Record<string, any> = {},
-) {
-  try {
-    await supabase.from("liga_admin_audit_log").insert({
-      league_id:   leagueId,
-      actor_id:    userId,
-      actor_label: "admin",
-      action,
-      gameweek,
-      metadata,
-    });
-  } catch (e) {
-    // Audit log failures must not break the user flow
-    console.warn("audit log insert failed:", e);
-  }
-}
-
-function actionLabel(action: string): string {
-  switch (action) {
-    case "gw_started":         return "▶ Spieltag gestartet";
-    case "gw_finished":        return "■ Spieltag beendet";
-    case "gw_imported":        return "↓ Stats importiert";
-    case "gw_recalculated":    return "↻ Neu berechnet";
-    case "gw_import_failed":   return "❌ Import fehlgeschlagen";
-    case "gw_status_changed":  return "⇄ Status geändert";
-    case "cron_run":           return "⏰ Cron-Lauf";
-    default:                   return action;
-  }
-}
-
 export default function LigaAdminPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
 
@@ -76,17 +41,12 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [squadPlayers, setSquadPlayers] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<Record<number, typeof EMPTY_STATS>>({});
   const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState<number | null>(null);
-  const [importResult, setImportResult] = useState<string | null>(null);
   const [tab, setTab] = useState<"gameweeks" | "points" | "settings" | "import">("gameweeks");
   const [importLeague, setImportLeague] = useState<string>("all");
   const [importRunning, setImportRunning] = useState(false);
   const [importLog, setImportLog] = useState<string[]>([]);
   const [playerCount, setPlayerCount] = useState<number | null>(null);
   const [importStatus, setImportStatus] = useState<any>(null);
-  const [auditLog, setAuditLog] = useState<any[]>([]);
-  const [auditLogVisible, setAuditLogVisible] = useState(false);
-
   // Liga-Einstellungen (Basis)
   const [settingsName, setSettingsName] = useState("");
   const [settingsMaxTeams, setSettingsMaxTeams] = useState(8);
@@ -127,26 +87,6 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [rollingOver, setRollingOver] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Auto-Generieren
-  const [autoGenLeague, setAutoGenLeague] = useState("bundesliga");
-  const [autoGenerating, setAutoGenerating] = useState(false);
-
-  const LIGA_PRESETS: Record<string, { label: string; start: string; count: number }> = {
-    bundesliga:   { label: "Bundesliga 26/27",     start: "2026-08-28", count: 34 },
-    premier:      { label: "Premier League 26/27", start: "2026-08-22", count: 38 },
-    seriea:       { label: "Serie A 26/27",         start: "2026-08-22", count: 38 },
-    ligue1:       { label: "Ligue 1 26/27",         start: "2026-08-23", count: 38 },
-    laliga:       { label: "La Liga 26/27",          start: "2026-08-14", count: 38 },
-    custom:       { label: "Eigene Liga",            start: "", count: 34 },
-  };
-  const [autoStart, setAutoStart] = useState(LIGA_PRESETS.bundesliga.start);
-  const [autoCount, setAutoCount] = useState(LIGA_PRESETS.bundesliga.count);
-
-  // Neuer GW-Form
-  const [newGWNum, setNewGWNum] = useState(1);
-  const [newGWLabel, setNewGWLabel] = useState("");
-  const [newGWStart, setNewGWStart] = useState("");
-  const [newGWEnd, setNewGWEnd] = useState("");
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -196,15 +136,6 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       setDynastyRookieRounds(ls.dynasty_rookie_rounds || 5);
     }
 
-    const { data: gwData } = await supabase
-      .from("liga_gameweeks")
-      .select("*").eq("league_id", leagueId).order("gameweek");
-    setGameweeks(gwData || []);
-
-    const active = (gwData || []).find((g: any) => g.status === "active");
-    if (active) setSelectedGW(active.gameweek);
-    if (gwData && gwData.length > 0) setNewGWNum(gwData.length + 1);
-
     // Alle Spieler aus dem Liga-Pool laden
     const { data: teamsData } = await supabase
       .from("teams").select("id").eq("league_id", leagueId);
@@ -237,7 +168,6 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     setDynastySeasonHistory(history || []);
 
     setLoading(false);
-    loadAuditLog();
   }
 
   async function loadIROverview(teamIds?: string[]) {
@@ -387,73 +317,6 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     setPlayerStats(prev => ({ ...prev, [playerId]: { ...getStat(playerId), [field]: value } }));
   }
 
-  async function createGameweek() {
-    if (!newGWLabel.trim()) { toast("Label eingeben", "error"); return; }
-    const { error } = await supabase.from("liga_gameweeks").insert({
-      league_id: leagueId,
-      gameweek: newGWNum,
-      label: newGWLabel.trim(),
-      start_date: newGWStart || null,
-      end_date: newGWEnd || null,
-      status: "upcoming",
-    });
-    if (error) { toast("Fehler: " + error.message, "error"); return; }
-    const { data } = await supabase.from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
-    setGameweeks(data || []);
-    setNewGWNum(prev => prev + 1);
-    setNewGWLabel("");
-    setNewGWStart("");
-    setNewGWEnd("");
-  }
-
-  async function autoGenerateGameweeks() {
-    if (!autoStart) { toast("Startdatum eingeben", "error"); return; }
-    if (gameweeks.length > 0) {
-      if (!confirm(`Es gibt bereits ${gameweeks.length} Spieltage. Trotzdem generieren?`)) return;
-    }
-    setAutoGenerating(true);
-    const start = new Date(autoStart);
-    const rows = [];
-    for (let i = 0; i < autoCount; i++) {
-      const gwStart = new Date(start);
-      gwStart.setDate(start.getDate() + i * 7);
-      const gwEnd = new Date(gwStart);
-      gwEnd.setDate(gwStart.getDate() + 6);
-      const startStr = gwStart.toISOString().split("T")[0];
-      const endStr   = gwEnd.toISOString().split("T")[0];
-      const { activeLeagues, isIntlBreak, intlBreakLabel } = calcActiveLeagues(startStr, endStr);
-      rows.push({
-        league_id: leagueId,
-        gameweek: i + 1,
-        label: isIntlBreak ? `ST ${i + 1} – ${intlBreakLabel}` : `Spieltag ${i + 1}`,
-        start_date: startStr,
-        end_date: endStr,
-        status: "upcoming",
-        active_leagues: isIntlBreak ? [] : activeLeagues,
-        double_gw_leagues: [],
-        notes: isIntlBreak ? intlBreakLabel : null,
-      });
-    }
-    const { error } = await supabase.from("liga_gameweeks").upsert(rows, { onConflict: "league_id,gameweek" });
-    if (error) { toast("Fehler: " + error.message, "error"); setAutoGenerating(false); return; }
-    const { data } = await supabase.from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
-    setGameweeks(data || []);
-    setNewGWNum((data?.length || 0) + 1);
-    setAutoGenerating(false);
-  }
-
-  async function updateGWStatus(gwId: string, status: string, gwNum?: number) {
-    await supabase.from("liga_gameweeks").update({ status }).eq("id", gwId);
-    setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, status } : g));
-    if (gwNum !== undefined && user?.id) {
-      const action =
-        status === "active"   ? "gw_started"  :
-        status === "finished" ? "gw_finished" : "gw_status_changed";
-      await logAdminAction(leagueId, user.id, action, gwNum, { new_status: status });
-    }
-    loadAuditLog();
-  }
-
   async function saveSettings() {
     setSaving(true);
     const { error } = await supabase.from("leagues").update({
@@ -553,16 +416,6 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
     window.location.href = "/leagues";
   }
 
-  async function loadAuditLog() {
-    const { data } = await supabase
-      .from("liga_admin_audit_log")
-      .select("*")
-      .eq("league_id", leagueId)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    setAuditLog(data || []);
-  }
-
   async function updateSetting(key: string, value: unknown) {
     await supabase.from("liga_settings")
       .upsert({ league_id: leagueId, [key]: value, updated_at: new Date().toISOString() }, { onConflict: "league_id" });
@@ -606,10 +459,6 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       const json = await res.json();
       if (json.ok) {
         toast(`✅ Waivers verarbeitet: ${json.approved} genehmigt, ${json.rejected} abgelehnt`, "success");
-        // Refresh gameweeks to reflect closed window
-        const { data: gwData } = await supabase
-          .from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
-        setGameweeks(gwData || []);
       } else {
         toast(`Fehler: ${json.error}`, "error");
       }
@@ -617,61 +466,6 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       toast(`Fehler: ${e.message}`, "error");
     }
     setProcessingWaivers(false);
-  }
-
-  async function toggleWaiverWindow(gwId: string, open: boolean) {
-    await supabase.from("liga_gameweeks").update({ waiver_window_open: open }).eq("id", gwId);
-    const { data: gwData } = await supabase
-      .from("liga_gameweeks").select("*").eq("league_id", leagueId).order("gameweek");
-    setGameweeks(gwData || []);
-  }
-
-  async function importGWStats(gwNum: number, recalc: boolean = false) {
-    setImporting(gwNum);
-    setImportResult(null);
-    try {
-      const res = await fetch("/api/import-gw-stats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leagueId, gameweek: gwNum }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Fehler");
-      setImportResult(json.message || "Importiert!");
-      setGameweeks(prev =>
-        prev.map(g => g.gameweek === gwNum ? { ...g, status: "finished" } : g),
-      );
-      if (user?.id) {
-        await logAdminAction(
-          leagueId,
-          user.id,
-          recalc ? "gw_recalculated" : "gw_imported",
-          gwNum,
-          {
-            api_calls_used:   json.apiCallsUsed,
-            players_imported: json.playersImported,
-          },
-        );
-      }
-      loadAuditLog();
-    } catch (e: any) {
-      setImportResult("Fehler: " + e.message);
-      if (user?.id) {
-        await logAdminAction(leagueId, user.id, "gw_import_failed", gwNum, { error: e.message });
-      }
-    }
-    setImporting(null);
-  }
-
-  async function toggleLeague(gwId: string, leagueKey: string, field: "active_leagues" | "double_gw_leagues") {
-    const gw = gameweeks.find(g => g.id === gwId);
-    if (!gw) return;
-    const current: string[] = gw[field] || [];
-    const updated = current.includes(leagueKey)
-      ? current.filter((l: string) => l !== leagueKey)
-      : [...current, leagueKey];
-    await supabase.from("liga_gameweeks").update({ [field]: updated }).eq("id", gwId);
-    setGameweeks(prev => prev.map(g => g.id === gwId ? { ...g, [field]: updated } : g));
   }
 
   async function savePoints() {
@@ -827,321 +621,15 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
       {/* SPIELTAGE VERWALTEN */}
       {tab === "gameweeks" && (
-        <div className="w-full max-w-xl space-y-3">
-
-          {/* Auto-Generieren */}
-          <div className="rounded-xl p-4" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border-subtle)" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-primary)" }}>
-              Auto-Generieren
-            </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="col-span-2">
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Liga / Wettbewerb</p>
-                <select value={autoGenLeague}
-                  onChange={e => {
-                    const key = e.target.value;
-                    setAutoGenLeague(key);
-                    if (LIGA_PRESETS[key].start) setAutoStart(LIGA_PRESETS[key].start);
-                    setAutoCount(LIGA_PRESETS[key].count);
-                  }}
-                  className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
-                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
-                  {Object.entries(LIGA_PRESETS).map(([k, v]) => (
-                    <option key={k} value={k}>{v.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Saisonstart</p>
-                <input type="date" value={autoStart} onChange={e => setAutoStart(e.target.value)}
-                  className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-              </div>
-              <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Anzahl Spieltage</p>
-                <input type="number" value={autoCount} min={1} max={50} onChange={e => setAutoCount(Number(e.target.value))}
-                  className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
-                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-              </div>
-            </div>
-            <p className="text-[8px] mb-3" style={{ color: "var(--color-muted)" }}>
-              Generiert {autoCount} Spieltage à 7 Tage ab {autoStart || "?"}
-            </p>
-            <button onClick={autoGenerateGameweeks} disabled={autoGenerating}
-              className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-              style={{ background: autoGenerating ? "var(--color-border)" : "var(--color-border-subtle)", color: autoGenerating ? "var(--color-muted)" : "var(--color-primary)", border: "1px solid var(--color-primary)" }}>
-              {autoGenerating ? "Generiere..." : `Alle ${autoCount} Spieltage generieren`}
-            </button>
-          </div>
-
-          {/* Neuer GW */}
-          <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-muted)" }}>
-              Neuer Spieltag
-            </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Nummer</p>
-                <input type="number" value={newGWNum} onChange={e => setNewGWNum(Number(e.target.value))}
-                  className="w-full p-2 rounded-lg text-sm font-black focus:outline-none"
-                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-              </div>
-              <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Label</p>
-                <input type="text" value={newGWLabel} onChange={e => setNewGWLabel(e.target.value)}
-                  placeholder="z.B. Spieltag 1"
-                  className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-              </div>
-              <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Start</p>
-                <input type="date" value={newGWStart} onChange={e => setNewGWStart(e.target.value)}
-                  className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-              </div>
-              <div>
-                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Ende</p>
-                <input type="date" value={newGWEnd} onChange={e => setNewGWEnd(e.target.value)}
-                  className="w-full p-2 rounded-lg text-sm focus:outline-none"
-                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-              </div>
-            </div>
-            <button onClick={createGameweek}
-              className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
-              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
-              Spieltag {newGWNum} anlegen
-            </button>
-          </div>
-
-          {/* Bestehende GWs */}
-          {gameweeks.map(gw => {
-            const activeLgs: string[] = gw.active_leagues || [];
-            const doubleLgs: string[] = gw.double_gw_leagues || [];
-            const isBreak = activeLgs.length === 0 && !gw.notes?.includes("Winterpause");
-            return (
-              <div key={gw.id} className="p-4 rounded-xl space-y-3"
-                style={{ background: "var(--bg-card)", border: `1px solid ${gw.status === "active" ? "var(--color-border-subtle)" : "var(--color-border)"}` }}>
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>
-                      GW{gw.gameweek} · {gw.label}
-                    </p>
-                    {gw.start_date && (
-                      <p className="text-[8px] font-black uppercase mt-0.5" style={{ color: "var(--color-muted)" }}>
-                        {gw.start_date} → {gw.end_date || "?"}
-                      </p>
-                    )}
-                    {gw.notes && (
-                      <p className="text-[8px] font-black mt-0.5" style={{ color: "var(--color-primary)" }}>
-                        ⚠ {gw.notes}
-                      </p>
-                    )}
-                  </div>
-                  {/* Status Badge */}
-                  <span
-                    className="px-2 py-1 rounded-lg text-[7px] font-black uppercase"
-                    style={{
-                      background:
-                        gw.status === "finished" ? "var(--color-success)" :
-                        gw.status === "active"   ? "var(--color-primary)" :
-                                                   "var(--color-border)",
-                      color:
-                        gw.status === "upcoming" ? "var(--color-muted)" : "var(--bg-page)",
-                    }}>
-                    {gw.status === "upcoming" ? "Bald" :
-                     gw.status === "active"   ? "Live" : "Fertig"}
-                  </span>
-                </div>
-
-                {/* 1-Klick Lifecycle Buttons */}
-                <div className="grid grid-cols-3 gap-2">
-                  {/* Start */}
-                  <button
-                    onClick={() => updateGWStatus(gw.id, "active", gw.gameweek)}
-                    disabled={gw.status !== "upcoming"}
-                    className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
-                    style={{
-                      background: gw.status === "upcoming" ? "var(--bg-elevated)" : "var(--bg-page)",
-                      color:      gw.status === "upcoming" ? "var(--color-primary)" : "var(--color-muted)",
-                      border:     "1px solid var(--color-primary)",
-                    }}>
-                    ▶ Starten
-                  </button>
-
-                  {/* End + Import */}
-                  <button
-                    onClick={() => importGWStats(gw.gameweek, false)}
-                    disabled={importing === gw.gameweek || gw.status === "finished"}
-                    className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
-                    style={{
-                      background: importing === gw.gameweek ? "var(--color-border)" : "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
-                      color:      importing === gw.gameweek ? "var(--color-muted)" : "var(--color-success)",
-                      border:     "1px solid var(--color-success)",
-                    }}>
-                    {importing === gw.gameweek ? "..." : "■ Beenden + Import"}
-                  </button>
-
-                  {/* Recalculate */}
-                  <button
-                    onClick={() => importGWStats(gw.gameweek, true)}
-                    disabled={importing === gw.gameweek || gw.status !== "finished"}
-                    className="py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-30"
-                    style={{
-                      background: importing === gw.gameweek ? "var(--color-border)" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
-                      color:      importing === gw.gameweek ? "var(--color-muted)" : "var(--color-error)",
-                      border:     "1px solid var(--color-error)",
-                    }}>
-                    ↻ Neu rechnen
-                  </button>
-                </div>
-
-                {/* Waiver Window Toggle */}
-                {ligaSettings?.waiver_enabled && (
-                  <div className="flex gap-2">
-                    <button onClick={() => toggleWaiverWindow(gw.id, !gw.waiver_window_open)}
-                      className="flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
-                      style={{
-                        background: gw.waiver_window_open ? "var(--bg-elevated)" : "var(--bg-card)",
-                        color:      gw.waiver_window_open ? "var(--color-primary)" : "var(--color-muted)",
-                        border: `1px solid ${gw.waiver_window_open ? "var(--color-primary)" : "var(--color-border)"}`,
-                      }}>
-                      Waiver {gw.waiver_window_open ? "schließen" : "öffnen"}
-                    </button>
-                    <button onClick={processWaivers} disabled={processingWaivers}
-                      className="flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
-                      style={{
-                        background: processingWaivers ? "var(--color-border)" : "color-mix(in srgb, var(--color-primary) 20%, var(--bg-page))",
-                        color: processingWaivers ? "var(--color-muted)" : "var(--color-primary)",
-                        border: `1px solid ${processingWaivers ? "var(--color-border)" : "var(--color-primary)40"}`,
-                      }}>
-                      {processingWaivers ? "..." : "Verarbeiten ▶"}
-                    </button>
-                  </div>
-                )}
-
-                {/* Liga-Toggles */}
-                <div>
-                  <p className="text-[7px] font-black uppercase tracking-widest mb-1.5" style={{ color: "var(--color-dim)" }}>
-                    Spielende Ligen
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ALL_LEAGUES.map(key => {
-                      const meta = LEAGUE_META[key];
-                      const active = activeLgs.includes(key);
-                      const isDouble = doubleLgs.includes(key);
-                      return (
-                        <div key={key} className="flex items-center gap-0.5">
-                          <button onClick={() => toggleLeague(gw.id, key, "active_leagues")}
-                            className="px-2 py-1 rounded-lg text-[8px] font-black transition-all"
-                            style={{
-                              background: active ? "var(--bg-elevated)" : "var(--bg-page)",
-                              border: `1px solid ${active ? "var(--color-primary)" : "var(--color-border)"}`,
-                              color: active ? "var(--color-primary)" : "var(--color-border)",
-                            }}>
-                            {meta.flag} {meta.short}
-                          </button>
-                          {active && (
-                            <button onClick={() => toggleLeague(gw.id, key, "double_gw_leagues")}
-                              title="Doppelspieltag"
-                              className="px-1.5 py-1 rounded-lg text-[8px] font-black transition-all"
-                              style={{
-                                background: isDouble ? "color-mix(in srgb, var(--color-primary) 10%, var(--bg-page))" : "var(--bg-page)",
-                                border: `1px solid ${isDouble ? "var(--color-primary)" : "var(--color-border)"}`,
-                                color: isDouble ? "var(--color-primary)" : "var(--color-border)",
-                              }}>
-                              ×2
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {isBreak && (
-                    <p className="text-[8px] mt-1.5 font-black" style={{ color: "var(--color-muted)" }}>
-                      Länderspielpause — keine Liga-Spiele
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* AUDIT LOG (collapsible) */}
-          <div className="rounded-xl p-4" style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
-            <button
-              onClick={() => setAuditLogVisible(v => !v)}
-              className="w-full flex items-center justify-between text-[9px] font-black uppercase tracking-widest"
-              style={{ color: "var(--color-dim)" }}>
-              <span>📜 Admin-Verlauf ({auditLog.length})</span>
-              <span>{auditLogVisible ? "▲" : "▼"}</span>
-            </button>
-            {auditLogVisible && (
-              <div className="mt-3 space-y-1.5">
-                {auditLog.length === 0 && (
-                  <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
-                    Noch keine Einträge
-                  </p>
-                )}
-                {auditLog.map(entry => (
-                  <div key={entry.id}
-                    className="flex items-start justify-between gap-2 py-1 border-b"
-                    style={{ borderColor: "var(--bg-elevated)" }}>
-                    <div className="flex-1">
-                      <p className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
-                        {actionLabel(entry.action)}{entry.gameweek ? ` · GW${entry.gameweek}` : ""}
-                      </p>
-                      {entry.metadata?.players_imported !== undefined && (
-                        <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>
-                          {entry.metadata.players_imported} Spieler · {entry.metadata.api_calls_used} API-Calls
-                        </p>
-                      )}
-                      {entry.metadata?.error && (
-                        <p className="text-[7px]" style={{ color: "var(--color-error)" }}>
-                          {entry.metadata.error}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-[7px] font-black uppercase"
-                        style={{ color: entry.actor_label === "cron" ? "var(--color-success)" : "var(--color-primary)" }}>
-                        {entry.actor_label}
-                      </span>
-                      <span className="text-[7px]" style={{ color: "var(--color-muted)" }}>
-                        {new Date(entry.created_at).toLocaleString("de-DE", {
-                          day: "2-digit", month: "2-digit",
-                          hour: "2-digit", minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {gameweeks.length === 0 && (
-            <p className="text-center text-sm font-black py-8" style={{ color: "var(--color-border)" }}>
-              Noch keine Spieltage
-            </p>
-          )}
-
-          {importResult && (
-            <div className="rounded-xl p-4 text-center"
-              style={{
-                background: importResult.startsWith("Fehler") ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
-                border: `1px solid ${importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)"}`,
-              }}>
-              <p className="text-sm font-black"
-                style={{ color: importResult.startsWith("Fehler") ? "var(--color-error)" : "var(--color-success)" }}>
-                {importResult}
-              </p>
-            </div>
-          )}
-        </div>
+        <GameweeksTab
+          leagueId={leagueId}
+          userId={user.id}
+          onGWSelect={setSelectedGW}
+          onGameweeksChange={setGameweeks}
+        />
       )}
 
-      {/* PUNKTE EINTRAGEN */}
+            {/* PUNKTE EINTRAGEN */}
       {tab === "points" && (
         <div className="w-full max-w-xl">
           {/* GW-Auswahl */}
