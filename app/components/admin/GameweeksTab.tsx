@@ -320,7 +320,8 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
     // Build ordered list (ascending GW number)
     const toImport = [...bulkSelected].sort((a, b) => a - b);
 
-    // Initialize progress
+    // Clear previous run's progress, then initialize new
+    setBulkProgress({});
     const initialProgress: Record<number, "pending" | "running" | "done" | "error"> = {};
     for (const gwNum of toImport) initialProgress[gwNum] = "pending";
     setBulkProgress(initialProgress);
@@ -354,7 +355,10 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
       .from("liga_gameweek_points")
       .select("gameweek")
       .eq("league_id", leagueId);
-    setImportedGWs(new Set((importedData || []).map((r: any) => r.gameweek)));
+    const refreshed = new Set<number>((importedData || []).map((r: any) => r.gameweek));
+    setImportedGWs(refreshed);
+    // Reset selection to only remaining unimported GWs
+    setBulkSelected(new Set([...gameweeks.map((g: any) => g.gameweek)].filter(n => !refreshed.has(n))));
   }
 
   return (
@@ -490,15 +494,16 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
                     style={{ color: "var(--color-muted)" }}>
                     <input type="checkbox"
                       checked={bulkSelected.size === gameweeks.length}
+                      disabled={bulkRunning}
                       onChange={e => {
                         if (e.target.checked) {
                           setBulkSelected(new Set(gameweeks.map((g: any) => g.gameweek)));
                         } else {
-                          setBulkSelected(new Set(unimportedGWs.map((g: any) => g.gameweek)));
+                          setBulkSelected(new Set());
                         }
                       }}
                     />
-                    Alle auswählen
+                    Alle / Keine
                   </label>
                 </div>
 
@@ -515,11 +520,14 @@ export function GameweeksTab({ leagueId, userId, onGWSelect }: GameweeksTabProps
                         <div className="flex items-center gap-2">
                           <input type="checkbox"
                             checked={isChecked}
+                            disabled={bulkRunning}
                             onChange={e => {
-                              const next = new Set(bulkSelected);
-                              if (e.target.checked) next.add(gw.gameweek);
-                              else next.delete(gw.gameweek);
-                              setBulkSelected(next);
+                              setBulkSelected(prev => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(gw.gameweek);
+                                else next.delete(gw.gameweek);
+                                return next;
+                              });
                             }}
                           />
                           <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
