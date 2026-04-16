@@ -1,43 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { ThemeSwitcher } from "@/app/components/ThemeSwitcher";
 import { Spinner } from "@/app/components/ui/Spinner";
 
-type NotifSettings = {
-  draftStart: boolean;
-  pickReminder: boolean;
-  transferAlert: boolean;
-  gwStart: boolean;
-  gwResult: boolean;
-  matchAlert: boolean;
-};
-
-const DEFAULT_NOTIFS: NotifSettings = {
-  draftStart: true,
-  pickReminder: true,
-  transferAlert: true,
-  gwStart: true,
-  gwResult: true,
-  matchAlert: false,
-};
-
-const NOTIF_LABELS: { key: keyof NotifSettings; label: string; desc: string }[] = [
-  { key: "draftStart",     label: "Draft gestartet",     desc: "Wenn dein Liga-Draft beginnt" },
-  { key: "pickReminder",   label: "Pick-Erinnerung",     desc: "Du bist beim Draft am Zug" },
-  { key: "transferAlert",  label: "Transfer-Aktivität",  desc: "Wenn ein Spieler aus deiner Liga transferiert wird" },
-  { key: "gwStart",        label: "Spieltag-Start",      desc: "Wenn ein neuer Spieltag beginnt" },
-  { key: "gwResult",       label: "Ergebnis-Update",     desc: "Wenn dein Spieltag-Ergebnis feststeht" },
-  { key: "matchAlert",     label: "Live-Partien",        desc: "Push bei Toren deiner aufgestellten Spieler" },
-];
-
 export default function AccountPage() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [section, setSection] = useState<"main" | "username" | "email" | "password" | "notifications">("main");
+  const [section, setSection] = useState<"main" | "username" | "email" | "password">("main");
+  const router = useRouter();
 
   // Edit state
   const [username, setUsername] = useState("");
@@ -54,25 +29,12 @@ export default function AccountPage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Notifications
-  const [notifs, setNotifs] = useState<NotifSettings>(DEFAULT_NOTIFS);
-  const [notifPermission, setNotifPermission] = useState<string>("default");
-
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) { window.location.href = "/auth"; return; }
       setUser(data.user);
       setUsername(data.user.user_metadata?.username || "");
       setAvatarUrl(data.user.user_metadata?.avatar_url || null);
-
-      // Load saved notif prefs from localStorage
-      const saved = localStorage.getItem("tifo_notifs");
-      if (saved) setNotifs({ ...DEFAULT_NOTIFS, ...JSON.parse(saved) });
-
-      // Check browser notification permission
-      if (typeof Notification !== "undefined") {
-        setNotifPermission(Notification.permission);
-      }
 
       setLoading(false);
     });
@@ -157,21 +119,6 @@ export default function AccountPage() {
     setSection("main");
   }
 
-  // ── Notifications ─────────────────────────────────────
-  async function requestPushPermission() {
-    if (typeof Notification === "undefined") { flash("Browser unterstützt keine Push-Nachrichten", false); return; }
-    const perm = await Notification.requestPermission();
-    setNotifPermission(perm);
-    if (perm === "granted") flash("Push-Benachrichtigungen aktiviert");
-    else flash("Benachrichtigungen abgelehnt", false);
-  }
-
-  function toggleNotif(key: keyof NotifSettings) {
-    const updated = { ...notifs, [key]: !notifs[key] };
-    setNotifs(updated);
-    localStorage.setItem("tifo_notifs", JSON.stringify(updated));
-  }
-
   // ── Logout ────────────────────────────────────────────
   async function logout() {
     await supabase.auth.signOut();
@@ -253,70 +200,6 @@ export default function AccountPage() {
     </SubSection>
   );
 
-  if (section === "notifications") return (
-    <SubSection title="Benachrichtigungen" onBack={() => setSection("main")}>
-      {/* Push permission banner */}
-      {notifPermission !== "granted" && (
-        <div className="rounded-2xl p-4 mb-4"
-          style={{ background: "var(--bg-elevated)", border: "1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)" }}>
-          <p className="text-[9px] font-black mb-2" style={{ color: "var(--color-text)" }}>
-            Push-Benachrichtigungen aktivieren
-          </p>
-          <p className="text-[8px] mb-3" style={{ color: "var(--color-muted)" }}>
-            {notifPermission === "denied"
-              ? "Du hast Push-Nachrichten blockiert. Bitte in den Browser-Einstellungen aktivieren."
-              : "Erlaube Push-Nachrichten um Erinnerungen und Updates zu erhalten."}
-          </p>
-          {notifPermission !== "denied" && (
-            <button onClick={requestPushPermission}
-              className="w-full py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest"
-              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
-              Push-Nachrichten erlauben
-            </button>
-          )}
-        </div>
-      )}
-
-      {notifPermission === "granted" && (
-        <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-xl"
-          style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-success) 25%, transparent)" }}>
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--color-success)" }} />
-          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>
-            Push aktiviert
-          </p>
-        </div>
-      )}
-
-      {/* Toggle list */}
-      <div className="space-y-2">
-        {NOTIF_LABELS.map(({ key, label, desc }) => (
-          <div key={key}
-            className="flex items-center justify-between p-4 rounded-2xl"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-            <div className="flex-1 min-w-0 pr-4">
-              <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{label}</p>
-              <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>{desc}</p>
-            </div>
-            <button
-              onClick={() => toggleNotif(key)}
-              className="flex-shrink-0 relative w-10 h-5 rounded-full transition-all"
-              style={{
-                background: notifs[key] ? "var(--color-primary)" : "var(--color-border)",
-              }}>
-              <span
-                className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
-                style={{
-                  background: notifs[key] ? "var(--bg-page)" : "var(--color-muted)",
-                  left: notifs[key] ? "calc(100% - 18px)" : "2px",
-                }}
-              />
-            </button>
-          </div>
-        ))}
-      </div>
-    </SubSection>
-  );
-
   // ── Main account view ─────────────────────────────────
   return (
     <main className="flex min-h-screen flex-col pb-24" style={{ background: "var(--bg-page)", paddingTop: 16 }}>
@@ -390,9 +273,8 @@ export default function AccountPage() {
           <SectionGroup label="Benachrichtigungen">
             <SettingsRow
               label="Push-Benachrichtigungen"
-              value={notifPermission === "granted" ? "Aktiviert" : notifPermission === "denied" ? "Blockiert" : "Nicht aktiviert"}
-              valueColor={notifPermission === "granted" ? "var(--color-success)" : notifPermission === "denied" ? "var(--color-error)" : "var(--color-muted)"}
-              onClick={() => setSection("notifications")}
+              value="Einstellungen"
+              onClick={() => router.push('/account/notifications')}
             />
           </SectionGroup>
 
