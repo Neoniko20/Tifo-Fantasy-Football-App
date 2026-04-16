@@ -128,11 +128,11 @@ export async function sendPushToLeague(
   const supabase = createServiceRoleClient();
   const { data: teams } = await supabase
     .from('teams')
-    .select('owner_id')
+    .select('user_id')
     .eq('league_id', leagueId);
 
   const userIds = (teams ?? [])
-    .map((t: any) => t.owner_id as string)
+    .map((t: any) => t.user_id as string)
     .filter((id) => id && id !== excludeUserId);
 
   await Promise.allSettled(
