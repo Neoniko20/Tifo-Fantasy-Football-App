@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { rotatePriority } from "@/lib/waiver-init";
+import { sendPush } from "@/lib/push";
 
 const supabase = createServiceRoleClient();
 
@@ -252,6 +253,11 @@ async function processByPriority(
             `Dein Claim für ${pName} wurde abgelehnt — höhere Priorität.`,
             `/leagues/${leagueId}/waiver`
           );
+          await sendPush(userId, 'waiver_rejected', {
+            title: '❌ Waiver abgelehnt',
+            body: `Dein Claim wurde abgelehnt.`,
+            link: `/leagues/${leagueId}/waiver`,
+          }, leagueId);
         }
         rejected++;
         continue;
@@ -311,6 +317,11 @@ async function processByPriority(
           `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ""}.`,
           `/leagues/${leagueId}/waiver`
         );
+        await sendPush(userId, 'waiver_approved', {
+          title: '✅ Waiver genehmigt',
+          body: `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ''}.`,
+          link: `/leagues/${leagueId}/waiver`,
+        }, leagueId);
       }
     }
   }
@@ -350,6 +361,11 @@ async function processByFaab(
           `Dein Claim für ${pName} wurde überboten.`,
           `/leagues/${leagueId}/waiver`
         );
+        await sendPush(userId, 'waiver_rejected', {
+          title: '❌ Waiver abgelehnt',
+          body: `Dein Claim wurde abgelehnt.`,
+          link: `/leagues/${leagueId}/waiver`,
+        }, leagueId);
       }
       rejected++;
       continue;
@@ -403,6 +419,11 @@ async function processByFaab(
         `${pInName} gehört jetzt zu deinem Kader (Bid: ${claim.bid_amount} Bucks).`,
         `/leagues/${leagueId}/waiver`
       );
+      await sendPush(userId, 'waiver_approved', {
+        title: '✅ Waiver genehmigt',
+        body: `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ''}.`,
+        link: `/leagues/${leagueId}/waiver`,
+      }, leagueId);
     }
   }
 
