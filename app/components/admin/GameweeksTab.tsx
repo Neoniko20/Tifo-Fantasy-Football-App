@@ -240,6 +240,30 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
       await logAdminAction(leagueId, userId, action, gwNum, { new_status: status });
       if (status === "active" && onGWSelect) onGWSelect(gwNum);
     }
+    // Fire-and-forget push notification for GW status changes
+    if (status === 'active' || status === 'finished') {
+      const event = status === 'active' ? 'gw_started' : 'gw_finished';
+      const title = status === 'active'
+        ? `▶ Spieltag ${gwNum ?? ''} gestartet`
+        : `■ Spieltag ${gwNum ?? ''} beendet`;
+      const body = status === 'active'
+        ? 'Die Spieltag-Wertung läuft!'
+        : 'Der Spieltag ist abgeschlossen.';
+
+      const { data: { session } } = await supabase.auth.getSession();
+      fetch('/api/notifications/push-dispatch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({
+          event,
+          gwId,
+          payload: { title, body, link: '/' },
+        }),
+      }).catch((err) => console.warn('[push-dispatch] GW push failed:', err));
+    }
     loadAuditLog();
   }
 
