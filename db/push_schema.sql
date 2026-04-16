@@ -9,7 +9,6 @@ create table push_subscriptions (
   created_at  timestamptz default now()
 );
 create unique index on push_subscriptions(user_id, endpoint);
-create index on push_subscriptions(user_id);
 
 -- RLS
 alter table push_subscriptions enable row level security;
@@ -38,6 +37,7 @@ create table league_notification_prefs (
   updated_at timestamptz default now(),
   primary key (user_id, league_id)
 );
+create index on league_notification_prefs(league_id);
 alter table league_notification_prefs enable row level security;
 create policy "Users manage own league prefs"
   on league_notification_prefs for all
