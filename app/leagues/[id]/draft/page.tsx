@@ -36,6 +36,57 @@ type Player = {
   fpts: number;
 };
 
+async function sendDraftPush(params: {
+  leagueId: string;
+  pickedPlayerName: string;
+  pickerTeamName: string;
+  nextPickerUserId: string | null;
+  nextPickNumber: number;
+  excludeUserId: string;
+  token: string;
+}) {
+  const { leagueId, pickedPlayerName, pickerTeamName, nextPickerUserId, nextPickNumber, excludeUserId, token } = params;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+
+  // Notify all league users about the pick (fire-and-forget)
+  fetch('/api/notifications/push-dispatch', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      event: 'draft_pick_made',
+      leagueId,
+      excludeUserId,
+      payload: {
+        title: '📋 Spieler gepickt',
+        body: `${pickerTeamName} nimmt ${pickedPlayerName}`,
+        link: `/leagues/${leagueId}/draft`,
+      },
+    }),
+  }).catch(() => {});
+
+  // Notify the next picker if they're a real user
+  if (nextPickerUserId) {
+    fetch('/api/notifications/push-dispatch', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        event: 'draft_your_turn',
+        userId: nextPickerUserId,
+        leagueId,
+        payload: {
+          title: '🎯 Du bist dran!',
+          body: `Pick ${nextPickNumber + 1} — Dein Zug`,
+          link: `/leagues/${leagueId}/draft`,
+        },
+      }),
+    }).catch(() => {});
+  }
+}
+
 export default function DraftPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
 
@@ -459,6 +510,38 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     } else {
       triggerBot(updatedSession, updatedPicks, teamsRef.current, userIdRef.current);
     }
+
+    // Send push notifications for the human pick
+    const { data: playerRow } = await supabase
+      .from('players')
+      .select('name')
+      .eq('id', playerId)
+      .maybeSingle();
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token ?? '';
+
+    // Find the next team using the same draft order logic
+    const draftOrder = draftSession.draft_order || [];
+    const draftN = draftOrder.length;
+    let nextTeam: any = null;
+    if (draftN > 0 && !finished) {
+      const nextRound = Math.floor(nextPick / draftN);
+      const posInRound = nextPick % draftN;
+      const isSnake = draftSession.draft_type === "snake";
+      const idx = (isSnake && nextRound % 2 !== 0) ? (draftN - 1 - posInRound) : posInRound;
+      nextTeam = teamsRef.current.find((t: any) => t.id === draftOrder[idx]) ?? null;
+    }
+
+    sendDraftPush({
+      leagueId,
+      pickedPlayerName: playerRow?.name ?? 'Spieler',
+      pickerTeamName: myTeam?.name ?? 'Team',
+      nextPickerUserId: nextTeam?.user_id ?? null,
+      nextPickNumber: nextPick,
+      excludeUserId: user?.id ?? '',
+      token,
+    });
   }
 
   async function pauseDraft() {
