@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
       .from('liga_lineups')
       .select('team_id, league_id, teams(user_id)')
       .eq('gameweek', activeGW.gameweek)
-      .contains('starting_xi', JSON.stringify([event.playerId]));
+      .contains('starting_xi', [event.playerId]);
 
     for (const lineup of (lineups ?? [])) {
       const team = (lineup as any).teams;
