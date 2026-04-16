@@ -53,27 +53,28 @@ async function insertNotification(args: CreateArgs): Promise<void> {
   });
   if (error) console.warn("[notifications] insert failed:", error.message);
 
-  // Also fire push for trade results
+  // Fire-and-forget push for trade results
   if (args.kind === "trade_accepted" || args.kind === "trade_rejected") {
-    const pushEvent = args.kind === "trade_accepted" ? "trade_accepted" : "trade_rejected";
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token ?? '';
-    fetch("/api/notifications/push-dispatch", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        event:    pushEvent,
-        userId:   args.userId,
-        leagueId: args.leagueId,
-        payload: {
-          title: args.title,
-          body:  args.body ?? "",
-          link:  args.link ?? `/leagues/${args.leagueId}/trades`,
+    const pushEvent = args.kind;
+    supabase.auth.getSession().then(({ data: sessionData }) => {
+      const token = sessionData.session?.access_token ?? '';
+      return fetch("/api/notifications/push-dispatch", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
-      }),
+        body: JSON.stringify({
+          event:    pushEvent,
+          userId:   args.userId,
+          leagueId: args.leagueId,
+          payload: {
+            title: args.title,
+            body:  args.body ?? "",
+            link:  args.link ?? `/leagues/${args.leagueId}/trades`,
+          },
+        }),
+      });
     }).catch((err) => console.warn("[push-dispatch] trade push failed:", err));
   }
 }
