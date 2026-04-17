@@ -13,10 +13,5 @@
       "path": "/api/cron/tsdb-cache-warm",
       "schedule": "0 3 * * 0"
     }
-  ],
-  "functions": {
-    "app/api/cron/import-gw-stats/route.ts": {
-      "maxDuration": 300
-    }
-  }
+  ]
 }
