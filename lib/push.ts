@@ -1,12 +1,6 @@
 import webpush from 'web-push';
 import { createServiceRoleClient } from '@/lib/supabase-server';
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-);
-
 export type PushEvent =
   | 'waiver_approved' | 'waiver_rejected'
   | 'trade_accepted'  | 'trade_rejected'
@@ -49,6 +43,11 @@ export async function sendPush(
   payload: PushPayload,
   leagueId?: string,
 ): Promise<void> {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT!,
+    process.env.VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
+  );
   const supabase = createServiceRoleClient();
 
   // Check global prefs
