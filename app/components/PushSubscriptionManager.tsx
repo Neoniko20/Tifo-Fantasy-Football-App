@@ -61,9 +61,19 @@ export default function PushSubscriptionManager({ onStatusChange }: Props) {
       if (perm !== 'granted') return;
 
       const reg = await navigator.serviceWorker.ready;
+
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
+        console.log('[Push] unsubscribing stale subscription');
+        await existing.unsubscribe();
+      }
+
+      const keyArray = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      console.log('[Push] key bytes:', keyArray.length, 'first byte:', keyArray[0]);
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: keyArray,
       });
 
       const json = sub.toJSON();
