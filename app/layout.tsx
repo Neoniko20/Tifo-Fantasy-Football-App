@@ -5,6 +5,7 @@ import { InstallPrompt } from "@/app/components/InstallPrompt";
 import { NotificationsProvider } from "@/app/components/NotificationsProvider";
 import { ToastProvider } from "@/app/components/ToastProvider";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
+import ServiceWorkerRegistrar from "@/app/components/ServiceWorkerRegistrar";
 
 const unbounded = Unbounded({
   subsets: ["latin"],
@@ -66,6 +67,7 @@ export default function RootLayout({
             <NotificationsProvider>
               {children}
               <InstallPrompt />
+              <ServiceWorkerRegistrar />
             </NotificationsProvider>
           </ToastProvider>
         </ThemeProvider>
