@@ -50,6 +50,7 @@ export default function PushSubscriptionManager({ onStatusChange }: Props) {
 
   async function subscribe() {
     setLoading(true);
+    console.log('[Push] VAPID key:', VAPID_PUBLIC_KEY);
     try {
       const perm = await Notification.requestPermission();
       setPermission(perm);
