@@ -4,7 +4,7 @@ import { createServiceRoleClient } from '@/lib/supabase-server';
 import { sendPush, sendPushToLeague, type PushPayload } from '@/lib/push';
 
 type DispatchBody =
-  | { event: 'trade_accepted' | 'trade_rejected'; userId: string; payload: PushPayload; leagueId: string }
+  | { event: 'trade_proposed' | 'trade_accepted' | 'trade_rejected' | 'trade_cancelled'; userId: string; payload: PushPayload; leagueId: string }
   | { event: 'draft_your_turn'; userId: string; payload: PushPayload; leagueId: string }
   | { event: 'draft_pick_made'; leagueId: string; payload: PushPayload; excludeUserId?: string }
   | { event: 'gw_started' | 'gw_finished'; gwId: string; payload: PushPayload }
@@ -34,8 +34,10 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (body.event) {
+      case 'trade_proposed':
       case 'trade_accepted':
       case 'trade_rejected':
+      case 'trade_cancelled':
       case 'draft_your_turn':
         await sendPush(body.userId, body.event, body.payload, body.leagueId);
         break;

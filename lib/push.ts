@@ -3,7 +3,8 @@ import { createServiceRoleClient } from '@/lib/supabase-server';
 
 export type PushEvent =
   | 'waiver_approved' | 'waiver_rejected'
-  | 'trade_accepted'  | 'trade_rejected'
+  | 'trade_proposed'
+  | 'trade_accepted'  | 'trade_rejected'  | 'trade_cancelled'
   | 'gw_started'      | 'gw_finished'
   | 'draft_your_turn' | 'draft_pick_made'
   | 'chat_message'
@@ -78,8 +79,10 @@ export async function sendPush(
     if (!lp.enabled) return;
     if (event === 'waiver_approved' && !lp.waiver_results) return;
     if (event === 'waiver_rejected' && !lp.waiver_results) return;
+    if (event === 'trade_proposed'   && !lp.trade_results)  return;
     if (event === 'trade_accepted'  && !lp.trade_results)  return;
     if (event === 'trade_rejected'  && !lp.trade_results)  return;
+    if (event === 'trade_cancelled' && !lp.trade_results)  return;
     if (event === 'chat_message'    && !lp.chat_messages)  return;
     if ((event === 'live_goal' || event === 'live_assist') && !lp.live_goals) return;
   }

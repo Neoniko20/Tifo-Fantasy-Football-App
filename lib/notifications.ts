@@ -53,9 +53,9 @@ async function insertNotification(args: CreateArgs): Promise<void> {
   });
   if (error) console.warn("[notifications] insert failed:", error.message);
 
-  // Fire-and-forget push for trade results
-  if (args.kind === "trade_accepted" || args.kind === "trade_rejected") {
-    const pushEvent = args.kind;
+  // Fire-and-forget push for all trade events
+  const tradePushEvents = ["trade_proposed", "trade_accepted", "trade_rejected", "trade_cancelled"];
+  if (tradePushEvents.includes(args.kind)) {
     supabase.auth.getSession().then(({ data: sessionData }) => {
       const token = sessionData.session?.access_token ?? '';
       return fetch("/api/notifications/push-dispatch", {
@@ -65,7 +65,7 @@ async function insertNotification(args: CreateArgs): Promise<void> {
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          event:    pushEvent,
+          event:    args.kind,
           userId:   args.userId,
           leagueId: args.leagueId,
           payload: {
