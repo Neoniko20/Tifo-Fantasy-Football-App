@@ -48,6 +48,8 @@ export async function setGlobalPrefs(
   supabase: SupabaseClient,
   prefs: Partial<GlobalPrefs>,
 ): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
   const { data: existing } = await supabase
     .from('user_notification_prefs')
     .select('prefs')
@@ -55,7 +57,7 @@ export async function setGlobalPrefs(
   const merged = { ...DEFAULT_GLOBAL, ...(existing?.prefs ?? {}), ...prefs };
   await supabase
     .from('user_notification_prefs')
-    .upsert({ prefs: merged, updated_at: new Date().toISOString() });
+    .upsert({ user_id: user.id, prefs: merged, updated_at: new Date().toISOString() });
 }
 
 export async function getLeaguePrefs(
@@ -75,6 +77,8 @@ export async function setLeaguePrefs(
   leagueId: string,
   prefs: Partial<LeaguePrefs>,
 ): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
   const { data: existing } = await supabase
     .from('league_notification_prefs')
     .select('prefs')
@@ -83,5 +87,5 @@ export async function setLeaguePrefs(
   const merged = { ...DEFAULT_LEAGUE, ...(existing?.prefs ?? {}), ...prefs };
   await supabase
     .from('league_notification_prefs')
-    .upsert({ league_id: leagueId, prefs: merged, updated_at: new Date().toISOString() });
+    .upsert({ user_id: user.id, league_id: leagueId, prefs: merged, updated_at: new Date().toISOString() });
 }
