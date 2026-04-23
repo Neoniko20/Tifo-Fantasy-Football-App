@@ -45,6 +45,8 @@ type PlayerCardProps = {
   isVC?: boolean;
   /** Injured Reserve badge (IR) — bottom-right, overrides club logo */
   isIR?: boolean;
+  /** Injury/news warning badge (⚠) — top-left, shown when player has injury news */
+  isInjured?: boolean;
   /**
    * Nation flag URL — replaces club logo in WM mode.
    * Pass `nation.flag_url` from wm pages.
@@ -59,7 +61,7 @@ type PlayerCardProps = {
 };
 
 export function PlayerCard({
-  player, posColor, size = 44, selected, posLabel, isCap, isVC, isIR,
+  player, posColor, size = 44, selected, posLabel, isCap, isVC, isIR, isInjured,
   nationFlagUrl, gwPoints, canLiveSwap, gwMinutes,
 }: PlayerCardProps) {
   const logoSize = size > 36 ? 16 : 14;
@@ -110,6 +112,14 @@ export function PlayerCard({
         >
           {selected ? "+" : (posLabel || "?")}
         </span>
+      )}
+
+      {/* ── Injury warning badge (⚠) — top-left ── */}
+      {player && isInjured && !isIR && (
+        <span
+          className="absolute -top-1 -left-1 w-4 h-4 rounded-full text-[7px] font-black flex items-center justify-center z-10"
+          style={{ background: "var(--color-warning, #f59e0b)", color: "#fff" }}
+        >!</span>
       )}
 
       {/* ── Captain badge (C) ── */}

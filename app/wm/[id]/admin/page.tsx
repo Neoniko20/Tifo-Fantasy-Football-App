@@ -48,6 +48,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const [tab, setTab] = useState<"points" | "nations" | "gameweeks">("points");
   const { toast } = useToast();
   const [eliminateNation, setEliminateNation] = useState<string>("");
+  const [tournament, setTournament] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -72,10 +73,11 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
 
     const { data: settingsData } = await supabase
       .from("wm_league_settings")
-      .select("*, wm_tournaments(id, name)")
+      .select("*, wm_tournaments(id, name, status, start_date, end_date)")
       .eq("league_id", leagueId)
       .maybeSingle();
     setSettings(settingsData);
+    if (settingsData?.wm_tournaments) setTournament(settingsData.wm_tournaments);
 
     if (settingsData?.tournament_id) {
       const { data: gws } = await supabase
@@ -262,6 +264,31 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
     if (!gw) return;
     await supabase.from("wm_gameweeks").update({ status }).eq("id", gw.id);
     setGameweeks(prev => prev.map(g => g.gameweek === gwNum ? { ...g, status } : g));
+
+    if (status === "active" || status === "finished") {
+      const event = status === "active" ? "gw_started" : "gw_finished";
+      const title = status === "active" ? `▶ WM GW ${gwNum} gestartet` : `■ WM GW ${gwNum} beendet`;
+      const body = status === "active" ? "Die WM-Spieltag-Wertung läuft!" : "Der WM-Spieltag ist abgeschlossen.";
+      fetch("/api/notifications/push-dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event, gwId: gw.id, payload: { title, body, link: `/wm/${leagueId}` } }),
+      }).catch((err) => console.warn("[push-dispatch] WM GW push failed:", err));
+    }
+  }
+
+  async function updateTournamentStatus(status: "upcoming" | "active" | "finished") {
+    if (!settings?.tournament_id) return;
+    const { error } = await supabase
+      .from("wm_tournaments")
+      .update({ status })
+      .eq("id", settings.tournament_id);
+    if (error) { toast("Fehler: " + error.message, "error"); return; }
+    setTournament((prev: any) => ({ ...prev, status }));
+    toast(
+      status === "active" ? "Turnier gestartet" : status === "finished" ? "Turnier beendet" : "Turnier zurückgesetzt",
+      status === "finished" ? "success" : "info"
+    );
   }
 
   if (loading) return (
@@ -549,6 +576,43 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* TURNIER-LIFECYCLE */}
+      {tab === "gameweeks" && tournament && (
+        <div className="w-full max-w-xl mt-4">
+          <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
+            Turnier-Status
+          </p>
+          <div className="flex items-center justify-between p-4 rounded-xl"
+            style={{ background: "var(--bg-card)", border: `1px solid ${tournament.status === "active" ? "var(--color-primary)" : tournament.status === "finished" ? "var(--color-success)" : "var(--color-border)"}` }}>
+            <div>
+              <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{tournament.name}</p>
+              <p className="text-[8px] font-black uppercase mt-0.5"
+                style={{ color: tournament.status === "active" ? "var(--color-primary)" : tournament.status === "finished" ? "var(--color-success)" : "var(--color-muted)" }}>
+                {tournament.status === "active" ? "● Aktiv" : tournament.status === "finished" ? "✓ Beendet" : "○ Geplant"}
+              </p>
+            </div>
+            <div className="flex gap-1.5">
+              {(["upcoming", "active", "finished"] as const).map(s => (
+                <button key={s} onClick={() => updateTournamentStatus(s)}
+                  disabled={tournament.status === s}
+                  className="px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all disabled:opacity-40"
+                  style={{
+                    background: tournament.status === s
+                      ? s === "active" ? "var(--color-primary)" : s === "finished" ? "var(--color-success)" : "var(--color-border)"
+                      : "var(--bg-page)",
+                    color: tournament.status === s
+                      ? s === "active" || s === "finished" ? "var(--bg-page)" : "var(--color-text)"
+                      : "var(--color-muted)",
+                    border: `1px solid ${tournament.status === s ? "transparent" : "var(--color-border)"}`,
+                  }}>
+                  {s === "upcoming" ? "Geplant" : s === "active" ? "Starten" : "Beenden"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </main>

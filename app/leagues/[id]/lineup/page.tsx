@@ -89,6 +89,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [dropping, setDropping] = useState<number | null>(null);
   const [taxiSquad, setTaxiSquad] = useState<Player[]>([]);
   const [selectingTaxi, setSelectingTaxi] = useState(false);
+  const [playerBorn, setPlayerBorn] = useState<Map<number, string>>(new Map());
   const [gwMinutes, setGwMinutes] = useState<Record<number, number>>({}); // current GW minutes (live)
   const [originalXIIds, setOriginalXIIds] = useState<number[]>([]); // snapshot at load time
   const { toast } = useToast();
@@ -100,6 +101,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [playerHistory, setPlayerHistory] = useState<any[]>([]);
   const [playerNews, setPlayerNews] = useState<any[]>([]);
   const [playerNewsLoading, setPlayerNewsLoading] = useState(false);
+  const [injuredPlayerIds, setInjuredPlayerIds] = useState<Set<number | string>>(new Set());
   const [playerDetailLoading, setPlayerDetailLoading] = useState(false);
   const [playerTab, setPlayerTab] = useState<"summary" | "gamelog" | "history" | "news">("summary");
 
@@ -169,7 +171,16 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     if (p?.name) {
       setPlayerNewsLoading(true);
       fetch(`/api/player-news?name=${encodeURIComponent(p.name)}`)
-        .then(r => r.json()).then(d => { setPlayerNews(d.items || []); setPlayerNewsLoading(false); })
+        .then(r => r.json()).then(d => {
+          const items = d.items || [];
+          setPlayerNews(items);
+          setPlayerNewsLoading(false);
+          const injuryKeywords = /verletzt|gesperrt|fällt aus|ausfällt|injured|suspended|doubt|questionable|not available/i;
+          const hasInjuryNews = items.some((n: any) => injuryKeywords.test(n.title));
+          if (hasInjuryNews && pid) {
+            setInjuredPlayerIds(prev => new Set([...prev, pid]));
+          }
+        })
         .catch(() => setPlayerNewsLoading(false));
     }
   }
@@ -214,6 +225,25 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       playersData = all.filter(p => !taxiIds.has(p.id));
       setTaxiSquad(taxiData);
       setDraftPicks(playersData);
+
+      // Fetch born dates from tsdb_player_cache for age filtering in taxi selector
+      if (ls?.taxi_spots > 0) {
+        const names = all.map((p: any) => p.name);
+        const { data: bornRows } = await supabase
+          .from("tsdb_player_cache")
+          .select("player_name, born")
+          .in("player_name", names)
+          .not("born", "is", null);
+        if (bornRows) {
+          const bornMap = new Map<number, string>();
+          const nameToId = new Map(all.map((p: any) => [p.name, p.id]));
+          for (const row of bornRows) {
+            const pid = nameToId.get(row.player_name);
+            if (pid && row.born) bornMap.set(pid, row.born);
+          }
+          setPlayerBorn(bornMap);
+        }
+      }
     }
 
     checkSquadWarnings(playersData, ls, taxiData);
@@ -221,6 +251,15 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     await loadIRSlots(team.id, playersData);
     await loadGWPoints(team.id, gw);
     setLoading(false);
+  }
+
+  function calcAge(born: string): number {
+    const today = new Date();
+    const b = new Date(born);
+    let age = today.getFullYear() - b.getFullYear();
+    const m = today.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < b.getDate())) age--;
+    return age;
   }
 
   function checkSquadWarnings(players: Player[], settings: any, taxi?: Player[]) {
@@ -350,6 +389,14 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       toast(`Frühestens ab GW${slot.min_return_gw} reaktivierbar.`, "info");
       return;
     }
+    if (ligaSettings?.ir_recall_requires_roster_space ?? true) {
+      const maxRoster = (ligaSettings?.squad_size || 15) + (ligaSettings?.bench_size || 4);
+      const nonIRCount = draftPicks.filter(p => !irSlots.some(s => s.player_id === p.id)).length;
+      if (nonIRCount >= maxRoster) {
+        toast(`Kein Kaderplatz frei (${maxRoster}/${maxRoster}). Bitte zuerst einen Spieler abgeben.`, "error");
+        return;
+      }
+    }
     await supabase.from("liga_ir_slots")
       .update({ returned_at_gw: activeGW })
       .eq("id", slot.id);
@@ -375,6 +422,11 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
   async function promoteFromTaxi(player: Player) {
     if (!myTeam) return;
+    const maxRoster = (ligaSettings?.squad_size || 15) + (ligaSettings?.bench_size || 4);
+    if (draftPicks.length >= maxRoster) {
+      toast(`Kader voll (${maxRoster} Plätze). Bitte zuerst einen Spieler abgeben.`, "error");
+      return;
+    }
     await supabase.from("squad_players")
       .update({ is_taxi: false })
       .eq("team_id", myTeam.id)
@@ -667,6 +719,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
         gwPoints={gwPoints}
         canLiveSwap={canLiveSwap}
         gwMinutes={gwMinutes}
+        isInjured={props.player ? injuredPlayerIds.has(props.player.id) : false}
       />
     );
   }
@@ -1116,7 +1169,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                       {player.name.split(" ").pop() || "—"}
                     </p>
                     <p className="text-[7px] text-center" style={{ color: "var(--color-muted)" }}>
-                      {player.fpts?.toFixed(0)} pts
+                      {playerBorn.get(player.id) ? `${calcAge(playerBorn.get(player.id)!)}J · ` : ""}{player.fpts?.toFixed(0)} pts
                     </p>
                     <button onClick={() => promoteFromTaxi(player)}
                       className="text-[7px] font-black mt-1 px-1.5 py-0.5 rounded transition-all"
@@ -1140,28 +1193,44 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   </div>
                 ))}
               </div>
-              {selectingTaxi && (
-                <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
-                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
-                    Spieler auf Taxi Squad setzen (kann nicht aufgestellt werden)
-                  </p>
-                  {draftPicks.filter(p => !irPlayerIds.has(p.id)).map(p => (
-                    <div key={p.id} onClick={() => moveToTaxi(p)}
-                      className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                      style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text)"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"}>
-                      <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
-                        style={{ border: `1px solid ${POS_COLOR[p.position]}40` }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
-                        <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>{p.position} · {p.team_name}</p>
+              {selectingTaxi && (() => {
+                const ageLimit = ligaSettings?.taxi_age_limit ?? 21;
+                const taxiCandidates = draftPicks.filter(p => !irPlayerIds.has(p.id)).map(p => {
+                  const born = playerBorn.get(p.id);
+                  const age = born ? calcAge(born) : null;
+                  return { ...p, age };
+                }).filter(p => p.age === null || p.age <= ageLimit);
+                return (
+                  <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
+                    <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
+                      Spieler auf Taxi Squad setzen — max. U{ageLimit} (kann nicht aufgestellt werden)
+                    </p>
+                    {taxiCandidates.length === 0 && (
+                      <p className="text-[8px] text-center py-3" style={{ color: "var(--color-muted)" }}>
+                        Keine U{ageLimit}-Spieler im Kader verfügbar
+                      </p>
+                    )}
+                    {taxiCandidates.map(p => (
+                      <div key={p.id} onClick={() => moveToTaxi(p)}
+                        className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
+                        style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)" }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text)"}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"}>
+                        <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
+                          style={{ border: `1px solid ${POS_COLOR[p.position]}40` }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                          <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>{p.position} · {p.team_name}</p>
+                        </div>
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                          style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-primary)" }}>
+                          {p.age !== null ? `${p.age}J` : `U${ageLimit}`}
+                        </span>
                       </div>
-                      <span className="text-[8px] font-black" style={{ color: "var(--color-text)" }}>+ U21</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

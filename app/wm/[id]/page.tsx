@@ -30,6 +30,7 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
   const [currentGW, setCurrentGW] = useState<WMGameweek | null>(null);
   const [gwPointsMap, setGwPointsMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [hasDraft, setHasDraft] = useState(false);
   const [tab, setTab] = useState<"standings" | "nations" | "settings">("standings");
 
   useEffect(() => {
@@ -102,6 +103,14 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
       }
     }
 
+    // Draft session
+    const { data: draftData } = await supabase
+      .from("draft_sessions")
+      .select("id")
+      .eq("league_id", leagueId)
+      .maybeSingle();
+    setHasDraft(!!draftData);
+
     setLoading(false);
   }
 
@@ -110,8 +119,6 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
       <Spinner text="Lade WM-Liga..." />
     </main>
   );
-
-  const hasDraft = false; // TODO: check if draft_session exists
 
   // Gruppen aufteilen
   const groups = nations.reduce((acc, n) => {
@@ -167,8 +174,8 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         <div className="flex flex-col gap-2">
           <button onClick={() => window.location.href = `/wm/${leagueId}/draft`}
             className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
-            style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
-            Draft →
+            style={{ background: hasDraft ? "var(--bg-card)" : "var(--color-primary)", border: hasDraft ? "1px solid var(--color-border-subtle)" : "none", color: hasDraft ? "var(--color-text)" : "var(--bg-page)" }}>
+            {hasDraft ? "Draft →" : "Draft starten →"}
           </button>
           <button onClick={() => window.location.href = `/wm/${leagueId}/waiver`}
             className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
