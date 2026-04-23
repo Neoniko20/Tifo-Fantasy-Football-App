@@ -11,6 +11,7 @@ import {
 } from "@/lib/scoring";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
 import { GameweeksTab } from "@/app/components/admin/GameweeksTab";
+import { CronMonitorTab } from "@/app/components/admin/CronMonitorTab";
 
 // api-sports league id → tsdb badge
 const LEAGUE_BADGES: Record<string, string> = {
@@ -42,7 +43,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [squadPlayers, setSquadPlayers] = useState<any[]>([]);
   const [playerStats, setPlayerStats] = useState<Record<number, typeof EMPTY_STATS>>({});
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<"gameweeks" | "points" | "settings" | "import">("gameweeks");
+  const [tab, setTab] = useState<"gameweeks" | "points" | "settings" | "import" | "cron">("gameweeks");
   const [importLeague, setImportLeague] = useState<string>("all");
   const [importRunning, setImportRunning] = useState(false);
   const [importLog, setImportLog] = useState<string[]>([]);
@@ -69,6 +70,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [irSpots, setIrSpots] = useState(0);
   const [irMinGW, setIrMinGW] = useState(4);
   const [taxiSpots, setTaxiSpots] = useState(0);
+  const [taxiAgeLimit, setTaxiAgeLimit] = useState(21);
+  const [irRecallRequiresSpace, setIrRecallRequiresSpace] = useState(true);
   const [maxPerClub, setMaxPerClub] = useState<number | "">(3);
   const [posLimits, setPosLimits] = useState({
     GK: { min: 1, max: 2 },
@@ -128,6 +131,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       setIrSpots(ls.ir_spots || 0);
       setIrMinGW(ls.ir_min_gameweeks || 4);
       setTaxiSpots(ls.taxi_spots || 0);
+      setTaxiAgeLimit(ls.taxi_age_limit || 21);
+      setIrRecallRequiresSpace(ls.ir_recall_requires_roster_space ?? true);
       setMaxPerClub(ls.max_players_per_club ?? 3);
       if (ls.position_limits) setPosLimits(ls.position_limits);
       if (ls.allowed_formations) setAllowedFormations(ls.allowed_formations);
@@ -342,6 +347,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       ir_spots: irSpots,
       ir_min_gameweeks: irMinGW,
       taxi_spots: taxiSpots,
+      taxi_age_limit: taxiAgeLimit,
+      ir_recall_requires_roster_space: irRecallRequiresSpace,
       max_players_per_club: maxPerClub === "" ? null : Number(maxPerClub),
       position_limits: posLimits,
       allowed_formations: allowedFormations,
@@ -611,6 +618,7 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
           { id: "points",    label: "Punkte" },
           { id: "settings",  label: "Einstellungen" },
           { id: "import",    label: "Import" },
+          { id: "cron",      label: "Cron" },
         ] as const).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
@@ -984,6 +992,45 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 </div>
               ))}
             </div>
+            {irSpots > 0 && (
+              <div>
+                <button onClick={() => setIrRecallRequiresSpace(v => !v)}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl transition-all"
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
+                  <div>
+                    <p className="text-xs font-black text-left" style={{ color: "var(--color-text)" }}>
+                      IR-Rückkehr: Kaderplatz nötig
+                    </p>
+                    <p className="text-[8px] text-left" style={{ color: "var(--color-muted)" }}>
+                      Recall blockiert wenn Kader voll
+                    </p>
+                  </div>
+                  <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
+                    style={{ background: irRecallRequiresSpace ? "var(--color-primary)" : "var(--color-border)" }}>
+                    <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
+                      style={{ background: "white", left: irRecallRequiresSpace ? "calc(100% - 1.125rem)" : "2px" }} />
+                  </div>
+                </button>
+              </div>
+            )}
+            {taxiSpots > 0 && (
+              <div>
+                <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>Taxi Alters-Limit</p>
+                <div className="flex gap-2">
+                  {[19, 21, 23].map(age => (
+                    <button key={age} onClick={() => setTaxiAgeLimit(age)}
+                      className="flex-1 py-1.5 rounded-lg text-xs font-black transition-all"
+                      style={{
+                        background: taxiAgeLimit === age ? "var(--color-primary)" : "var(--bg-page)",
+                        color: taxiAgeLimit === age ? "var(--bg-page)" : "var(--color-text)",
+                        border: `1px solid ${taxiAgeLimit === age ? "var(--color-primary)" : "var(--color-border)"}`,
+                      }}>
+                      U{age}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-[8px] font-black uppercase mb-1" style={{ color: "var(--color-dim)" }}>
                 Max. Spieler vom selben Club (leer = kein Limit)
@@ -1441,6 +1488,11 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
             )}
           </div>
         </div>
+      )}
+
+      {/* CRON-MONITORING */}
+      {tab === "cron" && (
+        <CronMonitorTab leagueId={leagueId} />
       )}
 
       <BottomNav />

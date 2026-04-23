@@ -40,15 +40,46 @@ export type ImportResult = {
 };
 
 // ── api-football helper ────────────────────────────────────────────
-export async function afootFetch(path: string, apiKey: string): Promise<any> {
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Minimum ms between API calls to stay within rate limits (10 req/min free, 30 req/min paid)
+const AFOOT_MIN_INTERVAL_MS = 2200;
+let lastAfootCall = 0;
+
+export async function afootFetch(path: string, apiKey: string, retries = 2): Promise<any> {
+  // Throttle: ensure minimum interval between calls
+  const now = Date.now();
+  const wait = AFOOT_MIN_INTERVAL_MS - (now - lastAfootCall);
+  if (wait > 0) await delay(wait);
+  lastAfootCall = Date.now();
+
   const res = await fetch(`${AFOOT_BASE}${path}`, {
     headers: {
       "x-rapidapi-key":  apiKey,
       "x-rapidapi-host": "v3.football.api-sports.io",
     },
   });
+
+  // Rate limit hit — wait and retry
+  if (res.status === 429 && retries > 0) {
+    const retryAfter = parseInt(res.headers.get("retry-after") || "60", 10);
+    console.warn(`[gw-import] Rate limited on ${path}, retrying after ${retryAfter}s`);
+    await delay(retryAfter * 1000);
+    lastAfootCall = 0; // reset throttle
+    return afootFetch(path, apiKey, retries - 1);
+  }
+
   if (!res.ok) throw new Error(`api-football ${path} → ${res.status}`);
-  return res.json();
+
+  const json = await res.json();
+
+  // Warn if approaching quota (some plans expose x-ratelimit-remaining)
+  const remaining = res.headers.get("x-ratelimit-requests-remaining");
+  if (remaining !== null && parseInt(remaining, 10) < 5) {
+    console.warn(`[gw-import] API quota low: ${remaining} requests remaining`);
+  }
+
+  return json;
 }
 
 // ── Core import logic — shared between full import and live mode ───
@@ -327,6 +358,14 @@ export type PendingGameweek = {
   status: string;
 };
 
+export type GameweekToStart = {
+  id: string;
+  league_id: string;
+  gameweek: number;
+  start_date: string;
+  end_date: string;
+};
+
 export async function findGameweeksToImport(
   todayISO: string,
 ): Promise<PendingGameweek[]> {
@@ -340,4 +379,22 @@ export async function findGameweeksToImport(
 
   if (error) throw error;
   return (data || []) as PendingGameweek[];
+}
+
+// Upcoming GWs whose window has started but not yet ended → flip to "active"
+export async function findGameweeksToStart(
+  todayISO: string,
+): Promise<GameweekToStart[]> {
+  const supabase = createServiceRoleClient();
+  const { data, error } = await supabase
+    .from("liga_gameweeks")
+    .select("id, league_id, gameweek, start_date, end_date")
+    .eq("status", "upcoming")
+    .not("start_date", "is", null)
+    .not("end_date", "is", null)
+    .lte("start_date", todayISO)
+    .gte("end_date", todayISO);
+
+  if (error) throw error;
+  return (data || []) as GameweekToStart[];
 }
