@@ -9,6 +9,7 @@ import { FORMATION_KEYS } from "@/lib/wm-formations";
 import { useToast } from "@/app/components/ToastProvider";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { OnboardingFlow } from "@/app/components/OnboardingFlow";
 
 type League = {
   id: string;
@@ -78,8 +79,26 @@ export default function LeaguesPage() {
     setLoading(false);
   }
 
+  async function createLeagueFromOnboarding(name: string, mode: "liga" | "wm", scoring: "h2h" | "standard") {
+    setNewLeagueName(name);
+    setLeagueMode(mode);
+    setScoringType(scoring);
+    await createLeagueWithParams(name, mode, scoring);
+  }
+
+  async function joinLeagueFromOnboarding(code: string) {
+    setJoinCode(code);
+    await joinLeagueWithCode(code);
+  }
+
   async function createLeague() {
     if (!newLeagueName.trim()) return;
+    setSaving(true);
+    await createLeagueWithParams(newLeagueName, leagueMode, scoringType);
+  }
+
+  async function createLeagueWithParams(name: string, mode: "liga" | "wm", scoring: "h2h" | "standard") {
+    if (!name.trim()) return;
     setSaving(true);
 
     const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -87,12 +106,12 @@ export default function LeaguesPage() {
     const { data: league, error } = await supabase
       .from("leagues")
       .insert({
-        name: newLeagueName.trim(),
+        name: name.trim(),
         owner_id: user.id,
         max_teams: maxTeams,
-        scoring_type: scoringType,
+        scoring_type: scoring,
         status: "setup",
-        mode: leagueMode,
+        mode,
         invite_code: inviteCode,
       })
       .select()
@@ -113,7 +132,7 @@ export default function LeaguesPage() {
     });
 
     // WM: Turnier-Settings anlegen
-    if (leagueMode === "wm") {
+    if (mode === "wm") {
       const { data: tournament } = await supabase
         .from("wm_tournaments")
         .select("id")
@@ -155,12 +174,16 @@ export default function LeaguesPage() {
 
   async function joinLeague() {
     if (!joinCode.trim()) return;
+    await joinLeagueWithCode(joinCode.trim());
+  }
+
+  async function joinLeagueWithCode(code: string) {
     setSaving(true);
 
     const { data: league } = await supabase
       .from("leagues")
       .select("*")
-      .eq("invite_code", joinCode.trim().toLowerCase())
+      .eq("invite_code", code.trim().toLowerCase())
       .single();
 
     if (!league) {
@@ -246,17 +269,10 @@ export default function LeaguesPage() {
           {loading ? (
             <Spinner text="Lade Ligen..." />
           ) : leagues.length === 0 ? (
-            <EmptyState
-              icon="🏆"
-              title="Noch keine Ligen."
-              description="Erstelle deine erste Liga oder tritt einer bei."
-              action={
-                <button onClick={() => setView("create")}
-                  className="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest"
-                  style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
-                  Erste Liga erstellen
-                </button>
-              }
+            <OnboardingFlow
+              onCreateLeague={createLeagueFromOnboarding}
+              onJoinLeague={joinLeagueFromOnboarding}
+              saving={saving}
             />
           ) : (
             leagues.map((league) => (
