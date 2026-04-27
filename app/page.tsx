@@ -7,6 +7,163 @@ import { TifoIcon } from "@/app/components/TifoLogo";
 import { NotificationsBell } from "@/app/components/NotificationsBell";
 import { Spinner } from "@/app/components/ui/Spinner";
 
+// ── Hero Section ──────────────────────────────────────────────────────────────
+
+/** Generates a bumpy "crowd profile" SVG path from cubic bezier arcs. */
+function crowdPath(y: number, count: number, bumpH: number, fillDown: number, w = 375): string {
+  const bw = w / count;
+  let d = `M 0 ${y}`;
+  for (let i = 0; i < count; i++) {
+    const x0 = i * bw;
+    const x1 = x0 + bw;
+    d += ` C ${x0 + bw * 0.18} ${y - bumpH} ${x1 - bw * 0.18} ${y - bumpH} ${x1} ${y}`;
+  }
+  d += ` L ${w} ${y + fillDown} L 0 ${y + fillDown} Z`;
+  return d;
+}
+
+function HeroSection({
+  username,
+  greeting,
+  leagueCount,
+}: {
+  username: string;
+  greeting: string;
+  leagueCount: number;
+}) {
+  return (
+    <div
+      className="relative w-full max-w-md overflow-hidden flex-shrink-0"
+      style={{ height: 230 }}
+    >
+      {/* ── 1. Base — pitch-black warm dark ── */}
+      <div className="absolute inset-0" style={{ background: "#050301" }} />
+
+      {/* ── 2. Floodlight — two beams from top-right ── */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: [
+            /* wide outer cone */
+            "radial-gradient(ellipse 90% 160% at 110% -20%, rgba(245,166,35,0.26) 0%, rgba(245,166,35,0.09) 38%, transparent 65%)",
+            /* tight inner beam */
+            "radial-gradient(ellipse 40% 80% at 100% -8%, rgba(255,210,90,0.22) 0%, transparent 48%)",
+            /* floor bounce — faint warm glow at very bottom */
+            "radial-gradient(ellipse 110% 30% at 50% 108%, rgba(245,166,35,0.07) 0%, transparent 60%)",
+          ].join(", "),
+        }}
+      />
+
+      {/* ── 3. Fan-curve silhouette (three tiers) ── */}
+      <svg
+        aria-hidden
+        className="absolute bottom-0 left-0 w-full pointer-events-none"
+        height="90"
+        viewBox="0 0 375 90"
+        preserveAspectRatio="none"
+      >
+        {/* back row — barely visible */}
+        <path d={crowdPath(22, 28, 9,  68)} fill="rgba(245,166,35,0.028)" />
+        {/* middle row */}
+        <path d={crowdPath(46, 21, 12, 44)} fill="rgba(245,166,35,0.048)" />
+        {/* front row — most defined */}
+        <path d={crowdPath(68, 15, 15, 22)} fill="rgba(245,166,35,0.075)" />
+        {/* solid floor strip so crowd doesn't bleed into cards */}
+        <rect x="0" y="79" width="375" height="11" fill="#050301" />
+      </svg>
+
+      {/* ── 4. Abstract TIFO banner strip ── */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          top: 60,
+          left: "8%",
+          right: "8%",
+          height: 22,
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(245,166,35,0.10) 15%, rgba(245,166,35,0.20) 50%, rgba(245,166,35,0.10) 85%, transparent 100%)",
+          borderTop: "1px solid rgba(245,166,35,0.14)",
+          borderBottom: "1px solid rgba(245,166,35,0.08)",
+          transform: "rotate(-0.6deg)",
+        }}
+      />
+      {/* secondary banner — thinner, offset */}
+      <div
+        aria-hidden
+        className="absolute pointer-events-none"
+        style={{
+          top: 86,
+          left: "20%",
+          right: "25%",
+          height: 10,
+          background:
+            "linear-gradient(90deg, transparent, rgba(245,166,35,0.08) 30%, rgba(245,166,35,0.13) 60%, transparent)",
+          transform: "rotate(0.4deg)",
+        }}
+      />
+
+      {/* ── 5. Film-grain overlay ── */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='250' height='250' filter='url(%23g)'/%3E%3C/svg%3E")`,
+          opacity: 0.038,
+          mixBlendMode: "overlay",
+        }}
+      />
+
+      {/* ── 6. Bottom fade to page background ── */}
+      <div
+        aria-hidden
+        className="absolute bottom-0 left-0 right-0 pointer-events-none"
+        style={{
+          height: 72,
+          background: "linear-gradient(to bottom, transparent, var(--bg-page))",
+        }}
+      />
+
+      {/* ── UI LAYER ── */}
+
+      {/* Top bar: logo + bell */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-5 pt-4 z-20">
+        <TifoIcon size={30} />
+        <NotificationsBell />
+      </div>
+
+      {/* Greeting text */}
+      <div className="absolute bottom-10 left-0 right-0 px-5 z-20">
+        <p
+          className="text-[9px] font-black uppercase tracking-[0.28em] mb-0.5"
+          style={{ color: "var(--color-muted)" }}
+        >
+          {greeting},
+        </p>
+        <h1
+          className="text-[34px] font-black uppercase leading-none tracking-tight"
+          style={{
+            color: "var(--color-text)",
+            textShadow:
+              "0 0 80px rgba(245,166,35,0.40), 0 0 24px rgba(245,166,35,0.18), 0 2px 16px rgba(0,0,0,0.95)",
+          }}
+        >
+          {username}
+        </h1>
+        {leagueCount > 0 && (
+          <p
+            className="text-[8px] font-black uppercase tracking-[0.28em] mt-2"
+            style={{ color: "var(--color-muted)" }}
+          >
+            {leagueCount} {leagueCount === 1 ? "Liga" : "Ligen"}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type League = {
@@ -239,41 +396,20 @@ export default function HomePage() {
 
   return (
     <main
-      className="flex min-h-screen flex-col items-center px-4 pb-28"
-      style={{ background: "var(--bg-page)", paddingTop: 16 }}
+      className="flex min-h-screen flex-col items-center pb-28"
+      style={{ background: "var(--bg-page)" }}
     >
-      {/* Ambient glow */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 w-80 h-48 rounded-full blur-3xl opacity-10"
-        style={{ background: "var(--color-primary)" }}
+      {/* ── Hero ── */}
+      <HeroSection
+        username={username}
+        greeting={greeting()}
+        leagueCount={cards.length}
       />
 
-      {/* ── Top bar ── */}
-      <div className="w-full max-w-md flex items-center justify-between mb-5 relative z-10">
-        <TifoIcon size={36} />
-        <NotificationsBell />
-      </div>
-
-      {/* ── Greeting ── */}
-      <div className="w-full max-w-md mb-5 relative z-10">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--color-muted)" }}>
-          {greeting()},
-        </p>
-        <h1
-          className="text-[28px] font-black uppercase leading-tight tracking-tight"
-          style={{ color: "var(--color-text)" }}
-        >
-          {username}
-        </h1>
-        <p className="text-[9px] font-black uppercase tracking-[0.25em] mt-1" style={{ color: "var(--color-muted)" }}>
-          Deine Ligen
-        </p>
-      </div>
-
       {/* ── League cards ── */}
+      <div className="w-full max-w-md px-4">
       {loading ? (
-        <div className="w-full max-w-md flex justify-center py-16">
+        <div className="w-full flex justify-center py-16">
           <Spinner text="Lade Ligen..." />
         </div>
       ) : cards.length === 0 ? (
@@ -404,8 +540,10 @@ export default function HomePage() {
         </div>
       )}
 
+      </div>{/* end px-4 wrapper */}
+
       {/* ── Join / Create ── */}
-      <div className="w-full max-w-md mt-4 relative z-10">
+      <div className="w-full max-w-md px-4 mt-4 relative z-10">
         <a
           href="/leagues"
           className="flex items-center justify-center gap-2 w-full rounded-2xl py-3.5 transition-all active:scale-[0.98]"
@@ -423,7 +561,7 @@ export default function HomePage() {
 
       {/* ── Aktivitäten ── */}
       {activities.length > 0 && (
-        <div className="w-full max-w-md mt-6 relative z-10">
+        <div className="w-full max-w-md px-4 mt-6 relative z-10">
           <p className="text-[9px] font-black uppercase tracking-[0.25em] mb-3" style={{ color: "var(--color-muted)" }}>
             Aktivitäten
           </p>
