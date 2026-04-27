@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/process-waivers",
-      "schedule": "0 10 * * 3"
+      "schedule": "0 4 * * *"
     },
     {
       "path": "/api/cron/tsdb-cache-warm",

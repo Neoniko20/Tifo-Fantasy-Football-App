@@ -15,6 +15,14 @@
   --color-border:    var(--color-border);
   --color-border-subtle: var(--color-border-subtle);
 
+  /* ── Phase 1: extended TIFO Ultra tokens ── */
+  --color-primary-soft:   var(--color-primary-soft);
+  --color-accent:         var(--color-accent);
+  --color-glow:           var(--color-glow);
+  --color-text-secondary: var(--color-text-secondary);
+  --tifo-grain-opacity:   var(--tifo-grain-opacity);
+  --tifo-bg-image:        var(--tifo-bg-image);
+
   /* Position colors — immutable across all themes */
   --pos-gk: #f5a623;
   --pos-df: #4a9eff;
@@ -57,6 +65,15 @@
   --color-dim:          #9a7a50;
   --color-border:       #2a2010;
   --color-border-subtle:#3a2a10;
+  /* Extended */
+  --color-primary-soft:   rgba(245, 166, 35, 0.14);
+  --color-accent:         #ffc96a;
+  --color-glow:           rgba(245, 166, 35, 0.45);
+  --color-text-secondary: #a88858;
+  --tifo-grain-opacity:   0.05;
+  --tifo-bg-image:
+    radial-gradient(120% 60% at 80% 0%, rgba(245,166,35,0.12) 0%, transparent 55%),
+    radial-gradient(100% 70% at 0% 100%, rgba(245,166,35,0.06) 0%, transparent 60%);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -75,6 +92,15 @@
   --color-dim:          #888888;
   --color-border:       #222222;
   --color-border-subtle:#2a2a2a;
+  /* Extended — TIFO Ultra floodlight */
+  --color-primary-soft:   rgba(240, 224, 96, 0.12);
+  --color-accent:         #fff5a0;
+  --color-glow:           rgba(240, 224, 96, 0.55);
+  --color-text-secondary: #a8a8a8;
+  --tifo-grain-opacity:   0.07;
+  --tifo-bg-image:
+    radial-gradient(110% 55% at 85% -5%, rgba(240,224,96,0.18) 0%, transparent 55%),
+    radial-gradient(90% 60% at 10% 110%, rgba(240,224,96,0.05) 0%, transparent 60%);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -93,6 +119,15 @@
   --color-dim:          #6a7a9a;
   --color-border:       #1a2540;
   --color-border-subtle:#202d4a;
+  /* Extended */
+  --color-primary-soft:   rgba(232, 200, 74, 0.14);
+  --color-accent:         #ffe0a0;
+  --color-glow:           rgba(232, 200, 74, 0.42);
+  --color-text-secondary: #8898b8;
+  --tifo-grain-opacity:   0.04;
+  --tifo-bg-image:
+    radial-gradient(120% 60% at 80% 0%, rgba(232,200,74,0.10) 0%, transparent 55%),
+    radial-gradient(100% 70% at 0% 100%, rgba(106,159,255,0.06) 0%, transparent 60%);
 }
 
 /* ══════════════════════════════════════════════════════
@@ -111,6 +146,15 @@
   --color-dim:          #4a5a7a;
   --color-border:       #1a2040;
   --color-border-subtle:#202850;
+  /* Extended */
+  --color-primary-soft:   rgba(123, 159, 255, 0.14);
+  --color-accent:         #b0c8ff;
+  --color-glow:           rgba(123, 159, 255, 0.45);
+  --color-text-secondary: #7a94c4;
+  --tifo-grain-opacity:   0.04;
+  --tifo-bg-image:
+    radial-gradient(120% 60% at 80% 0%, rgba(123,159,255,0.14) 0%, transparent 55%),
+    radial-gradient(100% 70% at 0% 100%, rgba(123,159,255,0.05) 0%, transparent 60%);
 }
 
 /* ── Base ─────────────────────────────────────────────── */

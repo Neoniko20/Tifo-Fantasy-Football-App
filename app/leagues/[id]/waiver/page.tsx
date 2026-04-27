@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import { useToast } from "@/app/components/ToastProvider";
 import { PlayerCard } from "@/app/components/PlayerCard";
@@ -206,13 +205,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
   return (
     <>
-      <LeagueTopNav
-        leagueId={leagueId}
-        leagueName={league?.name}
-        isOwner={league?.owner_id === user?.id}
-        waiversEnabled={!!settings?.waiver_enabled}
-      />
-      <main className="flex min-h-screen flex-col items-center p-4 pt-24 pb-28"
+      <main className="flex min-h-screen flex-col items-center p-4 pt-4 pb-28"
         style={{ background: "var(--bg-page)" }}>
         <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
           style={{ background: "var(--color-primary)" }} />

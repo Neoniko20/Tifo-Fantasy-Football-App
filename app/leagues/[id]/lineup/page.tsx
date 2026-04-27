@@ -4,9 +4,9 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { FORMATIONS, validateFormation } from "@/lib/wm-formations";
 import type { Position } from "@/lib/wm-types";
-import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { PlayerPitchCard } from "@/app/components/PlayerPitchCard";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
@@ -82,6 +82,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [irSlots, setIrSlots] = useState<IRSlotData[]>([]);
   const [selectingIR, setSelectingIR] = useState(false);
   const [squadWarnings, setSquadWarnings] = useState<{ type: string; message: string }[]>([]);
+  const [showFormationPicker, setShowFormationPicker] = useState(false);
   const [gwPoints, setGwPoints] = useState<Record<number, number>>({});
   const [activeTab, setActiveTab] = useState<"lineup" | "squad" | "matches">("lineup");
   const [modalData, setModalData] = useState<ModalData | null>(null);
@@ -725,102 +726,146 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-24" style={{ background: "var(--bg-page)", paddingTop: 80 }}>
-      <LeagueTopNav
-        leagueId={leagueId}
-        leagueName={league?.name}
-        leagueStatus={league?.status}
-        isOwner={league?.owner_id === user?.id}
-      />
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "var(--color-primary)" }} />
+    <main className="flex min-h-screen flex-col items-center px-3 pb-28" style={{ background: "var(--bg-page)", paddingTop: 16 }}>
 
-      {/* ── Header ── */}
-      <div className="w-full max-w-md flex justify-between items-center mb-4">
-        <button onClick={() => window.location.href = `/leagues/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-          ← Liga
-        </button>
-        <div className="text-center">
-          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-            {league?.name}
+      {/* ── App Header ── */}
+      <div className="w-full max-w-md pt-3 pb-1">
+        {/* Row 1: GW context + Save */}
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+            {gameweeks.length > 0 ? `Spieltag ${activeGW}` : (league?.name ?? "My Team")}
           </p>
-          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
-            {myTeam?.name || "Mein Team"}
-          </p>
+          {activeTab === "lineup" && (
+            <button
+              onClick={saveLineup}
+              disabled={saving || isLocked}
+              className="rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+              style={{
+                background: isLocked ? "var(--bg-elevated)" : saved ? "color-mix(in srgb, var(--color-success) 18%, var(--bg-elevated))" : "var(--color-primary)",
+                color: isLocked ? "var(--color-muted)" : saved ? "var(--color-success)" : "var(--bg-page)",
+                border: isLocked ? "1px solid var(--color-border)" : saved ? "1px solid var(--color-success)" : "none",
+              }}
+            >
+              {isLocked ? "🔒" : saving ? "…" : saved ? "✓" : "Speichern"}
+            </button>
+          )}
         </div>
-        <button onClick={saveLineup} disabled={saving || activeTab !== "lineup" || isLocked}
-          className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
-          style={{
-            background: isLocked ? "var(--bg-elevated)" : saved ? "var(--color-success)" : activeTab === "lineup" ? "var(--color-primary)" : "var(--bg-elevated)",
-            color: isLocked ? "var(--color-muted)" : "var(--bg-page)",
-          }}>
-          {isLocked ? "🔒" : saving ? "..." : saved ? "✓" : "Speichern"}
-        </button>
+
+        {/* Row 2: Team name */}
+        <h1 className="text-[26px] font-black uppercase leading-none tracking-tight truncate mb-2.5"
+          style={{ color: "var(--color-text)" }}>
+          {myTeam?.name || "Mein Team"}
+        </h1>
+
+        {/* Row 3: Formation pill + Points (lineup tab only) */}
+        {activeTab === "lineup" && (
+          <div className="flex items-center justify-between">
+            {/* Formation pill */}
+            <button
+              onClick={() => { if (!isLocked) setShowFormationPicker(v => !v); }}
+              disabled={isLocked}
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
+              style={{
+                background: "var(--bg-elevated)",
+                border: `1px solid ${showFormationPicker ? "var(--color-primary)" : "var(--color-border)"}`,
+                color: showFormationPicker ? "var(--color-primary)" : "var(--color-text)",
+              }}
+            >
+              {formation}
+              <span style={{ fontSize: 8 }}>▾</span>
+            </button>
+
+            {/* Points summary */}
+            <div className="flex items-baseline gap-3">
+              <div className="text-right">
+                <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Punkte</p>
+                <p className="text-lg font-black leading-none" style={{ color: "var(--color-primary)" }}>
+                  {xiPoints.toFixed(1)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>XI</p>
+                <p className="text-base font-black leading-none" style={{ color: "var(--color-muted)" }}>
+                  {startingXI.filter(Boolean).length}/11
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Formation picker — dropdown */}
+        {showFormationPicker && !isLocked && activeTab === "lineup" && (
+          <div className="mt-2 grid grid-cols-5 gap-1.5">
+            {(ligaSettings?.allowed_formations || Object.keys(FORMATIONS).filter(f => !FORMATIONS[f].rare)).map((f: string) =>
+              FORMATIONS[f] && (
+                <button key={f}
+                  onClick={() => { changeFormation(f); setShowFormationPicker(false); }}
+                  className="py-1.5 rounded-lg text-[9px] font-black transition-all text-center"
+                  style={{
+                    background: formation === f ? "var(--color-primary)" : "var(--bg-elevated)",
+                    color: formation === f ? "var(--bg-page)" : "var(--color-muted)",
+                    border: `1px solid ${formation === f ? "var(--color-primary)" : "var(--color-border)"}`,
+                  }}>
+                  {f}
+                </button>
+              )
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ── Tab-Navigation ── */}
-      <div className="flex w-full max-w-md mb-4 rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-border)" }}>
+      {/* ── Tab bar — underline ── */}
+      <div className="flex w-full max-w-md mb-2" style={{ borderBottom: "1px solid var(--color-border)" }}>
         {([
           { id: "lineup",  label: "Aufstellung" },
           { id: "squad",   label: "Kader" },
           { id: "matches", label: "Spieltag" },
         ] as const).map(tab => (
-          <button key={tab.id} onClick={() => { setActiveTab(tab.id); setSelectedSlot(null); setSelectingIR(false); setSelectingTaxi(false); }}
-            className="flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all"
+          <button key={tab.id}
+            onClick={() => { setActiveTab(tab.id); setSelectedSlot(null); setSelectingIR(false); setSelectingTaxi(false); setShowFormationPicker(false); }}
+            className="flex-1 pb-2 pt-1 text-[9px] font-black uppercase tracking-widest transition-all"
             style={{
-              background: activeTab === tab.id ? "var(--color-primary)" : "var(--bg-card)",
-              color: activeTab === tab.id ? "var(--bg-page)" : "var(--color-muted)",
+              color: activeTab === tab.id ? "var(--color-primary)" : "var(--color-muted)",
+              borderBottom: `2px solid ${activeTab === tab.id ? "var(--color-primary)" : "transparent"}`,
+              marginBottom: "-1px",
             }}>
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* ── Squad-Warnungen (immer sichtbar) ── */}
+      {/* ── Squad warnings — compact strip ── */}
       {squadWarnings.length > 0 && (
-        <div className="w-full max-w-md mb-4 rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-error)" }}>
-          <div className="px-3 py-2 flex items-center gap-2" style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" }}>
-            <span className="text-sm">⚠️</span>
-            <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-error)" }}>
-              Kader-Problem
-            </p>
-          </div>
+        <div className="w-full max-w-md mb-2 rounded-lg px-3 py-2 flex items-center gap-2 flex-wrap"
+          style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 30%, transparent)" }}>
+          <span className="text-[9px] font-black uppercase tracking-wider flex-shrink-0" style={{ color: "var(--color-error)" }}>⚠ Kader</span>
           {squadWarnings.map((w, i) => (
-            <div key={i} className="px-3 py-2 flex items-start gap-2"
-              style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", borderTop: "1px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>
-              <span className="text-[9px] font-black flex-shrink-0"
-                style={{ color: w.type === "overflow" ? "var(--color-error)" : "var(--color-primary)" }}>
-                {w.type === "overflow" ? "● Überfüllt" : "● Position"}
-              </span>
-              <p className="text-[9px] leading-relaxed" style={{ color: "var(--color-text)" }}>{w.message}</p>
-            </div>
+            <span key={i} className="text-[9px]" style={{ color: "var(--color-muted)" }}>{w.message}</span>
           ))}
         </div>
       )}
 
-      {/* ── GW-Selector (immer sichtbar) ── */}
+      {/* ── GW selector (compact scroll) ── */}
       {gameweeks.length > 0 && (
-        <div className="flex gap-1.5 w-full max-w-md mb-4 overflow-x-auto pb-1">
+        <div className="flex gap-1.5 w-full max-w-md mb-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
           {gameweeks.map((gw: any) => (
             <button key={gw.gameweek} onClick={() => setActiveGW(gw.gameweek)}
-              className="px-3 py-1.5 rounded-lg text-[9px] font-black whitespace-nowrap flex-shrink-0 transition-all"
+              className="px-2.5 py-1 rounded-full text-[8px] font-black whitespace-nowrap flex-shrink-0 transition-all"
               style={{
-                background: activeGW === gw.gameweek ? "var(--color-primary)" : "var(--bg-card)",
+                background: activeGW === gw.gameweek ? "var(--color-primary)" : "transparent",
                 color: activeGW === gw.gameweek ? "var(--bg-page)" : "var(--color-muted)",
-                border: `1px solid ${activeGW === gw.gameweek ? "var(--color-primary)" : gw.status === "active" ? "var(--color-border-subtle)" : "var(--color-border)"}`,
+                border: `1px solid ${activeGW === gw.gameweek ? "var(--color-primary)" : "var(--color-border)"}`,
               }}>
               GW{gw.gameweek}
             </button>
           ))}
         </div>
       )}
-      {gameweeks.length === 0 && (
-        <div className="w-full max-w-md rounded-xl p-3 mb-4 text-center"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-          <p className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>Noch keine Spieltage angelegt</p>
-          <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>Liga-Owner kann Spieltage im Admin anlegen</p>
-        </div>
+      {gameweeks.length === 0 && activeTab === "lineup" && (
+        <p className="w-full max-w-md text-[8px] font-black uppercase tracking-widest mb-2 px-1"
+          style={{ color: "var(--color-border)" }}>
+          Noch keine Spieltage angelegt
+        </p>
       )}
 
       {/* ════════════════════════════════
@@ -828,116 +873,82 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       ════════════════════════════════ */}
       {activeTab === "lineup" && (
         <>
-          {/* F-37: Status-Banner */}
+          {/* ── Status strip (thin, inline) ── */}
           {(() => {
-            if (canLiveSwap) return (
-              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "color-mix(in srgb, var(--color-success) 8%, var(--bg-page))", border: "1px solid var(--color-primary)50" }}>
-                <span className="text-base">⚡</span>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
-                    Live-Tausch aktiv
-                  </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
-                    Tausche Starter die noch nicht gespielt haben. Bereits gespielte Spieler sind gesperrt.
-                  </p>
-                </div>
+            let icon = "", label = "", color = "var(--color-primary)";
+            if (canLiveSwap)                                      { icon = "⚡"; label = "Live-Tausch aktiv";        color = "var(--color-primary)"; }
+            else if (lockMode === "pre_sub" && activeGWStatus === "upcoming") { icon = "🔄"; label = "Auto-Sub Modus"; color = "var(--color-info)"; }
+            else if (isLocked && activeGWStatus === "finished")   { icon = "✅"; label = "Spieltag abgeschlossen";   color = "var(--color-success)"; }
+            else if (isLocked)                                    { icon = "🔒"; label = lockMode === "pre_sub" ? "Auto-Sub läuft" : "Aufstellung gesperrt"; color = "var(--color-primary)"; }
+            else return null;
+            return (
+              <div className="w-full max-w-md mb-2 rounded-lg px-3 py-1.5 flex items-center gap-2"
+                style={{ background: `color-mix(in srgb, ${color} 8%, var(--bg-page))`, border: `1px solid color-mix(in srgb, ${color} 25%, transparent)` }}>
+                <span className="text-[11px]">{icon}</span>
+                <p className="text-[8px] font-black uppercase tracking-widest" style={{ color }}>{label}</p>
               </div>
             );
-            if (lockMode === "pre_sub" && activeGWStatus === "upcoming") return (
-              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-info)40" }}>
-                <span className="text-base">🔄</span>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-info)" }}>
-                    Auto-Sub Modus
-                  </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
-                    Bankreihenfolge = Auto-Sub Priorität. Stelle sicher dass die Bank richtig sortiert ist.
-                  </p>
-                </div>
-              </div>
-            );
-            if (isLocked && activeGWStatus === "finished") return (
-              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid var(--color-success)40" }}>
-                <span className="text-base">✅</span>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>
-                    Spieltag abgeschlossen
-                  </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
-                    Punkte berechnet. Auto-Subs wurden angewendet.
-                  </p>
-                </div>
-              </div>
-            );
-            if (isLocked) return (
-              <div className="w-full max-w-md mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-primary)40" }}>
-                <span className="text-base">🔒</span>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
-                    {lockMode === "pre_sub" ? "Live — Auto-Sub läuft" : "Live — Aufstellung gesperrt"}
-                  </p>
-                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
-                    {lockMode === "pre_sub"
-                      ? "Spieltag läuft. Auto-Subs werden nach Bankreihenfolge angewendet."
-                      : "Spieltag läuft. Aufstellung kann nicht mehr geändert werden."}
-                  </p>
-                </div>
-              </div>
-            );
-            return null;
           })()}
 
-          {/* Punkte-Vorschau */}
-          <div className="w-full max-w-md flex items-center justify-between mb-3 px-1">
-            <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-              GW{activeGW} · {startingXI.filter(Boolean).length}/11
-            </p>
-            <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
-              {xiPoints.toFixed(1)} <span className="text-[9px]" style={{ color: "var(--color-muted)" }}>FPTS (Vorschau)</span>
-            </p>
-          </div>
+          {/* Spielfeld — capped at 480px, full-width on mobile */}
+          <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4 relative"
+            style={{
+              background: "linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 8%, var(--bg-page)) 0%, color-mix(in srgb, #1a2e1a 60%, var(--bg-page)) 100%)",
+              border: "1px solid color-mix(in srgb, var(--color-primary) 22%, transparent)",
+              minHeight: 480,
+            }}>
+            {/* Pitch lines */}
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              {/* Center line */}
+              <div className="absolute left-0 right-0 top-1/2 h-px"
+                style={{ background: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
+              {/* Center circle */}
+              <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border"
+                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
+              {/* Center spot */}
+              <div className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{ background: "color-mix(in srgb, var(--color-primary) 40%, transparent)" }} />
+              {/* Top penalty box */}
+              <div className="absolute left-[18%] right-[18%] top-0 h-[90px] border border-t-0"
+                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
+              {/* Top goal area */}
+              <div className="absolute left-[34%] right-[34%] top-0 h-[34px] border border-t-0"
+                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
+              {/* Top penalty spot */}
+              <div className="absolute left-1/2 top-[60px] h-1 w-1 -translate-x-1/2 rounded-full"
+                style={{ background: "color-mix(in srgb, var(--color-primary) 40%, transparent)" }} />
+              {/* Bottom penalty box */}
+              <div className="absolute left-[18%] right-[18%] bottom-0 h-[90px] border border-b-0"
+                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
+              {/* Bottom goal area */}
+              <div className="absolute left-[34%] right-[34%] bottom-0 h-[34px] border border-b-0"
+                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
+              {/* Bottom penalty spot */}
+              <div className="absolute left-1/2 bottom-[60px] h-1 w-1 -translate-x-1/2 rounded-full"
+                style={{ background: "color-mix(in srgb, var(--color-primary) 40%, transparent)" }} />
+            </div>
 
-          {/* Formation-Selector */}
-          <div className="flex gap-1.5 flex-wrap w-full max-w-md mb-3">
-            {(ligaSettings?.allowed_formations ||
-              Object.keys(FORMATIONS).filter(f => !FORMATIONS[f].rare)
-            ).map((f: string) => (
-              FORMATIONS[f] && (
-                <button key={f} onClick={() => { if (!isLocked) changeFormation(f); }}
-                  disabled={isLocked}
-                  className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all disabled:opacity-30"
-                  style={{
-                    background: formation === f ? "var(--color-primary)" : "var(--bg-card)",
-                    color: formation === f ? "var(--bg-page)" : "var(--color-muted)",
-                    border: `1px solid ${formation === f ? "var(--color-primary)" : "var(--color-border)"}`,
-                  }}>
-                  {f}
-                </button>
-              )
-            ))}
-          </div>
-
-          {/* Spielfeld */}
-          <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4"
-            style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-success) 15%, var(--bg-page))", minHeight: 340 }}>
-            <div className="relative p-3"
-              style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--color-success) 8%, var(--bg-page)) 0%, var(--bg-page) 100%)" }}>
-              <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "var(--color-success)" }} />
-              <div className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full border opacity-10 -translate-x-1/2 -translate-y-1/2"
-                style={{ borderColor: "var(--color-success)" }} />
-
+            {/* Rows — justify-between keeps GK inside bottom penalty area */}
+            <div className="relative z-10 flex flex-col justify-between p-3" style={{ minHeight: 480 }}>
               {rows.map(({ row, slots }) => (
-                <div key={row} className="flex justify-center gap-2 mb-3">
+                <div key={row} className="flex justify-center gap-2">
                   {slots.map(({ position, slotIndex }) => {
                     const player = startingXI[slotIndex];
                     const isSelected = selectedSlot?.type === "xi" && selectedSlot.index === slotIndex;
-                    const posColor = POS_COLOR[position] || "var(--color-text)";
                     const isCap = player?.id === captainId;
                     const isVC = player?.id === viceCaptainId;
+                    const playerInjured = player ? injuredPlayerIds.has(player.id) : false;
+                    const lockedForSwap = !!player && canLiveSwap && (gwMinutes[player.id] ?? -1) > 0;
+                    const status = isLocked || lockedForSwap
+                      ? "locked"
+                      : playerInjured
+                        ? "injured"
+                        : isCap
+                          ? "active"
+                          : "default";
+                    const liveMin = player && canLiveSwap && gwMinutes[player.id] !== undefined
+                      ? gwMinutes[player.id]
+                      : undefined;
 
                     return (
                       <div key={slotIndex}
@@ -950,17 +961,26 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                             setSelectedSlot(isSelected ? null : { type: "xi", index: slotIndex });
                           }
                         }}
-                        className="flex flex-col items-center transition-all"
-                        style={{ width: 60, cursor: isLocked ? "default" : "pointer" }}>
-                        <PlayerCircle
-                          player={player} posColor={posColor}
-                          selected={isSelected} posLabel={position}
-                          isCap={isCap} isVC={isVC}
-                        />
-                        <p className="text-[7px] font-black text-center leading-tight mt-1 truncate w-full"
-                          style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
-                          {player ? player.name.split(" ").pop() : position}
-                        </p>
+                        style={{ cursor: isLocked ? "default" : "pointer" }}>
+                        {player ? (
+                          <PlayerPitchCard
+                            variant="compact"
+                            position={position}
+                            name={player.name}
+                            imageUrl={player.photo_url}
+                            points={gwPoints[player.id] ?? player.fpts}
+                            isCaptain={isCap}
+                            isViceCaptain={isVC}
+                            liveMinutes={liveMin}
+                            status={status}
+                          />
+                        ) : (
+                          <PlayerPitchCard
+                            variant="compact"
+                            position={position}
+                            isEmpty
+                          />
+                        )}
                       </div>
                     );
                   })}

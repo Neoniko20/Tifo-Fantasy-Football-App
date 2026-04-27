@@ -1,721 +1,454 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { UserBadge } from "@/app/components/UserBadge";
 import { BottomNav } from "@/app/components/BottomNav";
 import { TifoIcon } from "@/app/components/TifoLogo";
-import { useToast } from "@/app/components/ToastProvider";
+import { NotificationsBell } from "@/app/components/NotificationsBell";
 import { Spinner } from "@/app/components/ui/Spinner";
-import { EmptyState } from "@/app/components/ui/EmptyState";
 
-const LEAGUES = [
-  { id: 0, name: "Alle Ligen", flag: "🌍" },
-  { id: 78, name: "Bundesliga", flag: "🇩🇪" },
-  { id: 39, name: "Premier League", flag: "🏴" },
-  { id: 140, name: "La Liga", flag: "🇪🇸" },
-  { id: 135, name: "Serie A", flag: "🇮🇹" },
-  { id: 61, name: "Ligue 1", flag: "🇫🇷" },
-];
+// ── Types ────────────────────────────────────────────────────────────────────
 
-const POS_COLOR: Record<string, string> = {
-  GK: "var(--color-primary)",
-  DF: "var(--color-info)",
-  MF: "var(--color-success)",
-  FW: "var(--color-error)",
+type League = {
+  id: string;
+  name: string;
+  status: string;
+  scoring_type: string;
 };
 
-type PlayerStats = {
-  goals?: { total?: number; assists?: number; saves?: number };
-  games?: { minutes?: number; position?: string; clean_sheet?: boolean };
-  passes?: { key?: number; accuracy?: number };
-  shots?: { on?: number };
-  dribbles?: { attempts?: number };
-  tackles?: { total?: number; interceptions?: number };
-  cards?: { yellow?: number; red?: number };
-  team?: { name?: string; logo?: string };
+type MyTeam = {
+  id: string;
+  league_id: string;
+  name: string;
+  total_points: number;
 };
 
-type PlayerItem = {
-  player: { id: number; name: string; photo: string; nationality: string; position?: string };
-  statistics: PlayerStats | PlayerStats[];
-  api_league_id?: number;
+type Gameweek = {
+  league_id: string;
+  gameweek: number;
+  status: string; // "upcoming" | "active" | "finished"
+};
+
+type Matchup = {
+  league_id: string;
+  gameweek: number;
+  home_team_id: string;
+  away_team_id: string;
+  home_points: number | null;
+  away_points: number | null;
+  winner_team_id: string | null;
+};
+
+type LeagueCard = {
+  league: League;
+  myTeam: MyTeam;
+  rank: number;
+  teamCount: number;
+  activeGW: Gameweek | null;
+  matchup: { opponentName: string; opponentPoints: number } | null;
+};
+
+type Activity = {
+  id: string;
+  league_id: string;
+  type: string;
+  description: string;
+  created_at: string;
+  player_name?: string;
   team_name?: string;
 };
 
-function normalizePosition(pos: string): string {
-  const p = (pos || "").toLowerCase();
-  if (p.includes("attack") || p.includes("forward") || p.includes("striker") || p === "fw") return "FW";
-  if (p.includes("mid") || p === "mf") return "MF";
-  if (p.includes("defend") || p.includes("back") || p === "df") return "DF";
-  if (p.includes("goal") || p.includes("keeper") || p === "gk") return "GK";
-  return (pos || "").toUpperCase().slice(0, 2);
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Guten Morgen";
+  if (h < 18) return "Guten Tag";
+  return "Guten Abend";
 }
 
-export default function Home() {
+function gwStatusChip(gw: Gameweek | null, leagueStatus: string) {
+  if (!gw) {
+    if (leagueStatus === "drafting") return { label: "Draft",        color: "var(--color-accent)",   live: false };
+    if (leagueStatus === "setup")    return { label: "Setup",        color: "var(--color-muted)",    live: false };
+    return                                  { label: "–",            color: "var(--color-border)",   live: false };
+  }
+  if (gw.status === "active")   return     { label: "Live",          color: "var(--color-success)",  live: true  };
+  if (gw.status === "finished") return     { label: "Abgeschlossen", color: "var(--color-muted)",    live: false };
+  return                                   { label: "Bald",          color: "var(--color-info)",     live: false };
+}
+
+/** Circle badge with 2-char initials */
+function LeagueBadge({ name }: { name: string }) {
+  const parts = name.trim().split(/\s+/);
+  const initials = parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
   return (
-    <Suspense fallback={
-      <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
-        <Spinner text="Laden..." />
-      </main>
-    }>
-      <HomeInner />
-    </Suspense>
+    <div
+      className="w-12 h-12 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0"
+      style={{
+        background: "linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 25%, var(--bg-elevated)), var(--bg-elevated))",
+        border: "1.5px solid color-mix(in srgb, var(--color-primary) 45%, transparent)",
+        color: "var(--color-primary)",
+        letterSpacing: "0.05em",
+      }}
+    >
+      {initials}
+    </div>
   );
 }
 
-function HomeInner() {
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab");
+function rankDisplay(rank: number) {
+  if (rank === 1) return "🥇 1. Platz";
+  if (rank === 2) return "🥈 2. Platz";
+  if (rank === 3) return "🥉 3. Platz";
+  return `${rank}. Platz`;
+}
 
-  const [scorers, setScorers] = useState<PlayerItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [caching, setCaching] = useState(false);
-  const [cachingStatus, setCachingStatus] = useState("");
-  const [sortBy, setSortBy] = useState("points");
-  const [selectedPlayer, setSelectedPlayer] = useState<PlayerItem | null>(null);
-  const [positionFilter, setPositionFilter] = useState<"ALL" | "GK" | "DF" | "MF" | "FW">("ALL");
-  const [search, setSearch] = useState("");
-  const [activeLeague, setActiveLeague] = useState(0);
-  const [activeTeam, setActiveTeam] = useState("");
-  const [availableTeams, setAvailableTeams] = useState<string[]>([]);
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+export default function HomePage() {
   const [user, setUser] = useState<any>(null);
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [mySquad, setMySquad] = useState<PlayerItem[]>([]);
-  const [captainId, setCaptainId] = useState<number | null>(null);
-  const [savingPlayer, setSavingPlayer] = useState<number | null>(null);
-  const { toast } = useToast();
-
-  const activeTab = tabParam === "squad" ? "squad" : "home";
+  const [cards, setCards] = useState<LeagueCard[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) { window.location.href = "/auth"; return; }
       setUser(data.user);
-      loadOrCreateTeam(data.user.id);
+      loadData(data.user.id);
     });
   }, []);
 
-  async function loadOrCreateTeam(userId: string) {
-    let { data: team } = await supabase
-      .from("teams").select("id").eq("user_id", userId).is("league_id", null).maybeSingle();
-    if (!team) {
-      const { data: newTeam } = await supabase
-        .from("teams").insert({ user_id: userId, name: "Mein Team", league_id: null })
-        .select("id").single();
-      team = newTeam;
-    }
-    if (team) { setTeamId(team.id); loadSquad(team.id); }
-  }
+  async function loadData(userId: string) {
+    setLoading(true);
+    try {
+      // 1. User's league teams
+      const { data: myTeams } = await supabase
+        .from("teams")
+        .select("id, league_id, name, total_points")
+        .eq("user_id", userId)
+        .not("league_id", "is", null);
 
-  async function loadSquad(tId: string) {
-    const { data } = await supabase
-      .from("squad_players").select("player_id, is_captain").eq("team_id", tId);
-    if (!data || data.length === 0) return;
-    const playerIds = data.map((d) => d.player_id);
-    const captain = data.find((d) => d.is_captain);
-    if (captain) setCaptainId(captain.player_id);
-    sessionStorage.setItem("squadPlayerIds", JSON.stringify(playerIds));
-  }
+      if (!myTeams || myTeams.length === 0) { setLoading(false); return; }
 
-  async function cachePlayersFromApi() {
-    setCaching(true);
-    const headers = { "x-apisports-key": process.env.NEXT_PUBLIC_FOOTBALL_API_KEY || "" };
-    const endpoints = ["topscorers", "topassists", "topredcards", "topyellowcards"];
-    const leagueIds = [78, 39, 140, 135, 61];
-    for (const leagueId of leagueIds) {
-      for (const endpoint of endpoints) {
-        setCachingStatus(`Lade ${endpoint} · Liga ${leagueId}...`);
-        try {
-          const res = await fetch(
-            `https://v3.football.api-sports.io/players/${endpoint}?league=${leagueId}&season=2023`,
-            { headers }
-          );
-          const data = await res.json();
-          const players = data.response || [];
-          for (const item of players) {
-            const stats = Array.isArray(item.statistics) ? item.statistics[0] : item.statistics;
-            const goals = stats?.goals?.total || 0;
-            const assists = stats?.goals?.assists || 0;
-            const minutes = stats?.games?.minutes || 0;
-            const shotsOn = stats?.shots?.on || 0;
-            const keyPasses = stats?.passes?.key || 0;
-            const passAccuracy = stats?.passes?.accuracy || 0;
-            const tackles = stats?.tackles?.total || 0;
-            const interceptions = stats?.tackles?.interceptions || 0;
-            const yellow = stats?.cards?.yellow || 0;
-            const red = stats?.cards?.red || 0;
-            const saves = stats?.goals?.saves || 0;
-            const dribbles = stats?.dribbles?.attempts || 0;
-            const position = normalizePosition(stats?.games?.position || "");
-            let fpts = goals * 4 + assists * 3 + shotsOn * 0.5 + keyPasses * 0.8;
-            fpts += tackles * 0.6 + interceptions * 0.6 + dribbles * 0.2;
-            fpts -= yellow * 1 + red * 3;
-            if (minutes >= 60) fpts += 1; else if (minutes > 0) fpts += 0.4;
-            await supabase.from("players").upsert({
-              id: item.player.id, name: item.player.name, position,
-              nationality: item.player.nationality, photo_url: item.player.photo,
-              team_name: stats?.team?.name || "", api_league_id: leagueId,
-              api_team_id: stats?.team?.id || 0, goals, assists, minutes,
-              shots_on: shotsOn, key_passes: keyPasses, pass_accuracy: passAccuracy,
-              tackles, interceptions, yellow_cards: yellow, red_cards: red,
-              saves, dribbles, fpts: Math.round(fpts * 10) / 10,
-            }, { onConflict: "id" });
-          }
-        } catch (e) { console.error(`Fehler ${endpoint} Liga ${leagueId}:`, e); }
-      }
-    }
-    setCaching(false);
-    setCachingStatus("");
-    await loadFromSupabase();
-  }
+      const leagueIds = myTeams.map((t: MyTeam) => t.league_id);
 
-  async function loadFromSupabase() {
-    const { data: dbPlayers } = await supabase
-      .from("players").select("*").order("fpts", { ascending: false });
-    if (!dbPlayers || dbPlayers.length === 0) return;
-    const converted = convertDbPlayers(dbPlayers);
-    setScorers(converted);
-    restoreSquadFromSession(converted);
-  }
+      // 2–6: Parallel fetches
+      const [leaguesRes, allTeamsRes, gwRes, matchupRes, activityRes] = await Promise.all([
+        supabase.from("leagues").select("id, name, status, scoring_type").in("id", leagueIds),
+        supabase.from("teams").select("id, league_id, total_points").in("league_id", leagueIds),
+        supabase.from("liga_gameweeks").select("league_id, gameweek, status").in("league_id", leagueIds).order("gameweek", { ascending: false }),
+        supabase.from("liga_matchups").select("league_id, gameweek, home_team_id, away_team_id, home_points, away_points, winner_team_id").in("league_id", leagueIds),
+        supabase.from("liga_transactions").select("id, league_id, type, description, created_at, player_name, team_name").in("league_id", leagueIds).order("created_at", { ascending: false }).limit(8),
+      ]);
 
-  function convertDbPlayers(dbPlayers: any[]): PlayerItem[] {
-    return dbPlayers.map(p => ({
-      player: {
-        id: p.id, name: p.name, photo: p.photo_url,
-        nationality: p.nationality, position: normalizePosition(p.position),
-      },
-      statistics: [{
-        games: { position: normalizePosition(p.position), minutes: p.minutes || 0 },
-        goals: { total: p.goals || 0, assists: p.assists || 0, saves: p.saves || 0 },
-        passes: { key: p.key_passes || 0, accuracy: p.pass_accuracy || 0 },
-        shots: { on: p.shots_on || 0 },
-        dribbles: { attempts: p.dribbles || 0 },
-        tackles: { total: p.tackles || 0, interceptions: p.interceptions || 0 },
-        cards: { yellow: p.yellow_cards || 0, red: p.red_cards || 0 },
-        team: { name: p.team_name, logo: "" },
-      }],
-      api_league_id: p.api_league_id,
-      team_name: p.team_name,
-    }));
-  }
+      const leagues: League[] = leaguesRes.data || [];
+      const allTeams: { id: string; league_id: string; total_points: number }[] = allTeamsRes.data || [];
+      const gameweeks: Gameweek[] = gwRes.data || [];
+      const matchups: Matchup[] = matchupRes.data || [];
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const { data: dbPlayers } = await supabase
-          .from("players").select("*").order("fpts", { ascending: false });
-        if (dbPlayers && dbPlayers.length > 20 && (dbPlayers[0]?.fpts ?? 0) > 0) {
-          const converted = convertDbPlayers(dbPlayers);
-          setScorers(converted);
-          restoreSquadFromSession(converted);
-        } else {
-          await cachePlayersFromApi();
-        }
-      } catch (e) { console.error("Fehler:", e); }
-      setLoading(false);
-    }
-    fetchData();
-  }, []);
+      // Build lookup maps
+      const leagueMap = new Map<string, League>(leagues.map((l) => [l.id, l]));
 
-  useEffect(() => {
-    if (activeLeague === 0) { setAvailableTeams([]); setActiveTeam(""); return; }
-    const teams = [...new Set(
-      scorers.filter(p => p.api_league_id === activeLeague)
-        .map(p => p.team_name || "").filter(Boolean)
-    )].sort();
-    setAvailableTeams(teams);
-    setActiveTeam("");
-  }, [activeLeague, scorers]);
-
-  function restoreSquadFromSession(allPlayers: PlayerItem[]) {
-    const stored = sessionStorage.getItem("squadPlayerIds");
-    if (!stored) return;
-    const ids: number[] = JSON.parse(stored);
-    setMySquad(allPlayers.filter((p) => ids.includes(p.player.id)));
-  }
-
-  function calculateDetailedPoints(stats: PlayerStats | PlayerStats[], isCaptain = false) {
-    if (!stats) return { season: 0, matchday: 0, bonus: 0, breakdown: {} as any };
-    const s = Array.isArray(stats) ? stats[0] : stats;
-    const goals = s.goals?.total || 0;
-    const assists = s.goals?.assists || 0;
-    const minutes = s.games?.minutes || 0;
-    const shotsOn = s.shots?.on || 0;
-    const keyPasses = s.passes?.key || 0;
-    const passAccuracy = s.passes?.accuracy || 0;
-    const dribbles = s.dribbles?.attempts || 0;
-    const tackles = s.tackles?.total || 0;
-    const interceptions = s.tackles?.interceptions || 0;
-    const yellow = s.cards?.yellow || 0;
-    const red = s.cards?.red || 0;
-    const saves = s.goals?.saves || 0;
-    const cleanSheets = s.games?.clean_sheet ? 1 : 0;
-    const position = normalizePosition(s.games?.position || "");
-
-    let p = 0;
-    if (position === "GK") p += goals * 6;
-    else if (position === "DF") p += goals * 6;
-    else if (position === "MF") p += goals * 5;
-    else p += goals * 4;
-
-    p += assists * 3;
-
-    if (position === "GK") { p += saves * 1.5; p += cleanSheets * 4; }
-    else if (position === "DF") { p += cleanSheets * 4; }
-    else if (position === "MF") { p += cleanSheets * 1; }
-
-    p += shotsOn * 0.5;
-    p += keyPasses * 0.8;
-    p += (passAccuracy / 100) * 0.5;
-    p += dribbles * 0.2;
-    p += tackles * 0.6;
-    p += interceptions * 0.6;
-    p -= yellow * 1;
-    p -= red * 3;
-    if (minutes >= 60) p += 1; else if (minutes > 0) p += 0.4;
-
-    const seasonTotal = Math.round(p * 10) / 10;
-    const matchdayBase = Math.round((seasonTotal / 34) * 1.5 * 10) / 10;
-    const bonus = isCaptain ? matchdayBase : 0;
-    return {
-      season: seasonTotal, matchday: matchdayBase + bonus, bonus,
-      breakdown: { goals, assists, minutes, shotsOn, keyPasses, passAccuracy, dribbles, tackles, interceptions, saves, cleanSheets, yellow, red, position }
-    };
-  }
-
-  async function toggleSquad(playerItem: PlayerItem) {
-    if (!teamId) return;
-    const exists = mySquad.some((p) => p.player.id === playerItem.player.id);
-    setSavingPlayer(playerItem.player.id);
-    if (exists) {
-      await supabase.from("squad_players").delete().eq("team_id", teamId).eq("player_id", playerItem.player.id);
-      setMySquad(mySquad.filter((p) => p.player.id !== playerItem.player.id));
-      if (captainId === playerItem.player.id) setCaptainId(null);
-    } else {
-      if (mySquad.length >= 11) { toast("Roster ist voll (11)", "error"); setSavingPlayer(null); return; }
-      const stats = Array.isArray(playerItem.statistics) ? playerItem.statistics[0] : playerItem.statistics;
-      await supabase.from("players").upsert({
-        id: playerItem.player.id, name: playerItem.player.name,
-        position: normalizePosition(stats?.games?.position || playerItem.player.position || ""),
-        nationality: playerItem.player.nationality,
-        photo_url: playerItem.player.photo, team_name: stats?.team?.name || ""
-      }, { onConflict: "id" });
-      await supabase.from("squad_players").insert({
-        team_id: teamId, player_id: playerItem.player.id, is_captain: false, is_on_bench: false
+      const allTeamsMap = new Map<string, typeof allTeams>();
+      allTeams.forEach((t) => {
+        const arr = allTeamsMap.get(t.league_id) || [];
+        arr.push(t);
+        allTeamsMap.set(t.league_id, arr);
       });
-      setMySquad([...mySquad, playerItem]);
+
+      // Best GW per league: prefer active, then highest number
+      const gwMap = new Map<string, Gameweek>();
+      gameweeks.forEach((gw) => {
+        const existing = gwMap.get(gw.league_id);
+        if (!existing || gw.status === "active" || gw.gameweek > existing.gameweek) {
+          gwMap.set(gw.league_id, gw);
+        }
+      });
+
+      // Opponent name lookup (all teams by id)
+      const teamNameMap = new Map<string, string>();
+      myTeams.forEach((t: MyTeam) => teamNameMap.set(t.id, t.name));
+
+      // Build cards
+      const result: LeagueCard[] = myTeams
+        .filter((t: MyTeam) => leagueMap.has(t.league_id))
+        .map((t: MyTeam) => {
+          const league = leagueMap.get(t.league_id)!;
+          const leagueTeams = (allTeamsMap.get(t.league_id) || [])
+            .sort((a, b) => b.total_points - a.total_points);
+          const rank = leagueTeams.findIndex((lt) => lt.id === t.id) + 1;
+          const activeGW = gwMap.get(t.league_id) ?? null;
+
+          // Find this team's matchup in the active GW
+          let matchup: LeagueCard["matchup"] = null;
+          if (activeGW) {
+            const mu = matchups.find(
+              (m) =>
+                m.league_id === t.league_id &&
+                m.gameweek === activeGW.gameweek &&
+                (m.home_team_id === t.id || m.away_team_id === t.id)
+            );
+            if (mu) {
+              const isHome = mu.home_team_id === t.id;
+              const opponentId = isHome ? mu.away_team_id : mu.home_team_id;
+              const opponentPoints = isHome ? (mu.away_points ?? 0) : (mu.home_points ?? 0);
+              // Find opponent name from allTeams
+              const opponentTeam = allTeams.find((at) => at.id === opponentId);
+              const opponentName = teamNameMap.get(opponentId) || opponentTeam?.id?.slice(0, 8) || "Gegner";
+              matchup = { opponentName, opponentPoints };
+            }
+          }
+
+          return {
+            league,
+            myTeam: t,
+            rank: rank > 0 ? rank : leagueTeams.length,
+            teamCount: leagueTeams.length,
+            activeGW,
+            matchup,
+          };
+        })
+        .sort((a, b) => {
+          // Active live first, then drafting, then by points
+          if (a.activeGW?.status === "active" && b.activeGW?.status !== "active") return -1;
+          if (b.activeGW?.status === "active" && a.activeGW?.status !== "active") return 1;
+          return b.myTeam.total_points - a.myTeam.total_points;
+        });
+
+      setCards(result);
+
+      // Activities (best-effort — table might not exist yet)
+      if (activityRes.data) setActivities(activityRes.data as Activity[]);
+
+    } catch (e) {
+      console.error("Home loadData:", e);
     }
-    setSavingPlayer(null);
+    setLoading(false);
   }
 
-  async function handleSetCaptain(playerId: number) {
-    if (!teamId) return;
-    const newCaptainId = playerId === captainId ? null : playerId;
-    await supabase.from("squad_players").update({ is_captain: false }).eq("team_id", teamId);
-    if (newCaptainId) await supabase.from("squad_players").update({ is_captain: true })
-      .eq("team_id", teamId).eq("player_id", newCaptainId);
-    setCaptainId(newCaptainId);
-  }
+  const username =
+    user?.user_metadata?.username ||
+    user?.email?.split("@")[0] ||
+    "Manager";
 
-  const filteredPlayers = scorers.filter((p) => {
-    const stats = Array.isArray(p.statistics) ? p.statistics[0] : p.statistics;
-    const pos = normalizePosition(stats?.games?.position || p.player?.position || "");
-    if (positionFilter !== "ALL" && pos !== positionFilter) return false;
-    if (search && !p.player.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (activeLeague !== 0 && p.api_league_id !== activeLeague) return false;
-    if (activeTeam && p.team_name !== activeTeam) return false;
-    return true;
-  });
+  // ── Render ────────────────────────────────────────────────────────────────
 
-  const sortedPlayers = [...filteredPlayers].sort((a, b) => {
-    const aStats = Array.isArray(a.statistics) ? a.statistics[0] : a.statistics;
-    const bStats = Array.isArray(b.statistics) ? b.statistics[0] : b.statistics;
-    if (sortBy === "points") return calculateDetailedPoints(b.statistics).season - calculateDetailedPoints(a.statistics).season;
-    if (sortBy === "goals") return (bStats?.goals?.total || 0) - (aStats?.goals?.total || 0);
-    if (sortBy === "assists") return (bStats?.goals?.assists || 0) - (aStats?.goals?.assists || 0);
-    if (sortBy === "position") return normalizePosition(aStats?.games?.position || "").localeCompare(normalizePosition(bStats?.games?.position || ""));
-    return 0;
-  });
-
-  const totalSquadPoints = mySquad.reduce((sum, p) => {
-    const isCap = p.player.id === captainId;
-    const pts = calculateDetailedPoints(p.statistics, isCap);
-    return sum + pts.season + pts.bonus;
-  }, 0);
-
-  /* ── SQUAD TAB ─────────────────────────────────────── */
-  if (activeTab === "squad") {
-    return (
-      <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
-        {/* Glow */}
-        <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-          style={{ background: "var(--color-primary)" }} />
-
-        <div className="w-full max-w-md flex justify-between items-center mb-6">
-          <TifoIcon size={36} />
-          <UserBadge />
-        </div>
-
-        {/* Hero FPTS */}
-        <div className="w-full max-w-md rounded-2xl p-5 mb-6 relative overflow-hidden"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
-          <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-            style={{ background: "var(--color-primary)" }} />
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--color-muted)" }}>Tifo — Saison Total</p>
-          <p className="text-4xl font-black tracking-tighter" style={{ color: "var(--color-primary)" }}>
-            {totalSquadPoints.toFixed(1)}
-            <span className="text-xs font-bold ml-2" style={{ color: "var(--color-muted)" }}>FPTS</span>
-          </p>
-          <p className="text-xs mt-1 font-black" style={{ color: "var(--color-muted)" }}>
-            {mySquad.length} / 11 Spieler
-            {captainId && " · Kapitän gesetzt"}
-          </p>
-        </div>
-
-        {mySquad.length === 0 ? (
-          <EmptyState icon="👥" title="Kein Kader aufgestellt"
-            description="Gehe zu HOME und füge Spieler hinzu" />
-        ) : (
-          <div className="w-full max-w-md space-y-2.5">
-            {mySquad.map((item) => {
-              const isCap = item.player.id === captainId;
-              const pts = calculateDetailedPoints(item.statistics, isCap);
-              const stats = Array.isArray(item.statistics) ? item.statistics[0] : item.statistics;
-              const pos = normalizePosition(stats?.games?.position || item.player?.position || "");
-              const posColor = POS_COLOR[pos] || "var(--color-text)";
-              return (
-                <div key={item.player.id}
-                  className="flex items-center justify-between p-3 rounded-2xl"
-                  style={{ background: "var(--bg-card)", border: `1px solid ${isCap ? "var(--color-primary)" : "var(--color-border)"}` }}>
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <img src={item.player.photo} className="w-11 h-11 rounded-full"
-                        style={{ border: `2px solid ${isCap ? "var(--color-primary)" : "var(--color-border)"}` }} alt="" />
-                      <span className="absolute -bottom-1 -right-1 text-[8px] font-black px-1 rounded-full"
-                        style={{ background: posColor, color: "var(--bg-page)" }}>{pos}</span>
-                    </div>
-                    <div>
-                      <p className="font-black text-sm" style={{ color: isCap ? "var(--color-primary)" : "var(--color-text)" }}>
-                        {isCap && <span className="mr-1">©</span>}{item.player.name}
-                      </p>
-                      <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-muted)" }}>
-                        {item.team_name}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right flex flex-col items-end gap-1.5">
-                    <p className="text-lg font-black" style={{ color: "var(--color-primary)" }}>{pts.season.toFixed(1)}</p>
-                    <div className="flex gap-1">
-                      <button onClick={() => handleSetCaptain(item.player.id)}
-                        className="px-2 py-1 text-[9px] font-black rounded-lg uppercase transition-colors"
-                        style={{ background: isCap ? "var(--color-primary)" : "var(--color-border)", color: isCap ? "var(--bg-page)" : "var(--color-muted)" }}>
-                        Cap
-                      </button>
-                      <button onClick={() => toggleSquad(item)}
-                        className="px-2 py-1 text-[9px] font-black rounded-lg uppercase"
-                        style={{ background: "var(--color-border)", color: "var(--color-muted)" }}>
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <BottomNav />
-      </main>
-    );
-  }
-
-  /* ── HOME TAB ──────────────────────────────────────── */
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
+    <main
+      className="flex min-h-screen flex-col items-center px-4 pb-28"
+      style={{ background: "var(--bg-page)", paddingTop: 16 }}
+    >
       {/* Ambient glow */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "var(--color-primary)" }} />
+      <div
+        aria-hidden
+        className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 w-80 h-48 rounded-full blur-3xl opacity-10"
+        style={{ background: "var(--color-primary)" }}
+      />
 
-      {/* Header */}
-      <div className="w-full max-w-md flex justify-between items-center mb-5">
+      {/* ── Top bar ── */}
+      <div className="w-full max-w-md flex items-center justify-between mb-5 relative z-10">
         <TifoIcon size={36} />
-        <div className="flex items-center gap-3">
-          <button
-            onClick={async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }}
-            className="text-[9px] font-black uppercase tracking-widest transition-colors"
-            style={{ color: "var(--color-muted)" }}>
-            Logout
-          </button>
-          <UserBadge />
-        </div>
+        <NotificationsBell />
       </div>
 
-      {/* Hero card */}
-      <div className="w-full max-w-md rounded-2xl p-5 mb-5 relative overflow-hidden"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
-        <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-          style={{ background: "var(--color-primary)" }} />
-        <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--color-muted)" }}>Mein Kader · Saison Total</p>
-        <div className="flex justify-between items-end">
-          <p className="text-4xl font-black tracking-tighter" style={{ color: "var(--color-primary)" }}>
-            {totalSquadPoints.toFixed(1)}
-            <span className="text-xs font-bold ml-2" style={{ color: "var(--color-muted)" }}>FPTS</span>
-          </p>
-          <p className="text-xs font-black pb-1" style={{ color: "var(--color-muted)" }}>
-            {mySquad.length}<span style={{ color: "var(--color-border)" }}> / 11</span>
-          </p>
-        </div>
-      </div>
-
-      {/* Caching status */}
-      {caching && (
-        <div className="w-full max-w-md mb-4 p-3 rounded-xl text-center"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-          <p className="text-[9px] font-black uppercase tracking-widest animate-pulse" style={{ color: "var(--color-primary)" }}>
-            {cachingStatus || "Lade Spieler..."}
-          </p>
-        </div>
-      )}
-
-      {/* League filter pills */}
-      <div className="flex gap-2 mb-3 overflow-x-auto w-full max-w-md pb-1 no-scrollbar">
-        {LEAGUES.map((l) => (
-          <button key={l.id} onClick={() => setActiveLeague(l.id)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-all"
-            style={{
-              background: activeLeague === l.id ? "var(--color-primary)" : "var(--bg-card)",
-              color: activeLeague === l.id ? "var(--bg-page)" : "var(--color-muted)",
-              border: `1px solid ${activeLeague === l.id ? "var(--color-primary)" : "var(--color-border)"}`,
-            }}>
-            {l.flag} {l.name}
-          </button>
-        ))}
-      </div>
-
-      {/* Team filter pills */}
-      {activeLeague !== 0 && availableTeams.length > 0 && (
-        <div className="flex gap-2 mb-3 overflow-x-auto w-full max-w-md pb-1 no-scrollbar">
-          <button onClick={() => setActiveTeam("")}
-            className="flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-all"
-            style={{
-              background: activeTeam === "" ? "var(--color-border)" : "var(--bg-card)",
-              color: activeTeam === "" ? "var(--color-text)" : "var(--color-muted)",
-              border: "1px solid var(--color-border)",
-            }}>
-            Alle
-          </button>
-          {availableTeams.map((team) => (
-            <button key={team} onClick={() => setActiveTeam(team === activeTeam ? "" : team)}
-              className="flex-shrink-0 px-3 py-1.5 rounded-full text-[9px] font-black uppercase whitespace-nowrap transition-all"
-              style={{
-                background: activeTeam === team ? "var(--color-border)" : "var(--bg-card)",
-                color: activeTeam === team ? "var(--color-text)" : "var(--color-muted)",
-                border: "1px solid var(--color-border)",
-              }}>
-              {team}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Search */}
-      <div className="w-full max-w-md mb-3">
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Spieler suchen..."
-          className="w-full p-3 rounded-xl text-sm focus:outline-none transition-colors"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
-      </div>
-
-      {/* Sort + Position filter */}
-      <div className="flex gap-2 w-full max-w-md mb-4">
-        <div className="flex-1 flex p-1 rounded-xl gap-0.5" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-          {[{ id: "points", label: "FPTS" }, { id: "goals", label: "Tore" }, { id: "assists", label: "Ast" }, { id: "position", label: "Pos" }].map((f) => (
-            <button key={f.id} onClick={() => setSortBy(f.id)}
-              className="flex-1 py-1.5 text-[9px] font-black rounded-lg transition-colors uppercase"
-              style={{
-                background: sortBy === f.id ? "var(--color-border)" : "transparent",
-                color: sortBy === f.id ? "var(--color-primary)" : "var(--color-muted)",
-              }}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex p-1 rounded-xl gap-0.5" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-          {(["ALL", "GK", "DF", "MF", "FW"] as const).map((p) => (
-            <button key={p} onClick={() => setPositionFilter(p)}
-              className="px-2 py-1.5 text-[9px] font-black rounded-lg transition-colors"
-              style={{
-                background: positionFilter === p ? (POS_COLOR[p] || "var(--color-border)") : "transparent",
-                color: positionFilter === p ? "var(--bg-page)" : "var(--color-muted)",
-              }}>
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Count line */}
-      <div className="w-full max-w-md mb-2">
-        <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-border)" }}>
-          {filteredPlayers.length} Spieler
-          {activeLeague !== 0 && ` · ${LEAGUES.find(l => l.id === activeLeague)?.name}`}
-          {activeTeam && ` · ${activeTeam}`}
+      {/* ── Greeting ── */}
+      <div className="w-full max-w-md mb-5 relative z-10">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--color-muted)" }}>
+          {greeting()},
+        </p>
+        <h1
+          className="text-[28px] font-black uppercase leading-tight tracking-tight"
+          style={{ color: "var(--color-text)" }}
+        >
+          {username}
+        </h1>
+        <p className="text-[9px] font-black uppercase tracking-[0.25em] mt-1" style={{ color: "var(--color-muted)" }}>
+          Deine Ligen
         </p>
       </div>
 
-      {/* Player list */}
-      <div className="w-full max-w-md space-y-2">
-        {loading ? (
-          <Spinner text="Lade Datenbank..." />
-        ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-20 text-sm" style={{ color: "var(--color-muted)" }}>Keine Spieler gefunden.</div>
-        ) : (
-          sortedPlayers.slice(0, 50).map((item) => {
-            const stats = Array.isArray(item.statistics) ? item.statistics[0] : item.statistics;
-            const isCap = item.player.id === captainId;
-            const pts = calculateDetailedPoints(item.statistics, isCap);
-            const isInSquad = mySquad.some((p) => p.player.id === item.player.id);
-            const isSaving = savingPlayer === item.player.id;
-            const pos = normalizePosition(stats?.games?.position || item.player?.position || "");
-            const posColor = POS_COLOR[pos] || "var(--color-text)";
+      {/* ── League cards ── */}
+      {loading ? (
+        <div className="w-full max-w-md flex justify-center py-16">
+          <Spinner text="Lade Ligen..." />
+        </div>
+      ) : cards.length === 0 ? (
+        <div className="w-full max-w-md flex flex-col items-center gap-3 py-12">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "var(--bg-elevated)" }}>🏆</div>
+          <p className="text-sm font-black uppercase tracking-wider" style={{ color: "var(--color-muted)" }}>Noch keine Ligen</p>
+          <p className="text-[10px] text-center leading-relaxed" style={{ color: "var(--color-border)" }}>
+            Erstelle oder tritt einer Liga bei, um loszulegen.
+          </p>
+        </div>
+      ) : (
+        <div className="w-full max-w-md flex flex-col gap-3 relative z-10">
+          {cards.map(({ league, myTeam, rank, teamCount, activeGW, matchup }) => {
+            const chip = gwStatusChip(activeGW, league.status);
+            const isLive = chip.live;
+
             return (
-              <div key={item.player.id}
-                className="flex items-center justify-between p-3 rounded-2xl transition-all"
+              <a
+                key={league.id}
+                href={`/leagues/${league.id}/lineup`}
+                className="block rounded-2xl overflow-hidden transition-all active:scale-[0.98]"
                 style={{
                   background: "var(--bg-card)",
-                  border: `1px solid ${isCap ? "var(--color-primary)" : isInSquad ? "var(--color-border-subtle)" : "var(--color-border)"}`,
-                }}>
-                {/* Left: photo + info */}
-                <div className="flex items-center gap-3 flex-1 min-w-0" onClick={() => setSelectedPlayer(item)}>
-                  <div className="relative flex-shrink-0">
-                    <img src={item.player.photo} className="w-11 h-11 rounded-full"
-                      style={{ border: `2px solid ${isCap ? "var(--color-primary)" : "var(--color-border)"}` }} alt="" />
-                    <span className="absolute -bottom-1 -right-1 text-[7px] font-black px-1 rounded-full leading-4"
-                      style={{ background: posColor, color: "var(--bg-page)" }}>{pos}</span>
+                  border: `1px solid ${isLive
+                    ? "color-mix(in srgb, var(--color-primary) 45%, transparent)"
+                    : "color-mix(in srgb, var(--color-border) 80%, transparent)"}`,
+                  boxShadow: isLive
+                    ? "0 0 24px color-mix(in srgb, var(--color-primary) 10%, transparent)"
+                    : undefined,
+                }}
+              >
+                {/* Card body */}
+                <div className="p-4">
+                  {/* Row 1: badge + name + MD badge */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <LeagueBadge name={league.name} />
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-black uppercase tracking-wide leading-tight truncate"
+                        style={{ color: "var(--color-text)" }}>
+                        {league.name}
+                      </p>
+                      {/* Status + type row */}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest"
+                          style={{ color: chip.color }}>
+                          {isLive && (
+                            <span className="w-1.5 h-1.5 rounded-full animate-pulse inline-block"
+                              style={{ background: "var(--color-success)" }} />
+                          )}
+                          {chip.label}
+                        </span>
+                        <span style={{ color: "var(--color-border)" }} className="text-[8px]">·</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                          {league.scoring_type === "h2h" ? "H2H" : "Punkte"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* MD badge */}
+                    {activeGW && (
+                      <span className="flex-shrink-0 rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-widest"
+                        style={{
+                          background: "var(--bg-elevated)",
+                          color: "var(--color-muted)",
+                          border: "1px solid var(--color-border)",
+                        }}>
+                        MD {activeGW.gameweek}
+                      </span>
+                    )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-black text-sm truncate" style={{ color: isCap ? "var(--color-primary)" : "var(--color-text)" }}>
-                      {isCap && "© "}{item.player.name}
-                    </p>
-                    <p className="text-[9px] font-black uppercase tracking-widest truncate mt-0.5" style={{ color: "var(--color-muted)" }}>
-                      {item.team_name || stats?.team?.name}
-                    </p>
-                    <div className="flex gap-2 mt-1.5 text-[10px]" style={{ color: "var(--color-muted)" }}>
-                      <span>G <span style={{ color: "var(--color-text)" }}>{pts.breakdown.goals}</span></span>
-                      <span>A <span style={{ color: "var(--color-text)" }}>{pts.breakdown.assists}</span></span>
-                      <span>KP <span style={{ color: "var(--color-text)" }}>{pts.breakdown.keyPasses}</span></span>
-                      <span>S <span style={{ color: "var(--color-text)" }}>{pts.breakdown.shotsOn}</span></span>
+
+                  {/* Divider */}
+                  <div style={{ height: 1, background: "var(--color-border)", opacity: 0.4 }} className="mb-3" />
+
+                  {/* Row 2: rank + points */}
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
+                        {myTeam.name}
+                      </p>
+                      <p className="text-[11px] font-black" style={{ color: "var(--color-text)" }}>
+                        {rankDisplay(rank)}
+                        <span className="ml-1 font-black" style={{ color: "var(--color-border)" }}>
+                          von {teamCount}
+                        </span>
+                      </p>
+                      {/* Matchup line */}
+                      {matchup && (
+                        <p className="text-[9px] mt-1 font-black" style={{ color: "var(--color-muted)" }}>
+                          vs {matchup.opponentName}
+                          {matchup.opponentPoints > 0 && (
+                            <span style={{ color: "var(--color-border)" }}> · {matchup.opponentPoints.toFixed(1)} Pkt</span>
+                          )}
+                          {isLive && <span style={{ color: "var(--color-success)" }}> · Live</span>}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Points */}
+                    <div className="text-right">
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>
+                        Gesamt
+                      </p>
+                      <p className="text-[28px] font-black leading-none tracking-tight" style={{ color: "var(--color-primary)" }}>
+                        {myTeam.total_points.toFixed(1)}
+                      </p>
+                      <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                        Pkt
+                      </p>
                     </div>
                   </div>
                 </div>
-                {/* Right: pts + buttons */}
-                <div className="flex flex-col items-end gap-1.5 ml-2 flex-shrink-0">
-                  <p className="text-lg font-black leading-none" style={{ color: "var(--color-primary)" }}>
-                    {pts.season.toFixed(1)}
-                  </p>
-                  <div className="flex gap-1">
-                    <button onClick={() => toggleSquad(item)} disabled={isSaving}
-                      className="px-2 py-1 text-[9px] font-black rounded-lg uppercase disabled:opacity-50 transition-colors"
-                      style={{
-                        background: isInSquad ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "var(--color-border)",
-                        color: isInSquad ? "var(--color-error)" : "var(--color-muted)",
-                      }}>
-                      {isSaving ? "…" : isInSquad ? "−" : "+"}
-                    </button>
-                    <button onClick={() => handleSetCaptain(item.player.id)}
-                      className="px-2 py-1 text-[9px] font-black rounded-lg uppercase transition-colors"
-                      style={{
-                        background: isCap ? "var(--color-primary)" : "var(--color-border)",
-                        color: isCap ? "var(--bg-page)" : "var(--color-muted)",
-                      }}>
-                      C
-                    </button>
+
+                {/* Live footer strip */}
+                {isLive && (
+                  <div className="px-4 py-2 flex items-center gap-2"
+                    style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
+                    <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-success)" }} />
+                    <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>
+                      Spieltag läuft
+                    </span>
                   </div>
-                </div>
-              </div>
+                )}
+              </a>
             );
-          })
-        )}
+          })}
+        </div>
+      )}
+
+      {/* ── Join / Create ── */}
+      <div className="w-full max-w-md mt-4 relative z-10">
+        <a
+          href="/leagues"
+          className="flex items-center justify-center gap-2 w-full rounded-2xl py-3.5 transition-all active:scale-[0.98]"
+          style={{
+            background: "var(--bg-elevated)",
+            border: "1px dashed color-mix(in srgb, var(--color-primary) 28%, transparent)",
+          }}
+        >
+          <span className="text-base" style={{ color: "var(--color-primary)" }}>+</span>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+            Liga beitreten / erstellen
+          </span>
+        </a>
       </div>
 
-      {/* Player detail modal */}
-      {selectedPlayer && (
-        <div className="fixed inset-0 flex items-end md:items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.7)", zIndex: 50 }}
-          onClick={() => setSelectedPlayer(null)}>
-          <div className="w-full max-w-sm rounded-2xl p-5"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
-            onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-4">
-              <img src={selectedPlayer.player.photo} className="w-14 h-14 rounded-full"
-                style={{ border: "2px solid var(--color-border)" }} alt="" />
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-base truncate" style={{ color: "var(--color-text)" }}>{selectedPlayer.player.name}</p>
-                <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-muted)" }}>
-                  {selectedPlayer.team_name}
+      {/* ── Aktivitäten ── */}
+      {activities.length > 0 && (
+        <div className="w-full max-w-md mt-6 relative z-10">
+          <p className="text-[9px] font-black uppercase tracking-[0.25em] mb-3" style={{ color: "var(--color-muted)" }}>
+            Aktivitäten
+          </p>
+          <div className="flex flex-col gap-2">
+            {activities.slice(0, 5).map((a) => (
+              <div key={a.id} className="flex items-center gap-3 py-2.5 px-3 rounded-xl"
+                style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)" }}>
+                <span className="text-sm flex-shrink-0">
+                  {a.type === "transfer" ? "🔄" : a.type === "waiver" ? "📋" : a.type === "trade" ? "🤝" : "📝"}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black truncate" style={{ color: "var(--color-text)" }}>
+                    {a.player_name || a.description}
+                  </p>
+                  {a.team_name && (
+                    <p className="text-[8px] font-black uppercase tracking-widest mt-0.5 truncate" style={{ color: "var(--color-muted)" }}>
+                      {a.team_name}
+                    </p>
+                  )}
+                </div>
+                <p className="text-[8px] font-black flex-shrink-0" style={{ color: "var(--color-border)" }}>
+                  {new Date(a.created_at).toLocaleDateString("de-DE", { day: "numeric", month: "short" })}
                 </p>
               </div>
-              <button onClick={() => setSelectedPlayer(null)}
-                className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-                ✕
-              </button>
-            </div>
-
-            {/* Stats grid */}
-            {(() => {
-              const pts = calculateDetailedPoints(selectedPlayer.statistics);
-              const b = pts.breakdown;
-              const posLabel = b.position === "GK" ? "TW" : b.position === "DF" ? "VER" : b.position === "MF" ? "MF" : "ST";
-              const goalPts = b.position === "GK" || b.position === "DF" ? 6 : b.position === "MF" ? 5 : 4;
-              const posColor = POS_COLOR[b.position] || "var(--color-text)";
-              return (
-                <>
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="text-[9px] font-black px-2 py-0.5 rounded-full"
-                      style={{ background: posColor, color: "var(--bg-page)" }}>{posLabel}</span>
-                    <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>{goalPts} Pkt/Tor</span>
-                    <span className="ml-auto text-2xl font-black" style={{ color: "var(--color-primary)" }}>{pts.season.toFixed(1)}</span>
-                    <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>FPTS</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    {[
-                      ["Tore / Assists", `${b.goals} / ${b.assists}`],
-                      ["Minuten", b.minutes],
-                      ["Shots on", b.shotsOn],
-                      ["Key Passes", b.keyPasses],
-                      ["Passquote", `${b.passAccuracy}%`],
-                      ["Dribbles", b.dribbles],
-                      ["Tackles / Int", `${b.tackles} / ${b.interceptions}`],
-                      ["Karten", `Y: ${b.yellow} · R: ${b.red}`],
-                      ["Saves", b.saves],
-                      ["Clean Sheets", b.cleanSheets],
-                    ].map(([label, val]) => (
-                      <div key={label as string} className="p-2 rounded-xl"
-                        style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
-                        <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>{label}</p>
-                        <p className="font-black" style={{ color: "var(--color-text)" }}>{val}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-4">
-                    <button onClick={() => { toggleSquad(selectedPlayer); setSelectedPlayer(null); }}
-                      className="flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
-                      style={{ background: mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "var(--color-border)",
-                               color: mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "var(--color-error)" : "var(--color-text)" }}>
-                      {mySquad.some(p => p.player.id === selectedPlayer.player.id) ? "Entfernen" : "Hinzufügen"}
-                    </button>
-                    <button onClick={() => { handleSetCaptain(selectedPlayer.player.id); setSelectedPlayer(null); }}
-                      className="flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                      style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
-                      Kapitän
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
+            ))}
           </div>
         </div>
       )}

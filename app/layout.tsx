@@ -5,6 +5,7 @@ import { InstallPrompt } from "@/app/components/InstallPrompt";
 import { NotificationsProvider } from "@/app/components/NotificationsProvider";
 import { ToastProvider } from "@/app/components/ToastProvider";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
+import { AutoTheme } from "@/app/components/AutoTheme";
 import ServiceWorkerRegistrar from "@/app/components/ServiceWorkerRegistrar";
 
 const unbounded = Unbounded({
@@ -61,8 +62,9 @@ export default function RootLayout({
               media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)"
               href="/splash/apple-splash-ipad-pro-13.png" />
       </head>
-      <body className="min-h-full flex flex-col antialiased">
+      <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <ThemeProvider>
+          <AutoTheme />
           <ToastProvider>
             <NotificationsProvider>
               {children}

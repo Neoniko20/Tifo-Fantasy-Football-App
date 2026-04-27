@@ -240,6 +240,19 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
       await logAdminAction(leagueId, userId, action, gwNum, { new_status: status });
       if (status === "active" && onGWSelect) onGWSelect(gwNum);
     }
+    // Auto-generate H2H pairings when a GW is started
+    if (status === 'active' && gwNum !== undefined) {
+      const { data: { session: s } } = await supabase.auth.getSession();
+      fetch('/api/h2h-pairings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${s?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ leagueId, gameweek: gwNum }),
+      }).catch((e) => console.warn('[h2h-pairings]', e));
+    }
+
     // Fire-and-forget push notification for GW status changes
     if (status === 'active' || status === 'finished') {
       const event = status === 'active' ? 'gw_started' : 'gw_finished';
@@ -630,6 +643,92 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
         );
       })()}
 
+      {/* Quick Action Panel */}
+      {gameweeks.length > 0 && (() => {
+        const activeGW = gameweeks.find(g => g.status === "active");
+        const nextGW = [...gameweeks].filter(g => g.status === "upcoming").sort((a, b) => a.gameweek - b.gameweek)[0];
+        const upcomingCount = gameweeks.filter(g => g.status === "upcoming").length;
+        const finishedCount = gameweeks.filter(g => g.status === "finished").length;
+
+        return (
+          <div className="rounded-xl p-4"
+            style={{
+              background: activeGW
+                ? "color-mix(in srgb, var(--color-primary) 8%, var(--bg-page))"
+                : "var(--bg-card)",
+              border: `1px solid ${activeGW ? "var(--color-primary)" : "var(--color-border)"}`,
+            }}>
+            <p className="text-[9px] font-black uppercase tracking-widest mb-3"
+              style={{ color: activeGW ? "var(--color-primary)" : "var(--color-muted)" }}>
+              {activeGW ? "● Laufender Spieltag" : "Spieltag-Steuerung"}
+            </p>
+
+            <div className="flex gap-2 mb-3">
+              <span className="px-2 py-1 rounded-lg text-[8px] font-black"
+                style={{ background: activeGW ? "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))" : "var(--bg-elevated)", color: activeGW ? "var(--color-primary)" : "var(--color-muted)", border: `1px solid ${activeGW ? "var(--color-primary)" : "var(--color-border)"}` }}>
+                ● Aktiv: {activeGW ? 1 : 0}
+              </span>
+              <span className="px-2 py-1 rounded-lg text-[8px] font-black"
+                style={{ background: "var(--bg-elevated)", color: "var(--color-muted)", border: "1px solid var(--color-border)" }}>
+                ◌ Bald: {upcomingCount}
+              </span>
+              <span className="px-2 py-1 rounded-lg text-[8px] font-black"
+                style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)", border: "1px solid var(--color-success)" }}>
+                ✓ Fertig: {finishedCount}
+              </span>
+            </div>
+
+            {activeGW && (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-black text-sm truncate" style={{ color: "var(--color-text)" }}>
+                    GW{activeGW.gameweek} · {activeGW.label}
+                  </p>
+                  {activeGW.start_date && (
+                    <p className="text-[8px] font-black mt-0.5" style={{ color: "var(--color-muted)" }}>
+                      {activeGW.start_date} → {activeGW.end_date || "?"}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => updateGWStatus(activeGW.id, "finished", activeGW.gameweek)}
+                  className="flex-shrink-0 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                  style={{ background: "var(--color-error)", color: "white" }}>
+                  ■ GW Beenden
+                </button>
+              </div>
+            )}
+
+            {!activeGW && nextGW && (
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-black text-sm truncate" style={{ color: "var(--color-text)" }}>
+                    GW{nextGW.gameweek} · {nextGW.label}
+                  </p>
+                  {nextGW.start_date && (
+                    <p className="text-[8px] font-black mt-0.5" style={{ color: "var(--color-muted)" }}>
+                      {nextGW.start_date} → {nextGW.end_date || "?"}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => updateGWStatus(nextGW.id, "active", nextGW.gameweek)}
+                  className="flex-shrink-0 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                  style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+                  ▶ GW Starten
+                </button>
+              </div>
+            )}
+
+            {!activeGW && !nextGW && gameweeks.every(g => g.status === "finished") && (
+              <p className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>
+                Alle Spieltage abgeschlossen.
+              </p>
+            )}
+          </div>
+        );
+      })()}
+
       {/* GW list */}
       {gameweeks.map(gw => {
         const activeLgs: string[] = gw.active_leagues || [];
@@ -670,32 +769,45 @@ export function GameweeksTab({ leagueId, userId, onGWSelect, onGameweeksChange }
                   </p>
                 )}
               </div>
-              {/* Status toggle buttons */}
-              <div className="flex gap-1 flex-shrink-0">
-                {(["upcoming", "active", "finished"] as const).map(s => (
-                  <button key={s}
-                    onClick={() => updateGWStatus(gw.id, s, gw.gameweek)}
+              {/* Status badge + contextual action */}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="px-2 py-0.5 rounded-lg text-[7px] font-black uppercase"
+                  style={{
+                    background: gw.status === "active"
+                      ? "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))"
+                      : gw.status === "finished"
+                      ? "color-mix(in srgb, var(--color-success) 15%, var(--bg-page))"
+                      : "var(--bg-elevated)",
+                    color: gw.status === "active" ? "var(--color-primary)" : gw.status === "finished" ? "var(--color-success)" : "var(--color-muted)",
+                    border: `1px solid ${gw.status === "active" ? "var(--color-primary)" : gw.status === "finished" ? "var(--color-success)" : "var(--color-border)"}`,
+                  }}>
+                  {gw.status === "active" ? "● Aktiv" : gw.status === "finished" ? "✓ Fertig" : "◌ Bald"}
+                </span>
+                {gw.status === "upcoming" && (
+                  <button
+                    onClick={() => updateGWStatus(gw.id, "active", gw.gameweek)}
                     className="px-2 py-1 rounded-lg text-[7px] font-black uppercase transition-all"
-                    style={{
-                      background: gw.status === s
-                        ? s === "active" ? "var(--color-primary)"
-                        : s === "finished" ? "var(--color-success)"
-                        : "var(--color-border)"
-                        : "var(--bg-page)",
-                      color: gw.status === s
-                        ? s === "upcoming" ? "var(--color-muted)" : "var(--bg-page)"
-                        : "var(--color-border)",
-                      border: `1px solid ${
-                        gw.status === s
-                          ? s === "active" ? "var(--color-primary)"
-                          : s === "finished" ? "var(--color-success)"
-                          : "var(--color-border)"
-                          : "var(--color-border)"
-                      }`,
-                    }}>
-                    {s === "upcoming" ? "Bald" : s === "active" ? "Aktiv" : "Fertig"}
+                    style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+                    ▶ Start
                   </button>
-                ))}
+                )}
+                {gw.status === "active" && (
+                  <button
+                    onClick={() => updateGWStatus(gw.id, "finished", gw.gameweek)}
+                    className="px-2 py-1 rounded-lg text-[7px] font-black uppercase transition-all"
+                    style={{ background: "var(--color-error)", color: "white" }}>
+                    ■ Stop
+                  </button>
+                )}
+                {gw.status === "finished" && (
+                  <button
+                    onClick={() => updateGWStatus(gw.id, "upcoming", gw.gameweek)}
+                    className="px-1.5 py-1 rounded-lg text-[7px] font-black transition-all"
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}
+                    title="Status zurücksetzen">
+                    ↺
+                  </button>
+                )}
               </div>
             </div>
 

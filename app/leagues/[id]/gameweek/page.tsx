@@ -250,7 +250,7 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
           })()}
 
           {/* Tabs (nur bei H2H) */}
-          {isH2H && matchups.length > 0 && (
+          {isH2H && (
             <div className="flex gap-1 w-full max-w-md mb-4 p-1 rounded-xl"
               style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
               {([
@@ -264,6 +264,10 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
                     color: tab === t.id ? "var(--bg-page)" : "var(--color-muted)",
                   }}>
                   {t.label}
+                  {t.id === "matchups" && isActiveGW && matchups.length > 0 && (
+                    <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full align-middle animate-pulse"
+                      style={{ background: tab === "matchups" ? "var(--bg-page)" : "var(--color-primary)" }} />
+                  )}
                 </button>
               ))}
             </div>
@@ -320,20 +324,48 @@ export default function GameweekPage({ params }: { params: Promise<{ id: string 
           {/* H2H MATCHUPS */}
           {tab === "matchups" && (
             <div className="w-full max-w-md space-y-3">
+              {/* Live-Indikator */}
+              {isActiveGW && matchups.length > 0 && (
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-primary)" }} />
+                  <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
+                    Live · Aktualisiert alle 60s
+                  </span>
+                </div>
+              )}
+
               {matchups.length === 0 ? (
-                <EmptyState icon="⚔️" title="Noch keine Paarungen" />
-              ) : matchups.map((m: any) => {
-                const gwRow = gameweeks.find((g: any) => g.gameweek === selectedGW);
-                const gwIsActive = gwRow?.status === "active";
-                return (
+                <div className="rounded-2xl p-6 text-center"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  <p className="text-2xl mb-2">⚔️</p>
+                  <p className="font-black text-sm mb-1" style={{ color: "var(--color-text)" }}>
+                    Noch keine Paarungen
+                  </p>
+                  <p className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>
+                    {activeGWData?.status === "upcoming"
+                      ? "Paarungen werden automatisch generiert wenn der Spieltag startet."
+                      : "Paarungen werden beim nächsten Spieltag-Start generiert."}
+                  </p>
+                </div>
+              ) : (() => {
+                // Sort: user's matchup first, then alphabetically
+                const myMatchup = matchups.find(
+                  (m: any) => m.home?.user_id === user?.id || m.away?.user_id === user?.id,
+                );
+                const others = matchups.filter(
+                  (m: any) => m.home?.user_id !== user?.id && m.away?.user_id !== user?.id,
+                );
+                const sorted = myMatchup ? [myMatchup, ...others] : others;
+
+                return sorted.map((m: any) => (
                   <LiveMatchupCard
                     key={m.id}
                     matchup={m}
                     currentUserId={user?.id}
-                    gwIsActive={gwIsActive}
+                    gwIsActive={isActiveGW}
                   />
-                );
-              })}
+                ));
+              })()}
             </div>
           )}
         </>

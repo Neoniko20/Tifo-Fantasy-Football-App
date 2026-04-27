@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { LeagueTopNav } from "@/app/components/LeagueTopNav";
 import { BottomNav } from "@/app/components/BottomNav";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import tsdbLeagues from "@/lib/tsdb-leagues.json";
@@ -295,15 +294,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <main className="flex min-h-screen flex-col items-center pb-24"
-      style={{ background: "var(--bg-page)", paddingTop: 80 }}>
-
-      <LeagueTopNav
-        leagueId={leagueId}
-        leagueName={league?.name}
-        leagueStatus={league?.status}
-        isOwner={isOwner}
-        waiversEnabled={!!ligaSettings?.waiver_enabled}
-      />
+      style={{ background: "var(--bg-page)", paddingTop: 16 }}>
 
       <div className="w-full max-w-md px-4 pt-4">
 

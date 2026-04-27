@@ -10,3 +10,10 @@ CREATE INDEX IF NOT EXISTS squad_players_taxi_idx
 
 COMMENT ON COLUMN squad_players.is_taxi IS
   'TRUE = player is on taxi squad (U21 development slot). Cannot be placed in starting XI or bench.';
+
+-- Add taxi_age_limit to liga_settings (max age for taxi-eligible players, default 21)
+ALTER TABLE liga_settings
+  ADD COLUMN IF NOT EXISTS taxi_age_limit INT DEFAULT 21;
+
+COMMENT ON COLUMN liga_settings.taxi_age_limit IS
+  'Maximum age (inclusive) for players eligible for the taxi squad. Default 21.';
