@@ -108,7 +108,7 @@ export function BottomNav() {
       badge: unreadCount > 0 ? unreadCount : undefined,
     },
     { id: "profile",  label: "Profile",  href: "/account",    Icon: ProfileIcon },
-  ] as const;
+  ];
 
   return (
     <nav
