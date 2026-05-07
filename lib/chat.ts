@@ -49,7 +49,7 @@ export async function fetchLeagueMessages(
 
 export async function sendLeagueMessage(
   leagueId: string,
-  teamId: string,
+  teamId: string | null,
   content: string
 ): Promise<void> {
   const {
@@ -160,7 +160,7 @@ export async function markLeagueRead(leagueId: string): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase.from("chat_reads").upsert(
+  const { error } = await supabase.from("chat_reads").upsert(
     {
       user_id: user.id,
       league_id: leagueId,
@@ -168,6 +168,7 @@ export async function markLeagueRead(leagueId: string): Promise<void> {
     },
     { onConflict: "user_id,league_id" }
   );
+  if (error) throw error;
 }
 
 export async function markThreadRead(threadId: string): Promise<void> {
@@ -175,7 +176,7 @@ export async function markThreadRead(threadId: string): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return;
-  await supabase.from("chat_reads").upsert(
+  const { error } = await supabase.from("chat_reads").upsert(
     {
       user_id: user.id,
       thread_id: threadId,
@@ -183,6 +184,7 @@ export async function markThreadRead(threadId: string): Promise<void> {
     },
     { onConflict: "user_id,thread_id" }
   );
+  if (error) throw error;
 }
 
 export async function fetchLeagueUnreadCount(leagueId: string): Promise<number> {
@@ -198,13 +200,39 @@ export async function fetchLeagueUnreadCount(leagueId: string): Promise<number> 
     .eq("league_id", leagueId)
     .maybeSingle();
 
-  if (!readRow) return 0;
-
-  const { count } = await supabase
+  const query = supabase
     .from("league_messages")
     .select("id", { count: "exact", head: true })
     .eq("league_id", leagueId)
-    .neq("sender_id", user.id)
-    .gt("created_at", readRow.last_read_at);
+    .neq("sender_id", user.id);
+
+  const { count } = readRow
+    ? await query.gt("created_at", readRow.last_read_at)
+    : await query;
+  return count ?? 0;
+}
+
+export async function fetchThreadUnreadCount(threadId: string): Promise<number> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const { data: readRow } = await supabase
+    .from("chat_reads")
+    .select("last_read_at")
+    .eq("user_id", user.id)
+    .eq("thread_id", threadId)
+    .maybeSingle();
+
+  const query = supabase
+    .from("direct_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("thread_id", threadId)
+    .neq("sender_id", user.id);
+
+  const { count } = readRow
+    ? await query.gt("created_at", readRow.last_read_at)
+    : await query;
   return count ?? 0;
 }
