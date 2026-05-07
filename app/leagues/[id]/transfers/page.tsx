@@ -138,6 +138,20 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
     searchPlayers(search, posFilter);
   }, [search, posFilter, searchPlayers]);
 
+  async function postSystemMessage(leagueId: string, content: string, metadata: Record<string, unknown> = {}) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+      await fetch(`/api/leagues/${leagueId}/system-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ content, metadata }),
+      });
+    } catch {
+      // Non-critical — swallow silently
+    }
+  }
+
   async function confirmTransfer() {
     if (!playerOut || !playerIn || !myTeam) return;
 
@@ -179,6 +193,12 @@ export default function TransfersPage({ params }: { params: Promise<{ id: string
         league_id:     leagueId,
         player_out_id: playerOut.id,
         player_in_id:  playerIn.id,
+      });
+
+      postSystemMessage(leagueId, `🔄 Transfer: ${myTeam.name} holt ${playerIn.name}, gibt ${playerOut.name} ab`, {
+        event: "transfer_completed",
+        player_in: playerIn.name,
+        player_out: playerOut.name,
       });
 
       toast(`✓ ${playerIn.name} geholt, ${playerOut.name} abgegeben`, "success");
