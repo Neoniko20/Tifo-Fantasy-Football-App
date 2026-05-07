@@ -19,7 +19,11 @@ CREATE TABLE IF NOT EXISTS league_messages (
   content     TEXT NOT NULL CHECK (char_length(content) BETWEEN 1 AND 1000),
   kind        VARCHAR NOT NULL DEFAULT 'text' CHECK (kind IN ('text', 'system')),
   metadata    JSONB DEFAULT '{}',
-  created_at  TIMESTAMPTZ DEFAULT now()
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  CONSTRAINT chk_sender_matches_kind CHECK (
+    (kind = 'system' AND sender_id IS NULL) OR
+    (kind = 'text'   AND sender_id IS NOT NULL)
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_league_messages_league
@@ -38,7 +42,7 @@ CREATE TABLE IF NOT EXISTS direct_threads (
   participant_a   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   participant_b   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at      TIMESTAMPTZ DEFAULT now(),
-  -- Always store smaller UUID as participant_a (enforced by app code)
+  -- Always store smaller UUID as participant_a (enforced by both CHECK constraint and app code)
   CHECK (participant_a < participant_b),
   UNIQUE (league_id, participant_a, participant_b)
 );
@@ -51,7 +55,7 @@ CREATE TABLE IF NOT EXISTS direct_threads (
 CREATE TABLE IF NOT EXISTS direct_messages (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   thread_id   UUID NOT NULL REFERENCES direct_threads(id) ON DELETE CASCADE,
-  sender_id   UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sender_id   UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   content     TEXT NOT NULL CHECK (char_length(content) BETWEEN 1 AND 1000),
   created_at  TIMESTAMPTZ DEFAULT now()
 );
