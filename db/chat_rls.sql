@@ -21,10 +21,8 @@ ALTER TABLE league_messages ENABLE ROW LEVEL SECURITY;
 -- SELECT: league members can read all messages in their league
 CREATE POLICY "league_messages_select" ON league_messages
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM teams
-      WHERE teams.league_id = league_messages.league_id
-        AND teams.user_id = auth.uid()
+    league_id IN (
+      SELECT league_id FROM teams WHERE user_id = auth.uid()
     )
   );
 
@@ -34,10 +32,8 @@ CREATE POLICY "league_messages_insert" ON league_messages
   FOR INSERT WITH CHECK (
     kind = 'text'
     AND sender_id = auth.uid()
-    AND EXISTS (
-      SELECT 1 FROM teams
-      WHERE teams.league_id = league_messages.league_id
-        AND teams.user_id = auth.uid()
+    AND league_id IN (
+      SELECT league_id FROM teams WHERE user_id = auth.uid()
     )
   );
 
@@ -121,4 +117,6 @@ CREATE POLICY "chat_reads_insert" ON chat_reads
 
 -- UPDATE: users can only update their own read watermarks
 CREATE POLICY "chat_reads_update" ON chat_reads
-  FOR UPDATE USING (user_id = auth.uid());
+  FOR UPDATE
+  USING   (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
