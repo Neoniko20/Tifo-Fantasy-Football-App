@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { TransactionsFeed } from "@/app/components/TransactionsFeed";
+import { TradesView } from "@/app/components/trades/TradesView";
+import { TeamDetailSheet } from "@/app/components/TeamDetailSheet";
+import ChatDock from "@/app/components/chat/ChatDock";
+import ChatSheet from "@/app/components/chat/ChatSheet";
 
 // ── Team initials avatar ──────────────────────────────────────────────────────
 
@@ -64,6 +68,11 @@ const rankColor = (i: number) =>
   : i === 2 ? "var(--color-bronze)"
   : "var(--color-border-subtle)";
 
+const streakColor = (s: string) =>
+  s.startsWith("S") ? "var(--color-success)"
+  : s.startsWith("N") ? "#e05353"
+  : "var(--color-muted)";
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: string }> }) {
@@ -79,7 +88,15 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
   const [matchups, setMatchups]         = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
   const [tableExpanded, setTableExpanded] = useState(false);
-  const [tab, setTab]                   = useState<"uebersicht" | "tabelle" | "aktivitaeten" | "regeln">("uebersicht");
+  const [tab, setTab]                   = useState<"uebersicht" | "tabelle" | "trades">("uebersicht");
+  const [showActivities, setShowActivities] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [actFilter, setActFilter]       = useState<"alle" | "transfer" | "trade" | "waiver">("alle");
+  const [sheetTeam, setSheetTeam]       = useState<any>(null);
+  const [chatOpen, setChatOpen]         = useState(false);
+  const [standingsView, setStandingsView] = useState<"table" | "details">("table");
+  const [allMatchups, setAllMatchups]   = useState<any[]>([]);
+  const [waiverPriority, setWaiverPriority] = useState<Record<string, number>>({});
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -126,7 +143,28 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
     const gw = active?.gameweek || 1;
     setSelectedGW(gw);
     await loadGWData(gw, teamsData || []);
-    setLoading(false);
+    setLoading(false); // restore: must fire before optional detail queries
+
+    // Standings detail data: non-blocking, optional — failures only affect Details columns
+    try {
+      const [allMuRes, wpRes] = await Promise.all([
+        supabase
+          .from("liga_matchups")
+          .select("home_team_id, away_team_id, home_points, away_points, winner_id, gameweek")
+          .eq("league_id", leagueId)
+          .not("home_points", "is", null),
+        supabase
+          .from("waiver_priority")
+          .select("team_id, priority")
+          .eq("league_id", leagueId),
+      ]);
+      setAllMatchups(allMuRes.data || []);
+      const wpMap: Record<string, number> = {};
+      for (const wp of wpRes.data || []) wpMap[wp.team_id] = wp.priority;
+      setWaiverPriority(wpMap);
+    } catch {
+      // optional detail data unavailable — tables still show, Details columns show "—"
+    }
   }
 
   async function loadGWData(gw: number, allTeams: any[]) {
@@ -160,6 +198,45 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
   );
 
   const isH2H      = league?.scoring_type === "h2h";
+
+  // Compute PA and W-L from all completed matchups (avoids fragile team.wins/losses fields)
+  const paByTeam:  Record<string, number> = {};
+  const wlByTeam:  Record<string, { w: number; l: number; d: number }> = {};
+  for (const m of allMatchups) {
+    const h = m.home_team_id;
+    const a = m.away_team_id;
+    if (!wlByTeam[h]) wlByTeam[h] = { w: 0, l: 0, d: 0 };
+    if (!wlByTeam[a]) wlByTeam[a] = { w: 0, l: 0, d: 0 };
+    if (m.home_points !== null && m.away_points !== null) {
+      paByTeam[h] = (paByTeam[h] || 0) + (m.away_points || 0);
+      paByTeam[a] = (paByTeam[a] || 0) + (m.home_points || 0);
+      if (m.winner_id === h)       { wlByTeam[h].w++; wlByTeam[a].l++; }
+      else if (m.winner_id === a)  { wlByTeam[a].w++; wlByTeam[h].l++; }
+      else                         { wlByTeam[h].d++;  wlByTeam[a].d++; }
+    }
+  }
+  // Compute streak per team from chronological matchup history
+  const streakByTeam: Record<string, string> = {};
+  if (allMatchups.length > 0) {
+    const historyByTeam: Record<string, Array<"W" | "L" | "D">> = {};
+    const sorted = [...allMatchups].sort((a, b) => (a.gameweek ?? 0) - (b.gameweek ?? 0));
+    for (const m of sorted) {
+      const h = m.home_team_id, a = m.away_team_id;
+      if (!historyByTeam[h]) historyByTeam[h] = [];
+      if (!historyByTeam[a]) historyByTeam[a] = [];
+      if (m.winner_id === h)     { historyByTeam[h].push("W"); historyByTeam[a].push("L"); }
+      else if (m.winner_id === a){ historyByTeam[a].push("W"); historyByTeam[h].push("L"); }
+      else                       { historyByTeam[h].push("D"); historyByTeam[a].push("D"); }
+    }
+    for (const [teamId, history] of Object.entries(historyByTeam)) {
+      if (!history.length) continue;
+      const last = history[history.length - 1];
+      let count = 0;
+      for (let i = history.length - 1; i >= 0 && history[i] === last; i--) count++;
+      streakByTeam[teamId] = (last === "W" ? "S" : last === "L" ? "N" : "U") + count;
+    }
+  }
+
   const myTeam     = teams.find(t => t.user_id === user?.id);
   const myRank     = myTeam ? teams.findIndex(t => t.id === myTeam.id) + 1 : null;
   const myMatchup  = matchups.find(m => m.home?.id === myTeam?.id || m.away?.id === myTeam?.id);
@@ -183,6 +260,33 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
       />
 
       <div className="w-full max-w-md px-4">
+
+        {/* ── League Header ─────────────────────────────────────────────── */}
+        {league && (
+          <div className="mb-4">
+            <a
+              href="/leagues"
+              className="text-[8px] font-black uppercase tracking-widest"
+              style={{ color: "var(--color-muted)" }}
+            >
+              ← Liga
+            </a>
+            <div className="flex items-center justify-between mt-0.5">
+              <p className="text-lg font-black leading-tight flex-1 mr-2 truncate" style={{ color: "var(--color-text)" }}>
+                {league.name}
+              </p>
+              {gameweeks.length > 0 && league.status !== "setup" && league.status !== "drafting" && (
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-all active:scale-90"
+                  style={{ fontSize: "18px", color: "var(--color-muted)" }}
+                >
+                  ⚙
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Pre-Draft: Setup ────────────────────────────────────────────── */}
         {league?.status === "setup" && (
@@ -285,44 +389,25 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
           </div>
         )}
 
-        {/* ── Kein Spieltag ────────────────────────────────────────────────── */}
-        {league?.status !== "setup" && league?.status !== "drafting" && gameweeks.length === 0 && (
-          <div className="rounded-2xl p-8 text-center mt-6" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-            <p className="text-2xl mb-3">📅</p>
-            <p className="text-sm font-black mb-1" style={{ color: "var(--color-text)" }}>Noch keine Spieltage</p>
-            <p className="text-[9px] mb-4" style={{ color: "var(--color-muted)" }}>Der Liga-Owner kann Spieltage im Admin anlegen</p>
-            {league?.owner_id === user?.id && (
-              <a
-                href={`/leagues/${leagueId}/admin`}
-                className="inline-block px-4 py-2 rounded-xl text-[10px] font-black uppercase"
-                style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}
-              >
-                Admin öffnen →
-              </a>
-            )}
-          </div>
-        )}
-
         {/* ══════════════════════════════════════════════════════════════════
             LIGA-ZENTRALE — gestapelte Sektionen
         ══════════════════════════════════════════════════════════════════ */}
-        {league?.status !== "setup" && league?.status !== "drafting" && gameweeks.length > 0 && (
+        {league?.status !== "setup" && league?.status !== "drafting" && (
           <div className="mt-4 space-y-5">
 
             {/* ── Tab Bar ──────────────────────────────────────────────── */}
-            <div className="flex" style={{ borderBottom: "1px solid var(--color-border)" }}>
+            <div className="flex items-stretch" style={{ borderBottom: "1px solid var(--color-border)" }}>
               {(
                 [
-                  ["uebersicht",   "Übersicht"],
-                  ["tabelle",      "Tabelle"],
-                  ["aktivitaeten", "Aktivitäten"],
-                  ["regeln",       "Regeln"],
+                  ["uebersicht", "Übersicht"],
+                  ["tabelle",    "Tabelle"],
+                  ["trades",     "Trades"],
                 ] as const
               ).map(([id, label]) => (
                 <button
                   key={id}
                   onClick={() => setTab(id)}
-                  className="flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all relative"
+                  className="flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all active:scale-[0.97] relative"
                   style={{ color: tab === id ? "var(--color-primary)" : "var(--color-muted)" }}
                 >
                   {label}
@@ -337,12 +422,12 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
             </div>
 
             {/* ── GW Selector (Übersicht only) ─────────────────────────── */}
-            {(tab === "uebersicht" || tab === "tabelle") && <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+            {(tab === "uebersicht" || tab === "tabelle") && gameweeks.length > 0 && <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
               {gameweeks.map((gw: any) => (
                 <button
                   key={gw.gameweek}
                   onClick={() => setSelectedGW(gw.gameweek)}
-                  className="px-3 py-1.5 rounded-lg text-[9px] font-black whitespace-nowrap flex-shrink-0 transition-all flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-lg text-[9px] font-black whitespace-nowrap flex-shrink-0 transition-all active:scale-[0.97] flex items-center gap-1.5"
                   style={{
                     background: selectedGW === gw.gameweek ? "var(--color-primary)" : "var(--bg-card)",
                     color: selectedGW === gw.gameweek ? "var(--bg-page)" : "var(--color-muted)",
@@ -361,7 +446,25 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
             </div>}
 
             {/* ══ ÜBERSICHT ════════════════════════════════════════════════ */}
-            {tab === "uebersicht" && <>
+            {tab === "uebersicht" && <div key="uebersicht" className="tifo-fade-up space-y-5">
+
+            {/* ── Kein Spieltag Banner ─────────────────────────────────── */}
+            {gameweeks.length === 0 && (
+              <div className="rounded-2xl px-4 py-3 flex items-center justify-between"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <div>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Noch keine Spieltage</p>
+                  <p className="text-[9px] mt-0.5" style={{ color: "var(--color-muted)" }}>Tabelle zeigt Startwerte</p>
+                </div>
+                {league?.owner_id === user?.id && (
+                  <a href={`/leagues/${leagueId}/admin`}
+                    className="text-[8px] font-black uppercase tracking-widest"
+                    style={{ color: "var(--color-primary)" }}>
+                    Admin →
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* ── Mein Stand (my team stat strip) ──────────────────────── */}
             {myTeam && (
@@ -416,71 +519,93 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
             )}
 
             {/* ── H2H: Mein Duell ──────────────────────────────────────── */}
-            {isH2H && myMatchup && (
-              <div>
-                <SectionHeader title="Mein Duell" />
-                <div
-                  className="rounded-2xl overflow-hidden"
-                  style={{
-                    background: "var(--bg-card)",
-                    border: `1px solid ${isLive ? "color-mix(in srgb, var(--color-primary) 45%, transparent)" : "var(--color-border-subtle)"}`,
-                  }}
-                >
-                  <div className="px-4 pt-4 pb-3 flex items-center justify-between gap-2">
-                    {/* Home */}
-                    <div className="flex-1 text-center min-w-0">
-                      <TeamAvatar name={myMatchup.home?.name || ""} isMine={myMatchup.home?.id === myTeam?.id} size={8} />
-                      <p className="font-black text-xs truncate mt-1.5"
-                        style={{ color: myMatchup.home?.id === myTeam?.id ? "var(--color-primary)" : "var(--color-text)" }}>
-                        {myMatchup.home?.name}
-                      </p>
-                    </div>
-                    {/* Score */}
-                    <div className="text-center flex-shrink-0 px-2">
-                      <p className="text-[24px] font-black leading-none tracking-tight" style={{ color: "var(--color-primary)" }}>
-                        {myMatchup.home_points?.toFixed(1) ?? "—"}
-                      </p>
-                      <p className="text-[9px] font-black my-0.5" style={{ color: "var(--color-border-subtle)" }}>vs</p>
-                      <p className="text-[24px] font-black leading-none tracking-tight" style={{ color: "var(--color-text)" }}>
-                        {myMatchup.away_points?.toFixed(1) ?? "—"}
-                      </p>
-                    </div>
-                    {/* Away */}
-                    <div className="flex-1 text-center min-w-0">
-                      <TeamAvatar name={myMatchup.away?.name || ""} isMine={myMatchup.away?.id === myTeam?.id} size={8} />
-                      <p className="font-black text-xs truncate mt-1.5"
-                        style={{ color: myMatchup.away?.id === myTeam?.id ? "var(--color-primary)" : "var(--color-text)" }}>
-                        {myMatchup.away?.name}
-                      </p>
-                    </div>
-                  </div>
-                  {/* Status bar */}
-                  <div className="px-4 py-2 flex items-center justify-between"
-                    style={{ background: "color-mix(in srgb, var(--color-primary) 6%, transparent)" }}>
-                    {isLive && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-success)" }} />
-                        <span className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>Live</span>
+            {isH2H && myMatchup && (() => {
+              const homeIsMine    = myMatchup.home?.id === myTeam?.id;
+              const awayIsMine    = myMatchup.away?.id === myTeam?.id;
+              const homeIsWinner  = !!myMatchup.winner_id && myMatchup.winner_id === myMatchup.home?.id;
+              const awayIsWinner  = !!myMatchup.winner_id && myMatchup.winner_id === myMatchup.away?.id;
+              const homeScoreColor = homeIsWinner ? "var(--color-primary)"
+                : awayIsWinner ? "var(--color-muted)"
+                : isLive && homeIsMine ? "var(--color-success)"
+                : "var(--color-text)";
+              const awayScoreColor = awayIsWinner ? "var(--color-primary)"
+                : homeIsWinner ? "var(--color-muted)"
+                : isLive && awayIsMine ? "var(--color-success)"
+                : "var(--color-text)";
+              return (
+                <div>
+                  <SectionHeader title="Mein Duell" />
+                  <div
+                    className="rounded-2xl overflow-hidden"
+                    style={{
+                      background: "var(--bg-card)",
+                      border: `1px solid ${isLive ? "color-mix(in srgb, var(--color-primary) 45%, transparent)" : "var(--color-border-subtle)"}`,
+                      boxShadow: isLive ? "0 0 16px color-mix(in srgb, var(--color-primary) 6%, transparent)" : undefined,
+                    }}
+                  >
+                    <div className="px-4 pt-4 pb-3">
+                      {/* Names row */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <TeamAvatar name={myMatchup.home?.name || ""} isMine={homeIsMine} size={6} />
+                          <p className="font-black text-xs truncate"
+                            style={{ color: homeIsMine ? "var(--color-primary)" : "var(--color-text)" }}>
+                            {myMatchup.home?.name}
+                          </p>
+                        </div>
+                        <span className="w-8 flex-shrink-0" />
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                          <p className="font-black text-xs truncate text-right"
+                            style={{ color: awayIsMine ? "var(--color-primary)" : "var(--color-text)" }}>
+                            {myMatchup.away?.name}
+                          </p>
+                          <TeamAvatar name={myMatchup.away?.name || ""} isMine={awayIsMine} size={6} />
+                        </div>
                       </div>
-                    )}
-                    {myMatchup.winner_id && (
-                      <p className="text-[7px] font-black uppercase tracking-widest"
-                        style={{ color: myMatchup.winner_id === myTeam?.id ? "var(--color-success)" : "var(--color-muted)" }}>
-                        {myMatchup.winner_id === myTeam?.id ? "✓ Gewonnen" : "✗ Verloren"}
-                      </p>
-                    )}
-                    {!myMatchup.winner_id && !isLive && (
-                      <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>Ausstehend</p>
-                    )}
-                    <a href={`/leagues/${leagueId}/lineup`}
-                      className="text-[7px] font-black uppercase tracking-widest"
-                      style={{ color: "var(--color-primary)" }}>
-                      Aufstellung →
-                    </a>
+                      {/* Score row */}
+                      <div className="flex items-center justify-between">
+                        <p className="text-[30px] font-black leading-none tabular-nums"
+                          style={{ color: homeScoreColor }}>
+                          {myMatchup.home_points?.toFixed(1) ?? "—"}
+                        </p>
+                        <p className="text-[9px] font-black uppercase tracking-widest flex-shrink-0"
+                          style={{ color: "var(--color-border-subtle)" }}>vs</p>
+                        <p className="text-[30px] font-black leading-none tabular-nums text-right"
+                          style={{ color: awayScoreColor }}>
+                          {myMatchup.away_points?.toFixed(1) ?? "—"}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Status bar */}
+                    <div className="px-4 py-2 flex items-center justify-between"
+                      style={{ background: "color-mix(in srgb, var(--color-primary) 6%, transparent)" }}>
+                      <div className="flex items-center gap-2">
+                        {isLive && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-success)" }} />
+                            <span className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>Live</span>
+                          </div>
+                        )}
+                        {myMatchup.winner_id && (
+                          <p className="text-[7px] font-black uppercase tracking-widest"
+                            style={{ color: myMatchup.winner_id === myTeam?.id ? "var(--color-success)" : "var(--color-muted)" }}>
+                            {myMatchup.winner_id === myTeam?.id ? "✓ Gewonnen" : "✗ Verloren"}
+                          </p>
+                        )}
+                        {!myMatchup.winner_id && !isLive && (
+                          <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>Ausstehend</p>
+                        )}
+                      </div>
+                      <a href={`/leagues/${leagueId}/lineup`}
+                        className="text-[7px] font-black uppercase tracking-widest"
+                        style={{ color: "var(--color-primary)" }}>
+                        Aufstellung →
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ── TABELLE ──────────────────────────────────────────────── */}
             <div>
@@ -505,10 +630,12 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
                   const isMine    = team.user_id === user?.id;
                   const gwEntry   = gwRanking.find(t => t.id === team.id);
                   const gwPts     = gwEntry?.gw_points ?? null;
+                  const wl        = wlByTeam[team.id];
+                  const streak    = streakByTeam[team.id];
                   return (
                     <div
                       key={team.id}
-                      onClick={() => window.location.href = isMine ? `/leagues/${leagueId}/lineup` : `/leagues/${leagueId}/liga?team=${team.id}`}
+                      onClick={() => isMine ? (window.location.href = `/leagues/${leagueId}/lineup`) : setSheetTeam(team)}
                       className="flex items-center gap-2 px-3 py-2.5 cursor-pointer transition-all"
                       style={{
                         background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : undefined,
@@ -521,13 +648,21 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
                       </span>
                       {/* Avatar */}
                       <TeamAvatar name={team.name} isMine={isMine} size={7} />
-                      {/* Name */}
+                      {/* Name + Form */}
                       <div className="flex-1 min-w-0">
                         <p className="font-black text-xs truncate"
                           style={{ color: isMine ? "var(--color-primary)" : "var(--color-text)" }}>
                           {team.name}
                           {isMine && <span className="ml-1 text-[7px]" style={{ color: "var(--color-primary)" }}>(Du)</span>}
                           {!team.user_id && <span className="ml-1 text-[7px]" style={{ color: "var(--color-border)" }}>Bot</span>}
+                        </p>
+                        <p className="text-[8px] font-black leading-tight mt-0.5">
+                          <span style={{ color: "var(--color-border-subtle)" }}>
+                            {wl ? `${wl.w}-${wl.l}` : "0-0"}
+                          </span>
+                          {streak && (
+                            <span style={{ color: streakColor(streak) }}> · {streak}</span>
+                          )}
                         </p>
                       </div>
                       {/* Total pts */}
@@ -649,128 +784,423 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
 
             {/* ── AKTIVITÄTEN (preview in Übersicht) ───────────────────── */}
             <div>
-              <SectionHeader title="Aktivitäten" />
-              <TransactionsFeed leagueId={leagueId} />
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--color-muted)" }}>
+                  Aktivitäten
+                </p>
+                <button
+                  onClick={() => setShowActivities(true)}
+                  className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest transition-all active:opacity-60 active:scale-95"
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  Alle ansehen →
+                </button>
+              </div>
+              <div style={{
+                maxHeight: "220px",
+                overflow: "hidden",
+                maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
+                WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
+              }}>
+                <TransactionsFeed leagueId={leagueId} compact />
+              </div>
             </div>
 
-            </> /* end tab === "uebersicht" */}
+            </div> /* end tab === "uebersicht" */}
 
             {/* ══ TABELLE (vollständig) ════════════════════════════════════ */}
             {tab === "tabelle" && (
-              <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                {/* Column headers */}
-                <div className="flex items-center gap-2 px-3 py-2.5"
-                  style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <span className="w-5 flex-shrink-0" />
-                  <span className="w-7 flex-shrink-0" />
-                  <span className="flex-1 text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>Manager</span>
-                  <span className="text-[7px] font-black uppercase tracking-widest w-14 text-right flex-shrink-0" style={{ color: "var(--color-border-subtle)" }}>Gesamt</span>
-                  <span className="text-[7px] font-black uppercase tracking-widest w-12 text-right flex-shrink-0" style={{ color: "var(--color-border-subtle)" }}>
-                    MD {selectedGW}
-                  </span>
-                </div>
-                {teams.map((team, i) => {
-                  const isMine  = team.user_id === user?.id;
-                  const gwEntry = gwRanking.find(t => t.id === team.id);
-                  const gwPts   = gwEntry?.gw_points ?? null;
-                  return (
-                    <div
-                      key={team.id}
-                      onClick={() => window.location.href = isMine ? `/leagues/${leagueId}/lineup` : `/leagues/${leagueId}/liga?team=${team.id}`}
-                      className="flex items-center gap-2 px-3 py-3 cursor-pointer"
+              <div key="tabelle" className="tifo-fade-up space-y-3">
+
+                {/* ── Segmented Control ── */}
+                <div className="flex p-0.5 rounded-xl" style={{ background: "var(--bg-elevated)" }}>
+                  {(["table", "details"] as const).map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setStandingsView(v)}
+                      className="flex-1 py-1.5 rounded-[10px] text-[9px] font-black uppercase tracking-widest transition-all duration-150 active:scale-[0.97]"
                       style={{
-                        background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : undefined,
-                        borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
+                        background: standingsView === v ? "var(--bg-card)" : "transparent",
+                        color:      standingsView === v ? "var(--color-primary)" : "var(--color-muted)",
+                        boxShadow:  standingsView === v ? "0 1px 4px rgba(0,0,0,0.3)" : "none",
                       }}
                     >
-                      <span className="w-5 text-center font-black text-xs flex-shrink-0" style={{ color: rankColor(i) }}>{i + 1}</span>
-                      <TeamAvatar name={team.name} isMine={isMine} size={7} />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-black text-sm truncate" style={{ color: isMine ? "var(--color-primary)" : "var(--color-text)" }}>
-                          {team.name}
-                          {isMine && <span className="ml-1 text-[7px]" style={{ color: "var(--color-primary)" }}>(Du)</span>}
-                          {!team.user_id && <span className="ml-1 text-[7px]" style={{ color: "var(--color-border)" }}>Bot</span>}
-                        </p>
-                      </div>
-                      <span className="w-14 text-right font-black text-sm flex-shrink-0"
-                        style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
-                        {(team.total_points ?? 0).toFixed(1)}
-                      </span>
-                      <span className="w-12 text-right font-black text-xs flex-shrink-0"
-                        style={{ color: gwPts !== null ? (isLive && isMine ? "var(--color-success)" : "var(--color-muted)") : "var(--color-border)" }}>
-                        {gwPts !== null ? gwPts.toFixed(1) : "—"}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ══ AKTIVITÄTEN (vollständig) ════════════════════════════════ */}
-            {tab === "aktivitaeten" && (
-              <TransactionsFeed leagueId={leagueId} />
-            )}
-
-            {/* ══ REGELN ═══════════════════════════════════════════════════ */}
-            {tab === "regeln" && (
-              <div className="space-y-3">
-                {/* Scoring */}
-                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                  <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
-                    <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Wertungssystem</p>
-                  </div>
-                  <div className="px-4 py-3 flex items-center justify-between">
-                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Modus</p>
-                    <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest"
-                      style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", border: "1px solid var(--color-border-subtle)" }}>
-                      {league?.scoring_type === "h2h" ? "Head-to-Head" : "Gesamtpunkte"}
-                    </span>
-                  </div>
-                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
-                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Teams</p>
-                    <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{teams.length}</span>
-                  </div>
-                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
-                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Spieltage</p>
-                    <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{gameweeks.length}</span>
-                  </div>
+                      {v === "table" ? "Tabelle" : "Details"}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Liga Info */}
-                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                  <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
-                    <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Liga Info</p>
-                  </div>
-                  {league?.invite_code && (
-                    <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Einladungscode</p>
-                      <span className="font-black text-xs tracking-widest px-2 py-1 rounded-lg"
-                        style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", letterSpacing: "0.15em" }}>
-                        {league.invite_code}
+                {/* ── TABELLE View ── */}
+                {standingsView === "table" && (
+                  <div className="tifo-fade-up rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                    {/* Column headers */}
+                    <div className="flex items-center gap-2 px-3 py-2.5"
+                      style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <span className="w-5 flex-shrink-0" />
+                      <span className="w-7 flex-shrink-0" />
+                      <span className="flex-1 text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>Manager</span>
+                      <span className="text-[7px] font-black uppercase tracking-widest w-14 text-right flex-shrink-0" style={{ color: "var(--color-border-subtle)" }}>Gesamt</span>
+                      <span className="text-[7px] font-black uppercase tracking-widest w-12 text-right flex-shrink-0" style={{ color: "var(--color-border-subtle)" }}>
+                        MD {selectedGW}
                       </span>
                     </div>
-                  )}
-                  <div className="px-4 py-3 flex items-center justify-between">
-                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Status</p>
-                    <span className="text-xs font-black capitalize" style={{ color: "var(--color-muted)" }}>{league?.status}</span>
+                    {teams.map((team, i) => {
+                      const isMine  = team.user_id === user?.id;
+                      const gwEntry = gwRanking.find(t => t.id === team.id);
+                      const gwPts   = gwEntry?.gw_points ?? null;
+                      const wl      = wlByTeam[team.id];
+                      const streak  = streakByTeam[team.id];
+                      return (
+                        <div
+                          key={team.id}
+                          onClick={() => isMine ? (window.location.href = `/leagues/${leagueId}/lineup`) : setSheetTeam(team)}
+                          className="flex items-center gap-2 px-3 py-3 cursor-pointer transition-transform duration-100 active:scale-[0.97]"
+                          style={{
+                            background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : undefined,
+                            borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
+                          }}
+                        >
+                          <span className="w-5 text-center font-black text-xs flex-shrink-0" style={{ color: rankColor(i) }}>{i + 1}</span>
+                          <TeamAvatar name={team.name} isMine={isMine} size={7} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm truncate" style={{ color: isMine ? "var(--color-primary)" : "var(--color-text)" }}>
+                              {team.name}
+                              {isMine && <span className="ml-1 text-[7px]" style={{ color: "var(--color-primary)" }}>(Du)</span>}
+                              {!team.user_id && <span className="ml-1 text-[7px]" style={{ color: "var(--color-border)" }}>Bot</span>}
+                            </p>
+                            <p className="text-[8px] font-black leading-tight mt-0.5">
+                              <span style={{ color: "var(--color-border-subtle)" }}>
+                                {wl ? `${wl.w}-${wl.l}` : "0-0"}
+                              </span>
+                              {streak && (
+                                <span style={{ color: streakColor(streak) }}> · {streak}</span>
+                              )}
+                            </p>
+                          </div>
+                          <span className="w-14 text-right font-black text-sm flex-shrink-0"
+                            style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
+                            {(team.total_points ?? 0).toFixed(1)}
+                          </span>
+                          <span className="w-12 text-right font-black text-xs flex-shrink-0"
+                            style={{ color: gwPts !== null ? (isLive && isMine ? "var(--color-success)" : "var(--color-muted)") : "var(--color-border)" }}>
+                            {gwPts !== null ? gwPts.toFixed(1) : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-
-                {/* Admin link */}
-                {league?.owner_id === user?.id && (
-                  <a href={`/leagues/${leagueId}/admin`}
-                    className="flex items-center justify-between px-4 py-3.5 rounded-2xl"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border-subtle)" }}>
-                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Admin-Einstellungen</p>
-                    <span className="text-[10px]" style={{ color: "var(--color-primary)" }}>→</span>
-                  </a>
                 )}
+
+                {/* ── DETAILS View ── */}
+                {standingsView === "details" && (
+                  <div className="tifo-fade-up rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                    {/* Horizontal scroll wrapper */}
+                    <div className="overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+                      <table style={{ minWidth: 520, borderCollapse: "collapse", width: "100%" }}>
+                        {/* Header */}
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                            {/* Sticky: # */}
+                            <th className="sticky left-0 z-10 text-left px-2 py-2.5 text-[7px] font-black uppercase tracking-widest w-7"
+                              style={{ background: "var(--bg-card)", color: "var(--color-border-subtle)" }}>
+                              #
+                            </th>
+                            {/* Sticky: Team */}
+                            <th className="sticky left-7 z-10 text-left px-2 py-2.5 text-[7px] font-black uppercase tracking-widest"
+                              style={{ background: "var(--bg-card)", color: "var(--color-border-subtle)", minWidth: 120 }}>
+                              Team
+                            </th>
+                            {/* Scrollable columns */}
+                            {isH2H && (
+                              <th className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest whitespace-nowrap"
+                                style={{ color: "var(--color-border-subtle)" }}>W-L</th>
+                            )}
+                            <th className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest"
+                              style={{ color: "var(--color-border-subtle)" }}>Waiver</th>
+                            <th className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest"
+                              style={{ color: "var(--color-primary)" }}>PF</th>
+                            <th className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest whitespace-nowrap"
+                              style={{ color: "var(--color-border-subtle)" }}>Max PF</th>
+                            <th className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest"
+                              style={{ color: "var(--color-border-subtle)" }}>PA</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teams.map((team, i) => {
+                            const isMine  = team.user_id === user?.id;
+                            const pa      = paByTeam[team.id];
+                            const waiver  = waiverPriority[team.id];
+                            const wl      = wlByTeam[team.id];
+                            const streak  = streakByTeam[team.id];
+                            return (
+                              <tr
+                                key={team.id}
+                                onClick={() => isMine ? (window.location.href = `/leagues/${leagueId}/lineup`) : setSheetTeam(team)}
+                                className="cursor-pointer transition-colors"
+                                style={{
+                                  background: isMine
+                                    ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))"
+                                    : undefined,
+                                  borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
+                                }}
+                              >
+                                {/* Sticky: rank */}
+                                <td className="sticky left-0 z-10 px-2 py-3 text-center"
+                                  style={{ background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : "var(--bg-card)" }}>
+                                  <span className="font-black text-xs" style={{ color: rankColor(i) }}>{i + 1}</span>
+                                </td>
+                                {/* Sticky: team name */}
+                                <td className="sticky left-7 z-10 px-2 py-3"
+                                  style={{ background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : "var(--bg-card)" }}>
+                                  <div className="flex items-center gap-2">
+                                    <TeamAvatar name={team.name} isMine={isMine} size={6} />
+                                    <div>
+                                      <p className="font-black text-xs truncate" style={{
+                                        color: isMine ? "var(--color-primary)" : "var(--color-text)",
+                                        maxWidth: 90,
+                                      }}>
+                                        {team.name}
+                                      </p>
+                                      {streak && (
+                                        <p className="text-[8px] font-black leading-tight"
+                                          style={{ color: streakColor(streak) }}>
+                                          {streak}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                {/* W-L (H2H only) */}
+                                {isH2H && (
+                                  <td className="text-right px-3 py-3">
+                                    <span className="font-black text-xs whitespace-nowrap" style={{ color: "var(--color-text)" }}>
+                                      {wl != null
+                                        ? `${wl.w}-${wl.l}${wl.d > 0 ? `-${wl.d}` : ""}`
+                                        : "—"}
+                                    </span>
+                                  </td>
+                                )}
+                                {/* Waiver */}
+                                <td className="text-right px-3 py-3">
+                                  <span className="font-black text-xs" style={{ color: waiver != null ? "var(--color-muted)" : "var(--color-border)" }}>
+                                    {waiver != null ? `#${waiver}` : "—"}
+                                  </span>
+                                </td>
+                                {/* PF */}
+                                <td className="text-right px-3 py-3">
+                                  <span className="font-black text-xs" style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
+                                    {(team.total_points ?? 0).toFixed(1)}
+                                  </span>
+                                </td>
+                                {/* Max PF */}
+                                <td className="text-right px-3 py-3">
+                                  <span className="font-black text-xs" style={{ color: "var(--color-border)" }}>—</span>
+                                </td>
+                                {/* PA */}
+                                <td className="text-right px-3 py-3">
+                                  <span className="font-black text-xs" style={{ color: pa != null ? "var(--color-muted)" : "var(--color-border)" }}>
+                                    {pa != null ? pa.toFixed(1) : "—"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
               </div>
             )}
+
+            {/* ══ TRADES ═══════════════════════════════════════════════════ */}
+            {tab === "trades" && (
+              <div key="trades" className="tifo-fade-up">
+                <Suspense fallback={<div className="flex justify-center py-12"><Spinner /></div>}>
+                  <TradesView leagueId={leagueId} embedded />
+                </Suspense>
+              </div>
+            )}
+
 
           </div>
         )}
       </div>
+
+      {/* ── Activities Modal ────────────────────────────────────────── */}
+      {showActivities && (
+        <div
+          className="tifo-backdrop-in fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.75)" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowActivities(false); }}
+        >
+          <div
+            className="tifo-sheet-in w-full max-w-[430px] rounded-t-3xl flex flex-col"
+            style={{ background: "var(--bg-page)", maxHeight: "85vh" }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-1 pb-3 flex-shrink-0">
+              <p className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>
+                Aktivitäten
+              </p>
+              <button
+                onClick={() => setShowActivities(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full"
+                style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Filter pills */}
+            <div className="flex gap-1.5 px-5 pb-3 flex-shrink-0">
+              {(["alle", "transfer", "trade", "waiver"] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setActFilter(f)}
+                  className="px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all"
+                  style={{
+                    background: actFilter === f ? "var(--color-primary)" : "var(--bg-elevated)",
+                    color:      actFilter === f ? "var(--bg-page)"       : "var(--color-muted)",
+                    border:     `1px solid ${actFilter === f ? "var(--color-primary)" : "var(--color-border)"}`,
+                  }}
+                >
+                  {f === "alle" ? "Alle" : f === "transfer" ? "Transfers" : f === "trade" ? "Trades" : "Waiver"}
+                </button>
+              ))}
+            </div>
+
+            {/* Feed */}
+            <div className="overflow-y-auto flex-1 px-5 pb-8 overscroll-y-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+              <TransactionsFeed
+                leagueId={leagueId}
+                kindFilter={actFilter === "alle" ? undefined : [actFilter as "transfer" | "trade" | "waiver"]}
+                maxHeight="100%"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Settings Modal ─────────────────────────────────────────── */}
+      {showSettings && (
+        <div
+          className="tifo-backdrop-in fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.75)" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}
+        >
+          <div
+            className="tifo-sheet-in w-full max-w-[430px] rounded-t-3xl flex flex-col"
+            style={{ background: "var(--bg-page)", maxHeight: "80vh" }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-1 pb-3 flex-shrink-0">
+              <p className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>
+                Liga-Einstellungen
+              </p>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full"
+                style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto flex-1 px-5 pb-8 space-y-3 overscroll-y-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+              {/* Scoring */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Wertungssystem</p>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Modus</p>
+                  <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest"
+                    style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", border: "1px solid var(--color-border-subtle)" }}>
+                    {league?.scoring_type === "h2h" ? "Head-to-Head" : "Gesamtpunkte"}
+                  </span>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Teams</p>
+                  <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{teams.length}</span>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Spieltage</p>
+                  <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{gameweeks.length}</span>
+                </div>
+              </div>
+
+              {/* Liga Info */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Liga Info</p>
+                </div>
+                {league?.invite_code && (
+                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Einladungscode</p>
+                    <span className="font-black text-xs tracking-widest px-2 py-1 rounded-lg"
+                      style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", letterSpacing: "0.15em" }}>
+                      {league.invite_code}
+                    </span>
+                  </div>
+                )}
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Status</p>
+                  <span className="text-xs font-black capitalize" style={{ color: "var(--color-muted)" }}>{league?.status}</span>
+                </div>
+              </div>
+
+              {/* Admin link */}
+              {league?.owner_id === user?.id && (
+                <a href={`/leagues/${leagueId}/admin`}
+                  className="flex items-center justify-between px-4 py-3.5 rounded-2xl"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border-subtle)" }}>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Admin-Einstellungen</p>
+                  <span className="text-[10px]" style={{ color: "var(--color-primary)" }}>→</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <TeamDetailSheet
+        team={sheetTeam}
+        leagueId={leagueId}
+        user={user}
+        isH2H={isH2H}
+        onClose={() => setSheetTeam(null)}
+      />
+
+      {/* Chat Dock — floats above BottomNav when user has a team */}
+      {myTeam && user && (
+        <ChatDock
+          leagueId={leagueId}
+          onOpen={() => setChatOpen(true)}
+        />
+      )}
+
+      {/* Chat Sheet overlay */}
+      {chatOpen && myTeam && user && (
+        <ChatSheet
+          leagueId={leagueId}
+          myTeamId={myTeam.id}
+          myUserId={user.id}
+          onClose={() => setChatOpen(false)}
+        />
+      )}
 
       <BottomNav />
     </main>
