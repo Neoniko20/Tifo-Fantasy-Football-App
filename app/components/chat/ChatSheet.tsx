@@ -16,39 +16,41 @@ export default function ChatSheet({ leagueId, myTeamId, myUserId, onClose }: Pro
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/30 flex flex-col justify-end"
+      className="tifo-backdrop-in fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.75)" }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-zinc-950 border-t border-zinc-800 rounded-t-2xl flex flex-col" style={{ height: "85dvh" }}>
+      <div className="tifo-sheet-in w-full max-w-[430px] rounded-t-3xl flex flex-col" style={{ background: "var(--bg-page)", maxHeight: "85dvh" }}>
         {/* Drag handle */}
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-10 h-1 rounded-full bg-zinc-700" />
+        <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+          <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2">
-          <h2 className="text-zinc-100 font-semibold text-base">Chat</h2>
+        <div className="flex items-center justify-between px-5 pt-1 pb-3 flex-shrink-0">
+          <p className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>Chat</p>
           <button
             onClick={onClose}
-            className="text-zinc-400 text-sm px-2 py-1 rounded-lg active:bg-zinc-800"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-xs"
+            style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}
           >
-            Schließen
+            ✕
           </button>
         </div>
 
         {/* Tab bar */}
-        <div className="flex mx-4 mb-3 bg-zinc-900 rounded-xl p-1 gap-1">
+        <div className="mx-4 mb-3 flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-elevated)" }}>
           <button
             onClick={() => setTab("liga")}
-            className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              tab === "liga" ? "bg-zinc-700 text-zinc-100" : "text-zinc-500"
-            }`}
+            className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider"
+            style={tab === "liga" ? { background: "var(--bg-card)", color: "var(--color-primary)" } : { color: "var(--color-muted)" }}
           >
             Liga
           </button>
           <button
             disabled
-            className="flex-1 py-1.5 rounded-lg text-sm font-medium text-zinc-500 opacity-40 cursor-not-allowed"
+            className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider cursor-not-allowed"
+            style={{ color: "var(--color-muted)", opacity: 0.35 }}
           >
             Direkt
           </button>
