@@ -41,6 +41,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const [saved, setSaved] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ type: "xi" | "bench"; index: number } | null>(null);
   const [gameweek, setGameweek] = useState(1);
+  const [gameweekId, setGameweekId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -65,11 +66,31 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       setFormation(settingsData.allowed_formations[0]);
     }
 
+    // Aktive Gameweek laden
+    let activeGW: number = 1;
+    let activeGWId: string | null = null;
+    if (settingsData?.tournament_id) {
+      const { data: gw } = await supabase
+        .from("wm_gameweeks")
+        .select("id, gameweek")
+        .eq("tournament_id", settingsData.tournament_id)
+        .neq("status", "finished")
+        .order("gameweek")
+        .limit(1)
+        .maybeSingle();
+      if (gw) {
+        activeGW = gw.gameweek;
+        activeGWId = gw.id;
+        setGameweek(gw.gameweek);
+        setGameweekId(gw.id);
+      }
+    }
+
     if (!team) return;
 
-    // Draft-Picks (mein Kader)
+    // WM-Kader aus isolierter Tabelle laden
     const { data: picks } = await supabase
-      .from("squad_players")
+      .from("wm_squad_players")
       .select("player_id")
       .eq("team_id", team.id);
 
@@ -84,12 +105,12 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       setDraftPicks(playersData);
     }
 
-    // Gespeicherte Aufstellung laden
+    // Gespeicherte Aufstellung laden (activeGW statt state-Variable, die noch nicht aktualisiert ist)
     const { data: lineup } = await supabase
       .from("team_lineups")
       .select("*")
       .eq("team_id", team.id)
-      .eq("gameweek", gameweek)
+      .eq("gameweek", activeGW)
       .maybeSingle();
 
     if (lineup && playersData.length > 0) {
@@ -172,27 +193,40 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
     if (!myTeam) return;
     const xi = startingXI.filter(Boolean) as Player[];
     if (xi.length < 11) { toast("Startelf nicht vollständig (11 Spieler benötigt)", "error"); return; }
-
-    const validation = validateFormation(xi.map(p => p.position), formation);
-    if (!validation.valid) { toast(`Formation nicht erfüllt: ${validation.errors.join(", ")}`, "error"); return; }
+    if (!gameweekId) { toast("Kein aktiver Spieltag gefunden", "error"); return; }
 
     setSaving(true);
-    await supabase.from("team_lineups").upsert({
-      team_id: myTeam.id,
-      tournament_id: settings?.tournament_id,
-      gameweek,
-      formation,
-      starting_xi: startingXI.filter(Boolean).map(p => p!.id),
-      bench: bench.map(p => p.id),
-      captain_id: captainId,
-      vice_captain_id: viceCaptainId,
-      locked: false,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "team_id,gameweek" });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/wm/${leagueId}/lineup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          team_id: myTeam.id,
+          gameweek_id: gameweekId,
+          formation,
+          starters: startingXI.filter(Boolean).map(p => p!.id),
+          bench: bench.map(p => p.id),
+          captain_id: captainId,
+          vice_captain_id: viceCaptainId,
+        }),
+      });
 
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+      const json = await res.json();
+      if (!res.ok) {
+        toast(json.error || "Fehler beim Speichern", "error");
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch {
+      toast("Netzwerkfehler beim Speichern", "error");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const formationConfig = FORMATIONS[formation];
@@ -223,10 +257,16 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-4">
-        <button onClick={() => window.location.href = `/wm/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-          ← WM
-        </button>
+        <div className="flex flex-col gap-0.5">
+          <button onClick={() => window.location.href = `/wm/${leagueId}`}
+            className="text-[9px] font-black uppercase tracking-widest text-left" style={{ color: "var(--color-muted)" }}>
+            ← WM
+          </button>
+          <button onClick={() => window.location.href = `/wm/${leagueId}/matchday`}
+            className="text-[9px] font-black uppercase tracking-widest text-left" style={{ color: "var(--color-muted)" }}>
+            Spielplan →
+          </button>
+        </div>
         <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>Aufstellung</p>
         <button onClick={saveLineup} disabled={saving}
           className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all"

@@ -7,6 +7,7 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import type { WMNation, WMGameweek, WMLeagueSettings } from "@/lib/wm-types";
+import { mergeRules, RULE_GROUPS } from "@/lib/scoring";
 
 const PHASE_LABEL: Record<string, string> = {
   group:        "Gruppenphase",
@@ -32,6 +33,8 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
   const [loading, setLoading] = useState(true);
   const [hasDraft, setHasDraft] = useState(false);
   const [tab, setTab] = useState<"standings" | "nations" | "settings">("standings");
+  const [editTeamName, setEditTeamName] = useState("");
+  const [savingName, setSavingName] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -57,6 +60,7 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
 
     const myT = (teamsData || []).find((t: any) => t.user_id === userId);
     setMyTeam(myT);
+    setEditTeamName(myT?.name || "");
 
     // WM Settings
     const { data: settingsData } = await supabase
@@ -114,6 +118,17 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
     setLoading(false);
   }
 
+  async function saveTeamName() {
+    if (!myTeam) return;
+    const trimmed = editTeamName.trim();
+    if (trimmed.length < 2 || trimmed.length > 24) return;
+    setSavingName(true);
+    await supabase.from("teams").update({ name: trimmed }).eq("id", myTeam.id);
+    setMyTeam({ ...myTeam, name: trimmed });
+    setTeams(prev => prev.map(t => t.id === myTeam.id ? { ...t, name: trimmed } : t));
+    setSavingName(false);
+  }
+
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
       <Spinner text="Lade WM-Liga..." />
@@ -136,9 +151,9 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-5">
-        <button onClick={() => window.location.href = `/leagues/${leagueId}`}
+        <button onClick={() => window.location.href = `/wm`}
           className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-          ← Liga
+          ← WM
         </button>
         <div className="text-center">
           <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>WM 2026</p>
@@ -181,6 +196,11 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
             className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
             style={{ background: "var(--bg-card)", border: "1px solid var(--color-border-subtle)", color: "var(--color-text)" }}>
             Waiver →
+          </button>
+          <button onClick={() => window.location.href = `/wm/${leagueId}/matchday`}
+            className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border-subtle)", color: "var(--color-text)" }}>
+            Spielplan →
           </button>
         </div>
       </div>
@@ -304,7 +324,54 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         </div>
       )}
 
-      {/* SETTINGS */}
+      {/* SETTINGS — Teamname editieren (eigenes Team) */}
+      {tab === "settings" && myTeam && (
+        <div className="w-full max-w-md rounded-xl p-4 mb-3"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)40" }}>
+          <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
+            Mein Teamname
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={editTeamName}
+              onChange={e => setEditTeamName(e.target.value)}
+              maxLength={24}
+              className="flex-1 p-2.5 rounded-xl text-sm focus:outline-none"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+            />
+            <button
+              onClick={saveTeamName}
+              disabled={savingName || editTeamName.trim().length < 2 || editTeamName.trim() === myTeam.name}
+              className="px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest disabled:opacity-40 transition-opacity"
+              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+              {savingName ? "…" : "Speichern"}
+            </button>
+          </div>
+          <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>2–24 Zeichen · nur dein eigenes Team</p>
+        </div>
+      )}
+
+      {/* SETTINGS — Invite-Code (nur Owner) */}
+      {tab === "settings" && league?.owner_id === user?.id && league?.invite_code && (
+        <div className="w-full max-w-md rounded-xl p-3 mb-3 flex items-center justify-between"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)40" }}>
+          <div>
+            <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>
+              Einladungs-Code
+            </p>
+            <p className="text-base font-black tracking-widest" style={{ color: "var(--color-primary)" }}>
+              {league.invite_code}
+            </p>
+          </div>
+          <button
+            onClick={() => navigator.clipboard.writeText(league.invite_code)}
+            className="px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest"
+            style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid var(--color-primary)40", color: "var(--color-primary)" }}>
+            Code kopieren
+          </button>
+        </div>
+      )}
       {tab === "settings" && settings && (
         <div className="w-full max-w-md space-y-3">
           {[
@@ -335,6 +402,28 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
                 </span>
               ))}
             </div>
+          </div>
+          {/* Scoring-Regeln (read-only) */}
+          <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Scoring-Regeln</p>
+            </div>
+            {(() => {
+              const r = mergeRules(settings.scoring_rules);
+              return RULE_GROUPS.map(group => (
+                <div key={group.label} className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: group.color }}>{group.label}</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {group.fields.map(({ key, label }) => (
+                      <div key={key} className="flex items-center gap-1.5">
+                        <span className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>{label}</span>
+                        <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>{r[key]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         </div>
       )}
