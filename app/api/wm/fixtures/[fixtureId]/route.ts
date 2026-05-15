@@ -17,7 +17,13 @@ export async function PATCH(
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { global: { headers: { Authorization: req.headers.get("Authorization") || "" } } },
   );
-  const { data: { user } } = await anonClient.auth.getUser();
+  let user: { id: string } | null = null;
+  try {
+    const { data } = await anonClient.auth.getUser();
+    user = data.user;
+  } catch {
+    return NextResponse.json({ ok: false, error: "Auth-Fehler" }, { status: 500 });
+  }
   if (!user) {
     return NextResponse.json({ ok: false, error: "Nicht eingeloggt" }, { status: 401 });
   }
@@ -68,8 +74,7 @@ export async function PATCH(
   const { data: leagueSettings } = await supabase
     .from("wm_league_settings")
     .select("league_id")
-    .eq("tournament_id", fixture.tournament_id)
-    .limit(20);
+    .eq("tournament_id", fixture.tournament_id);
 
   const leagueIds = (leagueSettings || []).map((s: { league_id: string }) => s.league_id);
   if (leagueIds.length === 0) {
