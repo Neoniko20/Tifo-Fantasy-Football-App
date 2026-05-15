@@ -72,6 +72,8 @@ export interface WMFixture {
   status: WMFixtureStatus;
   home_score: number | null;
   away_score: number | null;
+  penalties_home?: number | null;   // display only — no scoring impact
+  penalties_away?: number | null;
   api_fixture_id?: number | null;
   created_at?: string;
   // Joined relations (optional — populated by select with FK expansion)
