@@ -286,7 +286,149 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         style={{ background: "var(--color-primary)", zIndex: 49 }} />
 
       <div className="w-full max-w-md px-4">
-        <p className="text-center text-xs text-gray-400">WM Hub Skeleton — Tasks werden ergänzt</p>
+        {/* ── League Header ─────────────────────────────────────────── */}
+        <div className="mb-4">
+          <button
+            onClick={() => window.location.href = "/wm"}
+            className="text-[8px] font-black uppercase tracking-widest"
+            style={{ color: "var(--color-muted)" }}
+          >
+            ← WM
+          </button>
+          <div className="flex items-center justify-between mt-0.5">
+            <p className="text-lg font-black leading-tight flex-1 mr-2 truncate" style={{ color: "var(--color-text)" }}>
+              {league?.name}
+            </p>
+            {/* ⚙ Gear — immer sichtbar (auch setup/drafting) */}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-all active:scale-90"
+              style={{ fontSize: "18px", color: "var(--color-muted)" }}
+            >
+              ⚙
+            </button>
+            <UserBadge />
+          </div>
+        </div>
+
+        {/* ── Status: setup ──────────────────────────────────────────── */}
+        {league?.status === "setup" && (
+          <div className="mt-2 space-y-3">
+            <div className="rounded-2xl p-5 text-center"
+              style={{ background: "var(--bg-card)", border: "1px solid color-mix(in srgb, var(--color-primary) 20%, transparent)" }}>
+              <p className="text-3xl mb-3">📋</p>
+              <p className="text-base font-black mb-1" style={{ color: "var(--color-primary)" }}>Draft vorbereiten</p>
+              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                Der Draft wurde noch nicht gestartet
+              </p>
+            </div>
+
+            {/* Draft-Einstellungen */}
+            {draftSession && (
+              <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-border-subtle)" }}>
+                  Draft-Einstellungen
+                </p>
+                <div className="grid grid-cols-2 gap-y-3">
+                  <div>
+                    <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>Modus</p>
+                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>
+                      {draftSession.draft_type === "linear" ? "Dynasty (Linear)" : "Snake"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>Teams</p>
+                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{teams.length}</p>
+                  </div>
+                  {draftSession.rounds && (
+                    <div>
+                      <p className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-border-subtle)" }}>Runden</p>
+                      <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{draftSession.rounds}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Teilnehmer */}
+            {teams.length > 0 && (
+              <div className="rounded-2xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-border-subtle)" }}>
+                  Teilnehmer · {teams.length}
+                </p>
+                <div className="space-y-1.5">
+                  {teams.map((t: any, i: number) => (
+                    <div key={t.id} className="flex items-center gap-2">
+                      <span className="text-[8px] font-black w-4 text-right" style={{ color: "var(--color-border-subtle)" }}>{i + 1}</span>
+                      <p className="text-xs font-black flex-1" style={{ color: t.user_id === user?.id ? "var(--color-primary)" : "var(--color-text)" }}>
+                        {t.name}
+                        {t.user_id === user?.id && <span className="ml-1 text-[7px]" style={{ color: "var(--color-primary)" }}>(Du)</span>}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Invite-Code (Owner) */}
+            {league?.owner_id === user?.id && league?.invite_code && (
+              <div className="rounded-2xl p-4 flex items-center justify-between"
+                style={{ background: "var(--bg-card)", border: "1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)" }}>
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>Liga einladen</p>
+                  <p className="text-base font-black tracking-widest" style={{ color: "var(--color-primary)" }}>{league.invite_code}</p>
+                </div>
+                <button onClick={copyInviteCode}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                  style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)", color: "var(--color-primary)" }}>
+                  {copiedCode ? "✓ Kopiert" : "Kopieren"}
+                </button>
+              </div>
+            )}
+
+            <button onClick={() => window.location.href = `/wm/${leagueId}/draft`}
+              className="block w-full py-3.5 rounded-2xl text-center text-[10px] font-black uppercase tracking-widest"
+              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+              Draft-Raum öffnen →
+            </button>
+          </div>
+        )}
+
+        {/* ── Status: drafting ───────────────────────────────────────── */}
+        {league?.status === "drafting" && (
+          <div className="mt-2 space-y-3">
+            <div className="rounded-2xl p-5" style={{ background: "var(--bg-card)", border: "1px solid color-mix(in srgb, var(--color-success) 30%, transparent)" }}>
+              <div className="flex items-center gap-3 mb-3">
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 animate-pulse" style={{ background: "var(--color-success)" }} />
+                <p className="text-sm font-black" style={{ color: "var(--color-success)" }}>Draft läuft!</p>
+              </div>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
+                {draftSession?.draft_type === "linear" ? "Dynasty · Linear" : "Snake Draft"}
+                {draftSession?.rounds && ` · ${draftSession.rounds} Runden`}
+                {` · ${teams.length} Teams`}
+              </p>
+              {draftSession?.current_pick !== undefined && (
+                <p className="text-[8px] font-black" style={{ color: "var(--color-border-subtle)" }}>
+                  Pick {(draftSession.current_pick ?? 0) + 1} von {(draftSession.rounds || 15) * teams.length}
+                </p>
+              )}
+            </div>
+            <button onClick={() => window.location.href = `/wm/${leagueId}/draft`}
+              className="block w-full py-3.5 rounded-2xl text-center text-[10px] font-black uppercase tracking-widest"
+              style={{ background: "var(--color-success)", color: "var(--bg-page)" }}>
+              Zum Draft →
+            </button>
+          </div>
+        )}
+
+        {/* ── Active: Tab-Bar + Inhalt folgt in Task 3–7 ─────────────── */}
+        {league?.status !== "setup" && league?.status !== "drafting" && (
+          <div className="mt-4 space-y-5">
+            <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>
+              Tabs folgen in nächstem Task
+            </p>
+          </div>
+        )}
       </div>
 
       <BottomNav />
