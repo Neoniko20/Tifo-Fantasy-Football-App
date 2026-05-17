@@ -1315,8 +1315,9 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
               onClick={async () => {
                 setFixtureSaveAll(true);
                 const dirtyIds = Object.keys(fixtureEdits);
+                const { data: { session } } = await supabase.auth.getSession();
+                let failCount = 0;
                 for (const fid of dirtyIds) {
-                  const { data: { session } } = await supabase.auth.getSession();
                   const res = await fetch(`/api/wm/fixtures/${fid}`, {
                     method: "PATCH",
                     headers: {
@@ -1329,10 +1330,16 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                   if (json.ok) {
                     setAdminFixtures(prev => prev.map(f => f.id === fid ? { ...f, ...json.fixture } : f));
                     setFixtureEdits(prev => { const n = { ...prev }; delete n[fid]; return n; });
+                  } else {
+                    failCount++;
                   }
                 }
                 setFixtureSaveAll(false);
-                toast("Alle gespeichert", "success");
+                if (failCount > 0) {
+                  toast(`${dirtyIds.length - failCount} gespeichert, ${failCount} fehlgeschlagen`, "error");
+                } else {
+                  toast("Alle gespeichert", "success");
+                }
               }}
               className="w-full py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
               style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
