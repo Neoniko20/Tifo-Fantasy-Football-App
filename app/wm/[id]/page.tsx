@@ -421,12 +421,71 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
           </div>
         )}
 
-        {/* ── Active: Tab-Bar + Inhalt folgt in Task 3–7 ─────────────── */}
+        {/* ── Active: Tab-Bar + Inhalt ─────────────────────────────── */}
         {league?.status !== "setup" && league?.status !== "drafting" && (
           <div className="mt-4 space-y-5">
-            <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>
-              Tabs folgen in nächstem Task
-            </p>
+
+            {/* ── Tab Bar ──────────────────────────────────────────────── */}
+            <div className="flex items-stretch" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              {(
+                [
+                  ["uebersicht", "Übersicht"],
+                  ["tabelle",    "Tabelle"],
+                  ["nationen",   "Nationen"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  className="flex-1 py-2.5 text-[9px] font-black uppercase tracking-widest transition-all active:scale-[0.97] relative"
+                  style={{ color: tab === id ? "var(--color-primary)" : "var(--color-muted)" }}
+                >
+                  {label}
+                  {tab === id && (
+                    <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full"
+                      style={{ background: "var(--color-primary)" }} />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* ── GW-Selector (Übersicht + Tabelle) ────────────────────── */}
+            {(tab === "uebersicht" || tab === "tabelle") && gameweeks.length > 0 && (
+              <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
+                {gameweeks.map((gw: WMGameweek) => (
+                  <button
+                    key={gw.gameweek}
+                    onClick={() => {
+                      setSelectedGW(gw.gameweek);
+                      loadGWData(gw.gameweek, teams);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-[9px] font-black whitespace-nowrap flex-shrink-0 transition-all active:scale-[0.97] flex flex-col items-center gap-0"
+                    style={{
+                      background: selectedGW === gw.gameweek ? "var(--color-primary)" : "var(--bg-card)",
+                      color:      selectedGW === gw.gameweek ? "var(--bg-page)"       : "var(--color-muted)",
+                      border:     `1px solid ${selectedGW === gw.gameweek ? "var(--color-primary)" : "var(--color-border)"}`,
+                    }}
+                  >
+                    <span className="flex items-center gap-1">
+                      GW {gw.gameweek}
+                      {gw.status === "active" && (
+                        <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0"
+                          style={{ background: selectedGW === gw.gameweek ? "var(--bg-page)" : "var(--color-success)" }} />
+                      )}
+                    </span>
+                    {gw.phase && (
+                      <span className="text-[7px] opacity-70">{PHASE_LABEL[gw.phase]?.slice(0, 3) ?? gw.phase}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* ── Tab-Inhalte folgen in Task 4–7 ───────────────────────── */}
+            {tab === "uebersicht" && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Übersicht folgt</p>}
+            {tab === "tabelle"    && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Tabelle folgt</p>}
+            {tab === "nationen"   && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Nationen folgt</p>}
+
           </div>
         )}
       </div>
