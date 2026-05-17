@@ -1,40 +1,121 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
-import { UserBadge } from "@/app/components/UserBadge";
 import { BottomNav } from "@/app/components/BottomNav";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
-import type { WMNation, WMGameweek, WMLeagueSettings } from "@/lib/wm-types";
+import { UserBadge } from "@/app/components/UserBadge";
+import { TransactionsFeed } from "@/app/components/TransactionsFeed";
+import { TeamDetailSheet } from "@/app/components/TeamDetailSheet";
 import { mergeRules, RULE_GROUPS } from "@/lib/scoring";
+import type { WMNation, WMGameweek, WMLeagueSettings } from "@/lib/wm-types";
+
+// ── Phase labels ──────────────────────────────────────────────────────────────
 
 const PHASE_LABEL: Record<string, string> = {
-  group:        "Gruppenphase",
-  round_of_32:  "Sechzehntelfinale",
-  round_of_16:  "Achtelfinale",
-  quarter:      "Viertelfinale",
-  semi:         "Halbfinale",
-  final:        "Finale",
+  group:       "Gruppenphase",
+  round_of_32: "Sechzehntelfinale",
+  round_of_16: "Achtelfinale",
+  quarter:     "Viertelfinale",
+  semi:        "Halbfinale",
+  final:       "Finale",
 };
+
+// ── Helper: Team initials avatar ──────────────────────────────────────────────
+
+function TeamAvatar({ name, isMine, size = 7 }: { name: string; isMine?: boolean; size?: number }) {
+  const parts    = name.trim().split(/\s+/);
+  const initials = parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+  const px = size * 4;
+  return (
+    <div
+      className="rounded-full flex items-center justify-center font-black flex-shrink-0"
+      style={{
+        width: px, height: px,
+        background: isMine
+          ? "linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 35%, var(--bg-elevated)), var(--bg-elevated))"
+          : "var(--bg-elevated)",
+        border: `1.5px solid ${isMine ? "color-mix(in srgb, var(--color-primary) 55%, transparent)" : "var(--color-border)"}`,
+        color: isMine ? "var(--color-primary)" : "var(--color-muted)",
+        fontSize: "9px",
+        letterSpacing: "0.05em",
+      }}
+    >
+      {initials}
+    </div>
+  );
+}
+
+// ── Helper: Section header ────────────────────────────────────────────────────
+
+function SectionHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  return (
+    <div className="flex items-center justify-between mb-2">
+      <p className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--color-muted)" }}>
+        {title}
+      </p>
+      {action && (
+        <button onClick={onAction} className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Helper: Rank color ────────────────────────────────────────────────────────
+
+const rankColor = (i: number) =>
+  i === 0 ? "var(--color-primary)"
+  : i === 1 ? "var(--color-text)"
+  : i === 2 ? "var(--color-bronze)"
+  : "var(--color-border-subtle)";
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function WMLeaguePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
 
-  const [league, setLeague] = useState<any>(null);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [user, setUser] = useState<any>(null);
-  const [myTeam, setMyTeam] = useState<any>(null);
-  const [settings, setSettings] = useState<WMLeagueSettings | null>(null);
-  const [nations, setNations] = useState<WMNation[]>([]);
-  const [gameweeks, setGameweeks] = useState<WMGameweek[]>([]);
-  const [currentGW, setCurrentGW] = useState<WMGameweek | null>(null);
-  const [gwPointsMap, setGwPointsMap] = useState<Record<string, number>>({});
+  // ── Auth + Liga
+  const [user, setUser]       = useState<any>(null);
+  const [league, setLeague]   = useState<any>(null);
+  const [teams, setTeams]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hasDraft, setHasDraft] = useState(false);
-  const [tab, setTab] = useState<"standings" | "nations" | "settings">("standings");
+
+  // ── WM-spezifisch
+  const [settings, setSettings]     = useState<WMLeagueSettings & { wm_tournaments?: any } | null>(null);
+  const [gameweeks, setGameweeks]   = useState<WMGameweek[]>([]);
+  const [currentGW, setCurrentGW]   = useState<WMGameweek | null>(null);
+  const [selectedGW, setSelectedGW] = useState<number>(1);
+  const [gwPointsMap, setGwPointsMap] = useState<Record<string, number>>({});
+  const [nations, setNations]       = useState<WMNation[]>([]);
+  const [hasDraft, setHasDraft]     = useState(false);
+  const [draftSession, setDraftSession] = useState<any>(null);
+
+  // ── DETAILS-Tabelle: alle GW-Punkte (gameweek → teamId → points)
+  const [allGwPoints, setAllGwPoints] = useState<Record<number, Record<string, number>>>({});
+  const [allGwPointsLoaded, setAllGwPointsLoaded] = useState(false);
+
+  // ── UI-State
+  const [tab, setTab]                   = useState<"uebersicht" | "tabelle" | "nationen">("uebersicht");
+  const [standingsView, setStandingsView] = useState<"table" | "details">("table");
+  const [showSettings, setShowSettings] = useState(false);
+  const [showActivities, setShowActivities] = useState(false);
+  const [actFilter, setActFilter]       = useState<"alle" | "transfer" | "waiver">("alle");
+  const [sheetTeam, setSheetTeam]       = useState<any>(null);
+
+  // ── Teamname-Edit (im Settings Modal)
   const [editTeamName, setEditTeamName] = useState("");
-  const [savingName, setSavingName] = useState(false);
+  const [savingName, setSavingName]     = useState(false);
+  const [nameSaved, setNameSaved]       = useState(false);
+
+  // ── Invite-Code Copy
+  const [copiedCode, setCopiedCode]     = useState(false);
+
+  // ── Load ─────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -50,19 +131,21 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
       .from("leagues").select("*").eq("id", leagueId).single();
     setLeague(leagueData);
 
-    // Teams
+    // Teams (absteigend nach total_points)
     const { data: teamsData } = await supabase
       .from("teams")
       .select("id, name, user_id, total_points, profiles(username)")
       .eq("league_id", leagueId)
-      .order("total_points", { ascending: false });
+      .order("total_points", { ascending: false, nullsFirst: false });
     setTeams(teamsData || []);
 
-    const myT = (teamsData || []).find((t: any) => t.user_id === userId);
-    setMyTeam(myT);
-    setEditTeamName(myT?.name || "");
+    // Draft Session
+    const { data: draftData } = await supabase
+      .from("draft_sessions").select("*").eq("league_id", leagueId).maybeSingle();
+    setDraftSession(draftData);
+    setHasDraft(!!draftData);
 
-    // WM Settings
+    // WM-Settings (join wm_tournaments für Turniername)
     const { data: settingsData } = await supabase
       .from("wm_league_settings")
       .select("*, wm_tournaments(id, name, season, status)")
@@ -71,7 +154,7 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
     setSettings(settingsData);
 
     if (settingsData?.tournament_id) {
-      // Nations
+      // Nationen
       const { data: nationsData } = await supabase
         .from("wm_nations")
         .select("*")
@@ -87,55 +170,88 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         .order("gameweek");
       setGameweeks(gwData || []);
 
-      const active = (gwData || []).find(gw => gw.status === "active")
+      const active = (gwData || []).find((g: WMGameweek) => g.status === "active")
+        || (gwData || []).slice().reverse().find((g: WMGameweek) => g.status === "finished")
         || (gwData || [])[0];
       setCurrentGW(active || null);
 
-      // GW points for active GW
-      if (active && teamsData && teamsData.length > 0) {
-        const teamIds = teamsData.map((t: any) => t.id);
-        const { data: gwPts } = await supabase
-          .from("wm_gameweek_points")
-          .select("team_id, points")
-          .eq("gameweek", active.gameweek)
-          .in("team_id", teamIds);
-        const map: Record<string, number> = {};
-        for (const r of (gwPts || [])) {
-          map[r.team_id] = (map[r.team_id] || 0) + r.points;
-        }
-        setGwPointsMap(map);
+      if (active) {
+        setSelectedGW(active.gameweek);
+        await loadGWData(active.gameweek, teamsData || []);
       }
     }
 
-    // Draft session
-    const { data: draftData } = await supabase
-      .from("draft_sessions")
-      .select("id")
-      .eq("league_id", leagueId)
-      .maybeSingle();
-    setHasDraft(!!draftData);
+    // Teamname vorbefüllen
+    const myT = (teamsData || []).find((t: any) => t.user_id === userId);
+    if (myT) setEditTeamName(myT.name || "");
 
     setLoading(false);
   }
 
-  async function saveTeamName() {
-    if (!myTeam) return;
-    const trimmed = editTeamName.trim();
-    if (trimmed.length < 2 || trimmed.length > 24) return;
-    setSavingName(true);
-    await supabase.from("teams").update({ name: trimmed }).eq("id", myTeam.id);
-    setMyTeam({ ...myTeam, name: trimmed });
-    setTeams(prev => prev.map(t => t.id === myTeam.id ? { ...t, name: trimmed } : t));
-    setSavingName(false);
+  async function loadGWData(gw: number, allTeams: any[]) {
+    if (!allTeams.length) return;
+    const teamIds = allTeams.map((t: any) => t.id);
+    const { data: gwPts } = await supabase
+      .from("wm_gameweek_points")
+      .select("team_id, points")
+      .eq("gameweek", gw)
+      .in("team_id", teamIds);
+    const map: Record<string, number> = {};
+    for (const r of (gwPts || [])) {
+      map[r.team_id] = (map[r.team_id] || 0) + r.points;
+    }
+    setGwPointsMap(map);
   }
 
-  if (loading) return (
-    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
-      <Spinner text="Lade WM-Liga..." />
-    </main>
-  );
+  // Wird beim Wechsel zu Details-Ansicht in Tabelle einmalig geladen
+  async function loadAllGwPoints() {
+    if (allGwPointsLoaded || !teams.length || !gameweeks.length) return;
+    const teamIds = teams.map((t: any) => t.id);
+    const { data } = await supabase
+      .from("wm_gameweek_points")
+      .select("team_id, gameweek, points")
+      .in("team_id", teamIds);
+    const result: Record<number, Record<string, number>> = {};
+    for (const r of (data || [])) {
+      if (!result[r.gameweek]) result[r.gameweek] = {};
+      result[r.gameweek][r.team_id] = (result[r.gameweek][r.team_id] || 0) + r.points;
+    }
+    setAllGwPoints(result);
+    setAllGwPointsLoaded(true);
+  }
 
-  // Gruppen aufteilen
+  async function saveTeamName() {
+    const myTeam = teams.find((t: any) => t.user_id === user?.id);
+    if (!myTeam) return;
+    const trimmed = editTeamName.trim();
+    if (trimmed.length < 2 || trimmed.length > 24 || trimmed === myTeam.name) return;
+    setSavingName(true);
+    await supabase.from("teams").update({ name: trimmed }).eq("id", myTeam.id);
+    setTeams(prev => prev.map((t: any) => t.id === myTeam.id ? { ...t, name: trimmed } : t));
+    setSavingName(false);
+    setNameSaved(true);
+    setTimeout(() => setNameSaved(false), 2000);
+  }
+
+  async function copyInviteCode() {
+    if (!league?.invite_code) return;
+    await navigator.clipboard.writeText(league.invite_code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  }
+
+  // ── Derived ───────────────────────────────────────────────────────────────
+
+  const myTeam   = teams.find((t: any) => t.user_id === user?.id);
+  const myRank   = myTeam ? teams.findIndex((t: any) => t.id === myTeam.id) + 1 : null;
+  const myGWPts  = myTeam ? (gwPointsMap[myTeam.id] ?? null) : null;
+  const isLive   = currentGW?.status === "active" && selectedGW === currentGW.gameweek;
+
+  const draftLabel =
+    league?.status === "setup"     ? "Draft-Raum öffnen" :
+    league?.status === "drafting"  ? "Zum Draft"         :
+    "Draft-Board";
+
   const groups = nations.reduce((acc, n) => {
     const g = n.group_letter || "?";
     if (!acc[g]) acc[g] = [];
@@ -143,290 +259,24 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
     return acc;
   }, {} as Record<string, WMNation[]>);
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (loading) return (
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade WM-Liga..." />
+    </main>
+  );
+
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
-      {/* Glow */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
-        style={{ background: "var(--color-primary)" }} />
+    <main className="flex min-h-screen flex-col items-center pb-28" style={{ background: "var(--bg-page)", paddingTop: 16 }}>
 
-      {/* Header */}
-      <div className="w-full max-w-md flex justify-between items-center mb-5">
-        <button onClick={() => window.location.href = `/wm`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-          ← WM
-        </button>
-        <div className="text-center">
-          <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>WM 2026</p>
-          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>{league?.name}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {league?.owner_id === user?.id && (
-            <button onClick={() => window.location.href = `/wm/${leagueId}/admin`}
-              className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
-              Admin
-            </button>
-          )}
-          <UserBadge />
-        </div>
+      {/* Ambient glow */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-8 pointer-events-none"
+        style={{ background: "var(--color-primary)", zIndex: 49 }} />
+
+      <div className="w-full max-w-md px-4">
+        <p className="text-center text-xs text-gray-400">WM Hub Skeleton — Tasks werden ergänzt</p>
       </div>
-
-      {/* Status-Card */}
-      <div className="w-full max-w-md rounded-2xl p-4 mb-4 flex items-center justify-between"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)" }}>
-        <div>
-          <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>
-            {currentGW ? PHASE_LABEL[currentGW.phase] || currentGW.label : "Noch nicht gestartet"}
-          </p>
-          <p className="text-2xl font-black" style={{ color: "var(--color-primary)" }}>
-            {currentGW ? `GW ${currentGW.gameweek}` : "Draft Phase"}
-          </p>
-          <p className="text-[9px] font-black mt-1" style={{ color: "var(--color-muted)" }}>
-            {teams.filter(t => t.user_id).length}/{league?.max_teams} Teams
-            · {settings ? `${settings.squad_size}+${settings.bench_size}` : "11"} Spieler
-          </p>
-        </div>
-        <div className="flex flex-col gap-2">
-          <button onClick={() => window.location.href = `/wm/${leagueId}/draft`}
-            className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
-            style={{ background: hasDraft ? "var(--bg-card)" : "var(--color-primary)", border: hasDraft ? "1px solid var(--color-border-subtle)" : "none", color: hasDraft ? "var(--color-text)" : "var(--bg-page)" }}>
-            {hasDraft ? "Draft →" : "Draft starten →"}
-          </button>
-          <button onClick={() => window.location.href = `/wm/${leagueId}/waiver`}
-            className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border-subtle)", color: "var(--color-text)" }}>
-            Waiver →
-          </button>
-          <button onClick={() => window.location.href = `/wm/${leagueId}/matchday`}
-            className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border-subtle)", color: "var(--color-text)" }}>
-            Spielplan →
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 w-full max-w-md mb-4 p-1 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-        {([
-          { id: "standings", label: "Tabelle" },
-          { id: "nations",   label: "Nationen" },
-          { id: "settings",  label: "Einstellungen" },
-        ] as const).map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className="flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"
-            style={{
-              background: tab === t.id ? "var(--color-primary)" : "transparent",
-              color: tab === t.id ? "var(--bg-page)" : "var(--color-muted)",
-            }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* STANDINGS */}
-      {tab === "standings" && (
-        <div className="w-full max-w-md space-y-2">
-          {teams.length === 0 ? (
-            <EmptyState icon="👥" title="Noch keine Teams" />
-          ) : teams.map((team, i) => (
-            <div key={team.id} className="flex items-center justify-between p-4 rounded-2xl"
-              style={{
-                background: "var(--bg-card)",
-                border: `1px solid ${team.user_id === user?.id ? "var(--color-border-subtle)" : "var(--color-border)"}`,
-              }}>
-              <div className="flex items-center gap-3">
-                <span className="font-black text-sm w-5 text-center"
-                  style={{ color: i === 0 ? "var(--color-primary)" : i === 1 ? "var(--color-text)" : i === 2 ? "var(--color-bronze)" : "var(--color-border)" }}>
-                  {i + 1}
-                </span>
-                <div>
-                  <p className="font-black text-sm"
-                    style={{ color: team.user_id === user?.id ? "var(--color-primary)" : "var(--color-text)" }}>
-                    {team.name}
-                    {!team.user_id && <span className="ml-1 text-[8px]" style={{ color: "var(--color-border)" }}>(Bot)</span>}
-                  </p>
-                  <p className="text-[9px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-muted)" }}>
-                    {team.profiles?.username || (team.user_id ? "—" : "KI")}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {currentGW?.status === "active" && (
-                  <div className="text-right">
-                    <p className="font-black text-base" style={{ color: gwPointsMap[team.id] != null ? "var(--color-success)" : "var(--color-border)" }}>
-                      {gwPointsMap[team.id] != null ? gwPointsMap[team.id].toFixed(1) : "—"}
-                    </p>
-                    <p className="text-[7px] font-black uppercase" style={{ color: "var(--color-border)" }}>
-                      GW{currentGW.gameweek}
-                    </p>
-                  </div>
-                )}
-                <div className="text-right">
-                  <p className="font-black text-lg" style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
-                    {team.total_points?.toFixed(1) || "0.0"}
-                  </p>
-                  <p className="text-[8px] font-black uppercase" style={{ color: "var(--color-border)" }}>FPTS</p>
-                </div>
-                {team.user_id === user?.id && (
-                  <button onClick={() => window.location.href = `/wm/${leagueId}/lineup`}
-                    className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase"
-                    style={{ background: "var(--color-border)", color: "var(--color-text)" }}>
-                    Aufst. →
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* NATIONS */}
-      {tab === "nations" && (
-        <div className="w-full max-w-md space-y-4">
-          {Object.keys(groups).length === 0 ? (
-            <EmptyState icon="🌍" title="Noch keine Nationen geladen"
-              description="Werden nach Bekanntgabe der Gruppen geladen" />
-          ) : Object.entries(groups).sort().map(([letter, groupNations]) => (
-            <div key={letter}>
-              <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>
-                Gruppe {letter}
-              </p>
-              <div className="space-y-1.5">
-                {groupNations.map(nation => (
-                  <div key={nation.id} className="flex items-center justify-between p-3 rounded-xl"
-                    style={{
-                      background: "var(--bg-card)",
-                      border: `1px solid ${nation.eliminated_after_gameweek ? "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" : "var(--color-border)"}`,
-                      opacity: nation.eliminated_after_gameweek ? 0.5 : 1,
-                    }}>
-                    <div className="flex items-center gap-2">
-                      {nation.flag_url && (
-                        <img src={nation.flag_url} className="w-6 h-4 rounded-sm object-cover" alt="" />
-                      )}
-                      <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{nation.name}</p>
-                    </div>
-                    {nation.eliminated_after_gameweek ? (
-                      <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                        style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)" }}>
-                        Raus GW{nation.eliminated_after_gameweek}
-                      </span>
-                    ) : (
-                      <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                        style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)", border: "1px solid var(--color-success)40" }}>
-                        Aktiv
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* SETTINGS — Teamname editieren (eigenes Team) */}
-      {tab === "settings" && myTeam && (
-        <div className="w-full max-w-md rounded-xl p-4 mb-3"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)40" }}>
-          <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
-            Mein Teamname
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={editTeamName}
-              onChange={e => setEditTeamName(e.target.value)}
-              maxLength={24}
-              className="flex-1 p-2.5 rounded-xl text-sm focus:outline-none"
-              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
-            />
-            <button
-              onClick={saveTeamName}
-              disabled={savingName || editTeamName.trim().length < 2 || editTeamName.trim() === myTeam.name}
-              className="px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest disabled:opacity-40 transition-opacity"
-              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
-              {savingName ? "…" : "Speichern"}
-            </button>
-          </div>
-          <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>2–24 Zeichen · nur dein eigenes Team</p>
-        </div>
-      )}
-
-      {/* SETTINGS — Invite-Code (nur Owner) */}
-      {tab === "settings" && league?.owner_id === user?.id && league?.invite_code && (
-        <div className="w-full max-w-md rounded-xl p-3 mb-3 flex items-center justify-between"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)40" }}>
-          <div>
-            <p className="text-[8px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>
-              Einladungs-Code
-            </p>
-            <p className="text-base font-black tracking-widest" style={{ color: "var(--color-primary)" }}>
-              {league.invite_code}
-            </p>
-          </div>
-          <button
-            onClick={() => navigator.clipboard.writeText(league.invite_code)}
-            className="px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest"
-            style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid var(--color-primary)40", color: "var(--color-primary)" }}>
-            Code kopieren
-          </button>
-        </div>
-      )}
-      {tab === "settings" && settings && (
-        <div className="w-full max-w-md space-y-3">
-          {[
-            { label: "Startelf", value: `${settings.squad_size} Spieler` },
-            { label: "Bank", value: `${settings.bench_size} Spieler` },
-            { label: "Draftrunden", value: settings.squad_size + settings.bench_size },
-            { label: "Transfers/GW", value: settings.transfers_unlimited ? "Unlimited" : settings.transfers_per_gameweek },
-            { label: "Waiver-System", value: settings.waiver_budget_enabled ? "FAAB Budget" : "Priority" },
-            { label: "Waiver startet", value: `GW ${settings.waiver_mode_starts_gameweek}` },
-            { label: "Claims/GW", value: settings.waiver_claims_limit_enabled ? settings.waiver_max_claims_per_gameweek : "Unlimited" },
-            { label: "Auto-Subs", value: settings.auto_subs_enabled ? "An" : "Aus" },
-          ].map(({ label, value }) => (
-            <div key={label} className="flex items-center justify-between p-3 rounded-xl"
-              style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>{label}</p>
-              <p className="text-sm font-black" style={{ color: "var(--color-text)" }}>{value}</p>
-            </div>
-          ))}
-          <div className="p-3 rounded-xl" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-            <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
-              Formationen
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {(settings.allowed_formations || []).map(f => (
-                <span key={f} className="px-3 py-1 rounded-lg text-[10px] font-black"
-                  style={{ background: "var(--color-border)", color: "var(--color-primary)" }}>
-                  {f}
-                </span>
-              ))}
-            </div>
-          </div>
-          {/* Scoring-Regeln (read-only) */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
-              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Scoring-Regeln</p>
-            </div>
-            {(() => {
-              const r = mergeRules(settings.scoring_rules);
-              return RULE_GROUPS.map(group => (
-                <div key={group.label} className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: group.color }}>{group.label}</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
-                    {group.fields.map(({ key, label }) => (
-                      <div key={key} className="flex items-center gap-1.5">
-                        <span className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>{label}</span>
-                        <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>{r[key]}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        </div>
-      )}
 
       <BottomNav />
     </main>
