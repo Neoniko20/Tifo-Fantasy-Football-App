@@ -7,7 +7,7 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { calculateWMGameweekPoints } from "@/lib/wm-points";
 import { mergeRules, RULE_GROUPS, DEFAULT_SCORING_RULES, type ScoringRules } from "@/lib/scoring";
 import { FORMATION_KEYS } from "@/lib/wm-formations";
-import type { WMNation, WMGameweek, WMLeagueSettings } from "@/lib/wm-types";
+import type { WMNation, WMGameweek, WMLeagueSettings, WMFixture } from "@/lib/wm-types";
 import type { GWStats } from "@/lib/wm-points";
 import { useToast } from "@/app/components/ToastProvider";
 
@@ -26,7 +26,7 @@ const EMPTY_STATS: Omit<GWStats, "position"> = {
   saves: 0, clean_sheet: false, yellow_cards: 0, red_cards: 0,
 };
 
-type AdminTab = "general" | "points" | "waiver" | "autosubs" | "nations" | "debug";
+type AdminTab = "general" | "points" | "waiver" | "autosubs" | "nations" | "fixtures" | "debug";
 
 const TABS: { id: AdminTab; label: string }[] = [
   { id: "general",  label: "Allgemein"      },
@@ -34,6 +34,7 @@ const TABS: { id: AdminTab; label: string }[] = [
   { id: "waiver",   label: "Waiver"         },
   { id: "autosubs", label: "Auto-Subs"      },
   { id: "nations",  label: "Ausscheidungen" },
+  { id: "fixtures", label: "Spielplan"      },
   { id: "debug",    label: "Debug"          },
 ];
 
@@ -54,6 +55,13 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const [teamsCount, setTeamsCount]     = useState(0);
   const [tab, setTab]   = useState<AdminTab>("general");
   const [loading, setLoading] = useState(true);
+
+  // ── Fixtures (Spielplan) tab state ───────────────────────────
+  const [fixtureGW, setFixtureGW]          = useState<number>(1);
+  const [adminFixtures, setAdminFixtures]   = useState<WMFixture[]>([]);
+  const [fixtureEdits, setFixtureEdits]     = useState<Record<string, Partial<WMFixture>>>({});
+  const [fixtureSaving, setFixtureSaving]   = useState<Record<string, boolean>>({});
+  const [fixtureSaveAll, setFixtureSaveAll] = useState(false);
   const { toast } = useToast();
 
   // ── Operation state ───────────────────────────────────────────
@@ -202,6 +210,22 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
     }
 
     setLoading(false);
+  }
+
+  async function loadFixturesForAdmin(gw: number) {
+    if (!settings?.tournament_id) return;
+    const { data } = await supabase
+      .from("wm_fixtures")
+      .select(`
+        *,
+        home_nation:wm_nations!home_nation_id(id, name, flag_url),
+        away_nation:wm_nations!away_nation_id(id, name, flag_url)
+      `)
+      .eq("tournament_id", settings.tournament_id)
+      .eq("gameweek", gw)
+      .order("kickoff");
+    setAdminFixtures((data as WMFixture[]) || []);
+    setFixtureEdits({});
   }
 
   // ── Save: leagues table ───────────────────────────────────────
@@ -528,7 +552,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       <div className="w-full max-w-xl mb-5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
         <div className="flex gap-1 p-1 rounded-xl min-w-max" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => { setTab(t.id); if (t.id === "fixtures") loadFixturesForAdmin(fixtureGW); }}
               className="px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all whitespace-nowrap"
               style={{
                 background: tab === t.id ? "var(--color-primary)" : "transparent",
@@ -1111,6 +1135,211 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════
+          TAB: SPIELPLAN (FIXTURES)
+      ════════════════════════════════ */}
+      {tab === "fixtures" && (
+        <div className="w-full max-w-xl space-y-4">
+
+          {/* GW Selector */}
+          <div className="overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            <div className="flex gap-2 min-w-max pb-1">
+              {gameweeks.map(gw => (
+                <button key={gw.gameweek}
+                  onClick={() => { setFixtureGW(gw.gameweek); loadFixturesForAdmin(gw.gameweek); }}
+                  className="px-3 py-2 rounded-xl text-[10px] font-black transition-all"
+                  style={{
+                    background: fixtureGW === gw.gameweek ? "var(--color-primary)" : "var(--bg-card)",
+                    color:      fixtureGW === gw.gameweek ? "var(--bg-page)" : "var(--color-muted)",
+                    border:     `1px solid ${fixtureGW === gw.gameweek ? "var(--color-primary)" : "var(--color-border)"}`,
+                  }}>
+                  GW{gw.gameweek}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Empty state */}
+          {adminFixtures.length === 0 && (
+            <p className="text-[9px] text-center py-8" style={{ color: "var(--color-muted)" }}>
+              Keine Fixtures für GW{fixtureGW} — zuerst importieren.
+            </p>
+          )}
+
+          {/* Fixture cards */}
+          {adminFixtures.map(fixture => {
+            const edit = fixtureEdits[fixture.id] ?? {};
+            const currentStatus = (edit.status ?? fixture.status) as WMFixture["status"];
+            const isDirty = !!(fixtureEdits[fixture.id] && Object.keys(fixtureEdits[fixture.id]!).length > 0);
+
+            function updateEdit(field: keyof WMFixture, value: unknown) {
+              setFixtureEdits(prev => ({
+                ...prev,
+                [fixture.id]: { ...prev[fixture.id], [field]: value },
+              }));
+            }
+
+            async function saveFixture() {
+              if (!isDirty) return;
+              setFixtureSaving(prev => ({ ...prev, [fixture.id]: true }));
+              const { data: { session } } = await supabase.auth.getSession();
+              const res = await fetch(`/api/wm/fixtures/${fixture.id}`, {
+                method: "PATCH",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${session?.access_token ?? ""}`,
+                },
+                body: JSON.stringify(fixtureEdits[fixture.id]),
+              });
+              const json = await res.json();
+              setFixtureSaving(prev => ({ ...prev, [fixture.id]: false }));
+              if (json.ok) {
+                setAdminFixtures(prev => prev.map(f => f.id === fixture.id ? { ...f, ...json.fixture } : f));
+                setFixtureEdits(prev => { const n = { ...prev }; delete n[fixture.id]; return n; });
+                toast(`Gespeichert: ${fixture.home_nation?.name} vs ${fixture.away_nation?.name}`, "success");
+              } else {
+                toast("Fehler: " + json.error, "error");
+              }
+            }
+
+            return (
+              <div key={fixture.id} className="rounded-2xl p-4 space-y-3"
+                style={{
+                  background: "var(--bg-card)",
+                  border: `1px solid ${isDirty ? "var(--color-primary)" : "var(--color-border)"}`,
+                }}>
+
+                {/* Nation names */}
+                <p className="text-[9px] font-black uppercase tracking-widest text-center" style={{ color: "var(--color-muted)" }}>
+                  {fixture.home_nation?.name ?? "?"} vs {fixture.away_nation?.name ?? "?"}
+                </p>
+
+                {/* Score inputs */}
+                <div className="flex items-center justify-center gap-3">
+                  <div className="flex flex-col items-center gap-1">
+                    <p className="text-[7px] uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Heim</p>
+                    <input
+                      type="number" min="0"
+                      value={edit.home_score !== undefined ? (edit.home_score ?? "") : (fixture.home_score ?? "")}
+                      onChange={e => updateEdit("home_score", e.target.value === "" ? null : parseInt(e.target.value, 10))}
+                      placeholder="–"
+                      className="w-12 h-10 rounded-lg text-center text-sm font-black bg-transparent outline-none"
+                      style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-black mt-4" style={{ color: "var(--color-muted)" }}>:</span>
+                  <div className="flex flex-col items-center gap-1">
+                    <p className="text-[7px] uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Gast</p>
+                    <input
+                      type="number" min="0"
+                      value={edit.away_score !== undefined ? (edit.away_score ?? "") : (fixture.away_score ?? "")}
+                      onChange={e => updateEdit("away_score", e.target.value === "" ? null : parseInt(e.target.value, 10))}
+                      placeholder="–"
+                      className="w-12 h-10 rounded-lg text-center text-sm font-black bg-transparent outline-none"
+                      style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Penalty inputs — only when finished */}
+                {currentStatus === "finished" && (
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="flex flex-col items-center gap-1">
+                      <p className="text-[7px] uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>n.E. Heim</p>
+                      <input
+                        type="number" min="0"
+                        value={edit.penalties_home !== undefined ? (edit.penalties_home ?? "") : (fixture.penalties_home ?? "")}
+                        onChange={e => updateEdit("penalties_home", e.target.value === "" ? null : parseInt(e.target.value, 10))}
+                        placeholder="–"
+                        className="w-12 h-9 rounded-lg text-center text-xs font-black bg-transparent outline-none"
+                        style={{ border: "1px solid var(--color-border-subtle)", color: "var(--color-muted)" }}
+                      />
+                    </div>
+                    <span className="text-[8px] mt-4" style={{ color: "var(--color-border)" }}>:</span>
+                    <div className="flex flex-col items-center gap-1">
+                      <p className="text-[7px] uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>n.E. Gast</p>
+                      <input
+                        type="number" min="0"
+                        value={edit.penalties_away !== undefined ? (edit.penalties_away ?? "") : (fixture.penalties_away ?? "")}
+                        onChange={e => updateEdit("penalties_away", e.target.value === "" ? null : parseInt(e.target.value, 10))}
+                        placeholder="–"
+                        className="w-12 h-9 rounded-lg text-center text-xs font-black bg-transparent outline-none"
+                        style={{ border: "1px solid var(--color-border-subtle)", color: "var(--color-muted)" }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Status buttons */}
+                <div className="flex gap-2 justify-center">
+                  {(["scheduled", "live", "finished"] as const).map(s => (
+                    <button key={s} onClick={() => updateEdit("status", s)}
+                      className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all"
+                      style={{
+                        background: currentStatus === s
+                          ? s === "live"     ? "var(--color-primary)"
+                          : s === "finished" ? "var(--color-success)"
+                          :                    "var(--color-border)"
+                          : "var(--bg-page)",
+                        color: currentStatus === s
+                          ? s === "scheduled" ? "var(--color-text)" : "var(--bg-page)"
+                          : "var(--color-muted)",
+                        border: `1px solid ${currentStatus === s ? "transparent" : "var(--color-border)"}`,
+                      }}>
+                      {s === "scheduled" ? "Geplant" : s === "live" ? "Live" : "Fertig"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Per-fixture save button */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={saveFixture}
+                    disabled={!isDirty || !!fixtureSaving[fixture.id]}
+                    className="px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
+                    style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+                    {fixtureSaving[fixture.id] ? "..." : "Speichern"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Bulk save — only when 2+ fixtures are dirty */}
+          {Object.keys(fixtureEdits).length > 1 && (
+            <button
+              disabled={fixtureSaveAll}
+              onClick={async () => {
+                setFixtureSaveAll(true);
+                const dirtyIds = Object.keys(fixtureEdits);
+                for (const fid of dirtyIds) {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const res = await fetch(`/api/wm/fixtures/${fid}`, {
+                    method: "PATCH",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: `Bearer ${session?.access_token ?? ""}`,
+                    },
+                    body: JSON.stringify(fixtureEdits[fid]),
+                  });
+                  const json = await res.json();
+                  if (json.ok) {
+                    setAdminFixtures(prev => prev.map(f => f.id === fid ? { ...f, ...json.fixture } : f));
+                    setFixtureEdits(prev => { const n = { ...prev }; delete n[fid]; return n; });
+                  }
+                }
+                setFixtureSaveAll(false);
+                toast("Alle gespeichert", "success");
+              }}
+              className="w-full py-3 rounded-2xl text-[9px] font-black uppercase tracking-widest disabled:opacity-40 transition-all"
+              style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+              {fixtureSaveAll ? "Speichere..." : `Alle speichern (${Object.keys(fixtureEdits).length})`}
+            </button>
+          )}
+
         </div>
       )}
 
