@@ -482,7 +482,157 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
             )}
 
             {/* ── Tab-Inhalte folgen in Task 4–7 ───────────────────────── */}
-            {tab === "uebersicht" && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Übersicht folgt</p>}
+
+            {/* ══ ÜBERSICHT ════════════════════════════════════════════════ */}
+            {tab === "uebersicht" && (
+              <div className="tifo-fade-up space-y-5">
+
+                {/* ── Mein Stand (Stat-Strip) ───────────────────────────── */}
+                {myTeam && (
+                  <div
+                    className="rounded-2xl overflow-hidden"
+                    style={{
+                      background: "var(--bg-card)",
+                      border: `1px solid ${isLive ? "color-mix(in srgb, var(--color-primary) 40%, transparent)" : "var(--color-border-subtle)"}`,
+                      boxShadow: isLive ? "0 0 20px color-mix(in srgb, var(--color-primary) 7%, transparent)" : undefined,
+                    }}
+                  >
+                    <div className="flex">
+                      <div className="flex-1 text-center py-3 px-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>Rang</p>
+                        <p className="text-xl font-black leading-none" style={{ color: "var(--color-primary)" }}>
+                          {myRank}
+                          <span className="text-[9px] ml-0.5" style={{ color: "var(--color-muted)" }}>/{teams.length}</span>
+                        </p>
+                      </div>
+                      <div style={{ width: 1, alignSelf: "stretch", background: "var(--color-border)" }} />
+                      <div className="flex-1 text-center py-3 px-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>
+                          GW {selectedGW}
+                        </p>
+                        <p className="text-xl font-black leading-none"
+                          style={{ color: isLive ? "var(--color-success)" : "var(--color-text)" }}>
+                          {myGWPts !== null ? myGWPts.toFixed(1) : "—"}
+                        </p>
+                      </div>
+                      <div style={{ width: 1, alignSelf: "stretch", background: "var(--color-border)" }} />
+                      <div className="flex-1 text-center py-3 px-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--color-muted)" }}>Gesamt</p>
+                        <p className="text-xl font-black leading-none" style={{ color: "var(--color-text)" }}>
+                          {(myTeam.total_points ?? 0).toFixed(1)}
+                        </p>
+                      </div>
+                    </div>
+                    {isLive && (
+                      <div className="px-4 py-1.5 flex items-center gap-2"
+                        style={{ background: "color-mix(in srgb, var(--color-primary) 8%, transparent)" }}>
+                        <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-success)" }} />
+                        <span className="text-[7px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>
+                          Spieltag läuft · {myTeam.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Quick-Actions Row (2×2) ───────────────────────────── */}
+                <div className="grid grid-cols-2 gap-2">
+                  {myTeam && (
+                    <button onClick={() => window.location.href = `/wm/${leagueId}/lineup`}
+                      className="py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
+                      Aufstellung →
+                    </button>
+                  )}
+                  <button onClick={() => window.location.href = `/wm/${leagueId}/draft`}
+                    className="py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center"
+                    style={{
+                      background: league?.status === "drafting" ? "var(--color-success)" : "var(--bg-card)",
+                      border: `1px solid ${league?.status === "drafting" ? "var(--color-success)" : "var(--color-border)"}`,
+                      color: league?.status === "drafting" ? "var(--bg-page)" : "var(--color-text)",
+                    }}>
+                    {draftLabel} →
+                  </button>
+                  <button onClick={() => window.location.href = `/wm/${leagueId}/waiver`}
+                    className="py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
+                    Waiver →
+                  </button>
+                  <button onClick={() => window.location.href = `/wm/${leagueId}/matchday`}
+                    className="py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center"
+                    style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
+                    Spielplan →
+                  </button>
+                </div>
+
+                {/* ── Standings Preview (Top 5) ─────────────────────────── */}
+                {teams.length > 0 && (
+                  <div>
+                    <SectionHeader
+                      title="Tabelle"
+                      action={teams.length > 5 ? "Alle anzeigen →" : undefined}
+                      onAction={() => setTab("tabelle")}
+                    />
+                    <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                      {teams.slice(0, 5).map((team: any, i: number) => {
+                        const isMine  = team.user_id === user?.id;
+                        const gwPts   = gwPointsMap[team.id] ?? null;
+                        return (
+                          <div
+                            key={team.id}
+                            onClick={() => isMine ? (window.location.href = `/wm/${leagueId}/lineup`) : setSheetTeam(team)}
+                            className="flex items-center gap-2 px-3 py-3 cursor-pointer transition-transform duration-100 active:scale-[0.97]"
+                            style={{
+                              background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : undefined,
+                              borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
+                            }}
+                          >
+                            <span className="w-5 text-center font-black text-xs flex-shrink-0" style={{ color: rankColor(i) }}>{i + 1}</span>
+                            <TeamAvatar name={team.name} isMine={isMine} size={7} />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-black text-sm truncate" style={{ color: isMine ? "var(--color-primary)" : "var(--color-text)" }}>
+                                {team.name}
+                                {isMine && <span className="ml-1 text-[7px]" style={{ color: "var(--color-primary)" }}>(Du)</span>}
+                              </p>
+                            </div>
+                            <span className="font-black text-sm flex-shrink-0" style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
+                              {(team.total_points ?? 0).toFixed(1)}
+                            </span>
+                            <span className="w-12 text-right font-black text-xs flex-shrink-0"
+                              style={{ color: gwPts !== null ? (isLive && isMine ? "var(--color-success)" : "var(--color-muted)") : "var(--color-border)" }}>
+                              {gwPts !== null ? gwPts.toFixed(1) : "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {teams.length > 5 && (
+                      <button onClick={() => setTab("tabelle")}
+                        className="w-full mt-1.5 py-2 text-[8px] font-black uppercase tracking-widest text-center"
+                        style={{ color: "var(--color-primary)" }}>
+                        Alle {teams.length} Teams anzeigen →
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Aktivitäten Preview ───────────────────────────────── */}
+                <div>
+                  <SectionHeader title="Aktivitäten" action="Alle anzeigen →" onAction={() => setShowActivities(true)} />
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", maxHeight: 160, overflow: "hidden" }}>
+                    <React.Suspense fallback={<div className="p-4 text-center text-xs" style={{ color: "var(--color-muted)" }}>Lade…</div>}>
+                      <TransactionsFeed
+                        leagueId={leagueId}
+                        kindFilter={["transfer", "waiver"]}
+                        maxHeight="160px"
+                        compact
+                      />
+                    </React.Suspense>
+                  </div>
+                </div>
+
+              </div>
+            )}
             {tab === "tabelle"    && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Tabelle folgt</p>}
             {tab === "nationen"   && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Nationen folgt</p>}
 
