@@ -200,19 +200,26 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {isFinished || isLive ? (
-                        <>
-                          <span className="text-base font-black w-5 text-center" style={{ color: "var(--color-primary)" }}>
-                            {fixture.home_score ?? 0}
-                          </span>
-                          <span className="text-[9px] font-black" style={{ color: "var(--color-border)" }}>:</span>
-                          <span className="text-base font-black w-5 text-center" style={{ color: "var(--color-primary)" }}>
-                            {fixture.away_score ?? 0}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-[9px] font-black px-2" style={{ color: "var(--color-muted)" }}>vs</span>
+                    <div className="flex flex-col items-center flex-shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        {isFinished || isLive ? (
+                          <>
+                            <span className="text-base font-black w-5 text-center" style={{ color: "var(--color-primary)" }}>
+                              {fixture.home_score ?? 0}
+                            </span>
+                            <span className="text-[9px] font-black" style={{ color: "var(--color-border)" }}>:</span>
+                            <span className="text-base font-black w-5 text-center" style={{ color: "var(--color-primary)" }}>
+                              {fixture.away_score ?? 0}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[9px] font-black px-2" style={{ color: "var(--color-muted)" }}>vs</span>
+                        )}
+                      </div>
+                      {(isFinished || isLive) && fixture.penalties_home != null && (
+                        <p className="text-[7px] font-black text-center mt-0.5" style={{ color: "var(--color-muted)" }}>
+                          n.E. {fixture.penalties_home}:{fixture.penalties_away ?? "?"}
+                        </p>
                       )}
                     </div>
 
