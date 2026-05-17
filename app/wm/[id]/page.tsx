@@ -25,11 +25,14 @@ const PHASE_LABEL: Record<string, string> = {
 // ── Helper: Team initials avatar ──────────────────────────────────────────────
 
 function TeamAvatar({ name, isMine, size = 7 }: { name: string; isMine?: boolean; size?: number }) {
+  const px = size * 4;
+  if (!name || !name.trim()) return (
+    <div className="rounded-full flex-shrink-0" style={{ width: px, height: px, background: "var(--bg-elevated)", border: "1.5px solid var(--color-border)" }} />
+  );
   const parts    = name.trim().split(/\s+/);
   const initials = parts.length >= 2
     ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
     : name.slice(0, 2).toUpperCase();
-  const px = size * 4;
   return (
     <div
       className="rounded-full flex items-center justify-center font-black flex-shrink-0"
@@ -126,66 +129,70 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
   }, []);
 
   async function loadAll(userId: string) {
-    // Liga
-    const { data: leagueData } = await supabase
-      .from("leagues").select("*").eq("id", leagueId).single();
-    setLeague(leagueData);
+    try {
+      // Liga
+      const { data: leagueData } = await supabase
+        .from("leagues").select("*").eq("id", leagueId).single();
+      setLeague(leagueData);
 
-    // Teams (absteigend nach total_points)
-    const { data: teamsData } = await supabase
-      .from("teams")
-      .select("id, name, user_id, total_points, profiles(username)")
-      .eq("league_id", leagueId)
-      .order("total_points", { ascending: false, nullsFirst: false });
-    setTeams(teamsData || []);
+      // Teams (absteigend nach total_points)
+      const { data: teamsData } = await supabase
+        .from("teams")
+        .select("id, name, user_id, total_points, profiles(username)")
+        .eq("league_id", leagueId)
+        .order("total_points", { ascending: false, nullsFirst: false });
+      setTeams(teamsData || []);
 
-    // Draft Session
-    const { data: draftData } = await supabase
-      .from("draft_sessions").select("*").eq("league_id", leagueId).maybeSingle();
-    setDraftSession(draftData);
-    setHasDraft(!!draftData);
+      // Draft Session
+      const { data: draftData } = await supabase
+        .from("draft_sessions").select("*").eq("league_id", leagueId).maybeSingle();
+      setDraftSession(draftData);
+      setHasDraft(!!draftData);
 
-    // WM-Settings (join wm_tournaments für Turniername)
-    const { data: settingsData } = await supabase
-      .from("wm_league_settings")
-      .select("*, wm_tournaments(id, name, season, status)")
-      .eq("league_id", leagueId)
-      .maybeSingle();
-    setSettings(settingsData);
+      // WM-Settings (join wm_tournaments für Turniername)
+      const { data: settingsData } = await supabase
+        .from("wm_league_settings")
+        .select("*, wm_tournaments(id, name, season, status)")
+        .eq("league_id", leagueId)
+        .maybeSingle();
+      setSettings(settingsData);
 
-    if (settingsData?.tournament_id) {
-      // Nationen
-      const { data: nationsData } = await supabase
-        .from("wm_nations")
-        .select("*")
-        .eq("tournament_id", settingsData.tournament_id)
-        .order("group_letter");
-      setNations(nationsData || []);
+      if (settingsData?.tournament_id) {
+        // Nationen
+        const { data: nationsData } = await supabase
+          .from("wm_nations")
+          .select("*")
+          .eq("tournament_id", settingsData.tournament_id)
+          .order("group_letter");
+        setNations(nationsData || []);
 
-      // Gameweeks
-      const { data: gwData } = await supabase
-        .from("wm_gameweeks")
-        .select("*")
-        .eq("tournament_id", settingsData.tournament_id)
-        .order("gameweek");
-      setGameweeks(gwData || []);
+        // Gameweeks
+        const { data: gwData } = await supabase
+          .from("wm_gameweeks")
+          .select("*")
+          .eq("tournament_id", settingsData.tournament_id)
+          .order("gameweek");
+        setGameweeks(gwData || []);
 
-      const active = (gwData || []).find((g: WMGameweek) => g.status === "active")
-        || (gwData || []).slice().reverse().find((g: WMGameweek) => g.status === "finished")
-        || (gwData || [])[0];
-      setCurrentGW(active || null);
+        const active = (gwData || []).find((g: WMGameweek) => g.status === "active")
+          || (gwData || []).slice().reverse().find((g: WMGameweek) => g.status === "finished")
+          || (gwData || [])[0];
+        setCurrentGW(active || null);
 
-      if (active) {
-        setSelectedGW(active.gameweek);
-        await loadGWData(active.gameweek, teamsData || []);
+        if (active) {
+          setSelectedGW(active.gameweek);
+          await loadGWData(active.gameweek, teamsData || []);
+        }
       }
+
+      // Teamname vorbefüllen
+      const myT = (teamsData || []).find((t: any) => t.user_id === userId);
+      if (myT) setEditTeamName(myT.name || "");
+    } catch {
+      // errors are swallowed; loading spinner is released via finally
+    } finally {
+      setLoading(false);
     }
-
-    // Teamname vorbefüllen
-    const myT = (teamsData || []).find((t: any) => t.user_id === userId);
-    if (myT) setEditTeamName(myT.name || "");
-
-    setLoading(false);
   }
 
   async function loadGWData(gw: number, allTeams: any[]) {
@@ -235,9 +242,13 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
 
   async function copyInviteCode() {
     if (!league?.invite_code) return;
-    await navigator.clipboard.writeText(league.invite_code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+    try {
+      await navigator.clipboard.writeText(league.invite_code);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      setCopiedCode(false);
+    }
   }
 
   // ── Derived ───────────────────────────────────────────────────────────────
