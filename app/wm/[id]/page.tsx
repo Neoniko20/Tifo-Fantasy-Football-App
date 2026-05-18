@@ -828,6 +828,59 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         )}
       </div>
 
+      {/* ── Activities Modal ────────────────────────────────────────────── */}
+      {showActivities && (
+        <div
+          className="tifo-backdrop-in fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.75)" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowActivities(false); }}
+        >
+          <div
+            className="tifo-sheet-in w-full max-w-[430px] rounded-t-3xl flex flex-col"
+            style={{ background: "var(--bg-page)", maxHeight: "85vh" }}
+          >
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
+            </div>
+            <div className="flex items-center justify-between px-5 pt-1 pb-3 flex-shrink-0">
+              <p className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>
+                Aktivitäten
+              </p>
+              <button onClick={() => setShowActivities(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full"
+                style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}>
+                ✕
+              </button>
+            </div>
+            {/* Filter — kein "trade" für WM */}
+            <div className="flex gap-1.5 px-5 pb-3 flex-shrink-0">
+              {(["alle", "transfer", "waiver"] as const).map(f => (
+                <button key={f} onClick={() => setActFilter(f)}
+                  className="px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all"
+                  style={{
+                    background: actFilter === f ? "var(--color-primary)" : "var(--bg-elevated)",
+                    color:      actFilter === f ? "var(--bg-page)"       : "var(--color-muted)",
+                    border:     `1px solid ${actFilter === f ? "var(--color-primary)" : "var(--color-border)"}`,
+                  }}>
+                  {f === "alle" ? "Alle" : f === "transfer" ? "Transfers" : "Waiver"}
+                </button>
+              ))}
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 pb-8 overscroll-y-contain"
+              style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+              <React.Suspense fallback={<div className="py-8 text-center text-xs" style={{ color: "var(--color-muted)" }}>Lade…</div>}>
+                <TransactionsFeed
+                  leagueId={leagueId}
+                  kindFilter={actFilter === "alle" ? ["transfer", "waiver"] : [actFilter as "transfer" | "waiver"]}
+                  maxHeight="100%"
+                  emptyLabel="Noch keine Aktivitäten"
+                />
+              </React.Suspense>
+            </div>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </main>
   );
