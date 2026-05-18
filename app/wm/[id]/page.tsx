@@ -289,11 +289,11 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         {/* ── League Header ─────────────────────────────────────────── */}
         <div className="mb-4">
           <button
-            onClick={() => window.location.href = "/wm"}
+            onClick={() => window.location.href = "/leagues"}
             className="text-[8px] font-black uppercase tracking-widest"
             style={{ color: "var(--color-muted)" }}
           >
-            ← WM
+            ← Ligen
           </button>
           <div className="flex items-center justify-between mt-0.5">
             <p className="text-lg font-black leading-tight flex-1 mr-2 truncate" style={{ color: "var(--color-text)" }}>
@@ -307,7 +307,6 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
             >
               ⚙
             </button>
-            <UserBadge />
           </div>
         </div>
 
@@ -999,6 +998,29 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
                             {f}
                           </span>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                  {settings.position_limits && (
+                    <div className="px-4 py-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>Positionslimits</p>
+                      <div className="grid grid-cols-2 gap-y-2 gap-x-4">
+                        {([
+                          { pos: "GK", label: "TW / GK" },
+                          { pos: "DF", label: "AB / DF" },
+                          { pos: "MF", label: "MF" },
+                          { pos: "FW", label: "ST / FW" },
+                        ] as const).map(({ pos, label }) => {
+                          const lim = settings.position_limits?.[pos];
+                          return (
+                            <div key={pos} className="flex items-center justify-between gap-2">
+                              <span className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>{label}</span>
+                              <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>
+                                {lim ? `${lim.min}–${lim.max}` : "Nicht festgelegt"}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
