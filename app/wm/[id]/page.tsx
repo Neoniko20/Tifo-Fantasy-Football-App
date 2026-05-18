@@ -776,7 +776,53 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
 
               </div>
             )}
-            {tab === "nationen"   && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Nationen folgt</p>}
+            {/* ══ NATIONEN ═════════════════════════════════════════════════ */}
+            {tab === "nationen" && (
+              <div className="tifo-fade-up space-y-4">
+                {Object.keys(groups).length === 0 ? (
+                  <EmptyState icon="🌍" title="Noch keine Nationen"
+                    description="Werden nach Bekanntgabe der Gruppen geladen" />
+                ) : Object.entries(groups).sort().map(([letter, groupNations]) => (
+                  <div key={letter}>
+                    <p className="text-[9px] font-black uppercase tracking-widest mb-2"
+                      style={{ color: "var(--color-border)" }}>
+                      Gruppe {letter}
+                    </p>
+                    <div className="space-y-1.5">
+                      {groupNations.map((nation: WMNation) => (
+                        <div key={nation.id}
+                          className="flex items-center justify-between p-3 rounded-xl"
+                          style={{
+                            background: "var(--bg-card)",
+                            border: `1px solid ${nation.eliminated_after_gameweek
+                              ? "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))"
+                              : "var(--color-border)"}`,
+                            opacity: nation.eliminated_after_gameweek ? 0.5 : 1,
+                          }}>
+                          <div className="flex items-center gap-2">
+                            {nation.flag_url && (
+                              <img src={nation.flag_url} className="w-6 h-4 rounded-sm object-cover" alt="" />
+                            )}
+                            <p className="font-black text-sm" style={{ color: "var(--color-text)" }}>{nation.name}</p>
+                          </div>
+                          {nation.eliminated_after_gameweek ? (
+                            <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
+                              style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)" }}>
+                              Raus GW{nation.eliminated_after_gameweek}
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
+                              style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)", border: "1px solid color-mix(in srgb, var(--color-success) 40%, transparent)" }}>
+                              Aktiv
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
           </div>
         )}
