@@ -633,7 +633,149 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
 
               </div>
             )}
-            {tab === "tabelle"    && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Tabelle folgt</p>}
+            {/* ══ TABELLE ══════════════════════════════════════════════════ */}
+            {tab === "tabelle" && (
+              <div className="tifo-fade-up space-y-3">
+
+                {/* TABLE / DETAILS Toggle */}
+                <div className="flex gap-1">
+                  {(["table", "details"] as const).map(v => (
+                    <button key={v}
+                      onClick={() => {
+                        setStandingsView(v);
+                        if (v === "details") loadAllGwPoints();
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all"
+                      style={{
+                        background: standingsView === v ? "var(--color-primary)" : "var(--bg-card)",
+                        color:      standingsView === v ? "var(--bg-page)"       : "var(--color-muted)",
+                        border:     `1px solid ${standingsView === v ? "var(--color-primary)" : "var(--color-border)"}`,
+                      }}>
+                      {v === "table" ? "Tabelle" : "Details"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── TABLE-Ansicht ─────────────────────────────────────── */}
+                {standingsView === "table" && (
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                    {teams.length === 0 ? (
+                      <EmptyState icon="👥" title="Noch keine Teams" />
+                    ) : teams.map((team: any, i: number) => {
+                      const isMine = team.user_id === user?.id;
+                      const gwPts  = gwPointsMap[team.id] ?? null;
+                      return (
+                        <div
+                          key={team.id}
+                          onClick={() => isMine ? (window.location.href = `/wm/${leagueId}/lineup`) : setSheetTeam(team)}
+                          className="flex items-center gap-2 px-3 py-3 cursor-pointer transition-transform duration-100 active:scale-[0.97]"
+                          style={{
+                            background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : undefined,
+                            borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
+                          }}
+                        >
+                          <span className="w-5 text-center font-black text-xs flex-shrink-0" style={{ color: rankColor(i) }}>{i + 1}</span>
+                          <TeamAvatar name={team.name} isMine={isMine} size={7} />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-black text-sm truncate" style={{ color: isMine ? "var(--color-primary)" : "var(--color-text)" }}>
+                              {team.name}
+                              {isMine && <span className="ml-1 text-[7px]" style={{ color: "var(--color-primary)" }}>(Du)</span>}
+                            </p>
+                          </div>
+                          <span className="w-14 text-right font-black text-sm flex-shrink-0" style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
+                            {(team.total_points ?? 0).toFixed(1)}
+                          </span>
+                          <span className="w-12 text-right font-black text-xs flex-shrink-0"
+                            style={{ color: gwPts !== null ? (isLive && isMine ? "var(--color-success)" : "var(--color-muted)") : "var(--color-border)" }}>
+                            {gwPts !== null ? gwPts.toFixed(1) : "—"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── DETAILS-Ansicht (horizontal scroll) ──────────────── */}
+                {standingsView === "details" && (
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                    {!allGwPointsLoaded ? (
+                      <div className="flex justify-center py-8"><Spinner /></div>
+                    ) : (
+                      <div className="overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+                        <table style={{ minWidth: Math.max(360, 200 + gameweeks.length * 52), borderCollapse: "collapse", width: "100%" }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                              <th className="sticky left-0 z-10 text-left px-2 py-2.5 text-[7px] font-black uppercase tracking-widest w-7"
+                                style={{ background: "var(--bg-card)", color: "var(--color-border-subtle)" }}>#</th>
+                              <th className="sticky left-7 z-10 text-left px-2 py-2.5 text-[7px] font-black uppercase tracking-widest"
+                                style={{ background: "var(--bg-card)", color: "var(--color-border-subtle)", minWidth: 110 }}>Team</th>
+                              <th className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest whitespace-nowrap"
+                                style={{ color: "var(--color-primary)" }}>PF</th>
+                              <th className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest whitespace-nowrap"
+                                style={{ color: "var(--color-border-subtle)" }}>Max PF</th>
+                              {gameweeks.map((gw: WMGameweek) => (
+                                <th key={gw.gameweek} className="text-right px-3 py-2.5 text-[7px] font-black uppercase tracking-widest whitespace-nowrap"
+                                  style={{ color: selectedGW === gw.gameweek ? "var(--color-primary)" : "var(--color-border-subtle)" }}>
+                                  GW{gw.gameweek}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {teams.map((team: any, i: number) => {
+                              const isMine = team.user_id === user?.id;
+                              const gwPtsPerGW = gameweeks.map((gw: WMGameweek) => allGwPoints[gw.gameweek]?.[team.id] ?? null);
+                              const maxPF      = gwPtsPerGW.reduce((max, v) => (v !== null && v > (max ?? -Infinity) ? v : max), null as number | null);
+                              return (
+                                <tr key={team.id}
+                                  onClick={() => isMine ? (window.location.href = `/wm/${leagueId}/lineup`) : setSheetTeam(team)}
+                                  className="cursor-pointer"
+                                  style={{
+                                    background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : undefined,
+                                    borderTop: i > 0 ? "1px solid var(--color-border)" : undefined,
+                                  }}>
+                                  <td className="sticky left-0 z-10 px-2 py-3 text-center"
+                                    style={{ background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : "var(--bg-card)" }}>
+                                    <span className="font-black text-xs" style={{ color: rankColor(i) }}>{i + 1}</span>
+                                  </td>
+                                  <td className="sticky left-7 z-10 px-2 py-3"
+                                    style={{ background: isMine ? "color-mix(in srgb, var(--color-primary) 5%, var(--bg-card))" : "var(--bg-card)" }}>
+                                    <div className="flex items-center gap-2">
+                                      <TeamAvatar name={team.name} isMine={isMine} size={6} />
+                                      <p className="font-black text-xs truncate" style={{ color: isMine ? "var(--color-primary)" : "var(--color-text)", maxWidth: 80 }}>
+                                        {team.name}
+                                      </p>
+                                    </div>
+                                  </td>
+                                  <td className="text-right px-3 py-3">
+                                    <span className="font-black text-xs" style={{ color: i === 0 ? "var(--color-primary)" : "var(--color-text)" }}>
+                                      {(team.total_points ?? 0).toFixed(1)}
+                                    </span>
+                                  </td>
+                                  <td className="text-right px-3 py-3">
+                                    <span className="font-black text-xs" style={{ color: "var(--color-muted)" }}>
+                                      {maxPF !== null ? maxPF.toFixed(1) : "—"}
+                                    </span>
+                                  </td>
+                                  {gwPtsPerGW.map((pts, idx) => (
+                                    <td key={idx} className="text-right px-3 py-3">
+                                      <span className="font-black text-xs" style={{ color: pts !== null ? "var(--color-muted)" : "var(--color-border)" }}>
+                                        {pts !== null ? pts.toFixed(1) : "—"}
+                                      </span>
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              </div>
+            )}
             {tab === "nationen"   && <p className="text-center text-xs" style={{ color: "var(--color-muted)" }}>Nationen folgt</p>}
 
           </div>
