@@ -1074,6 +1074,20 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         </div>
       )}
 
+      {/* ── TeamDetailSheet ─────────────────────────────────────────────
+          Known Issue: Interne Links in TeamDetailSheet zeigen auf
+          /leagues/${leagueId}/trades und /leagues/${leagueId}/transfers
+          (in app/components/TeamDetailSheet.tsx).
+          Fix ist eigenem Ticket vorbehalten — nicht in diesem Sprint.
+      ─────────────────────────────────────────────────────────────────── */}
+      <TeamDetailSheet
+        team={sheetTeam}
+        leagueId={leagueId}
+        user={user}
+        isH2H={false}
+        onClose={() => setSheetTeam(null)}
+      />
+
       <BottomNav />
     </main>
   );
