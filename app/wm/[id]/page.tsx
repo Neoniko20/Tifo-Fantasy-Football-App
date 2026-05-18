@@ -881,6 +881,199 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
         </div>
       )}
 
+      {/* ── Settings Modal ──────────────────────────────────────────────── */}
+      {showSettings && (
+        <div
+          className="tifo-backdrop-in fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.75)" }}
+          onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}
+        >
+          <div
+            className="tifo-sheet-in w-full max-w-[430px] rounded-t-3xl flex flex-col"
+            style={{ background: "var(--bg-page)", maxHeight: "85vh" }}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
+            </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-1 pb-3 flex-shrink-0">
+              <p className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--color-text)" }}>
+                Liga-Einstellungen
+              </p>
+              <button onClick={() => setShowSettings(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full"
+                style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto flex-1 px-5 pb-8 space-y-3 overscroll-y-contain"
+              style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+
+              {/* Wertungssystem */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Wertungssystem</p>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Modus</p>
+                  <span className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest"
+                    style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", border: "1px solid var(--color-border-subtle)" }}>
+                    Standard (WM)
+                  </span>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Teams</p>
+                  <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{teams.length}</span>
+                </div>
+                <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Spieltage</p>
+                  <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{gameweeks.length}</span>
+                </div>
+              </div>
+
+              {/* Liga Info */}
+              <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Liga Info</p>
+                </div>
+                {league?.invite_code && (
+                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Einladungscode</p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs tracking-widest px-2 py-1 rounded-lg"
+                        style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", letterSpacing: "0.15em" }}>
+                        {league.invite_code}
+                      </span>
+                      <button onClick={copyInviteCode}
+                        className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded"
+                        style={{ color: copiedCode ? "var(--color-success)" : "var(--color-primary)" }}>
+                        {copiedCode ? "✓" : "Kopieren"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {settings?.wm_tournaments?.name && (
+                  <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Turnier</p>
+                    <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>
+                      {settings.wm_tournaments.name}
+                    </span>
+                  </div>
+                )}
+                <div className="px-4 py-3 flex items-center justify-between">
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Status</p>
+                  <span className="text-xs font-black capitalize" style={{ color: "var(--color-muted)" }}>{league?.status}</span>
+                </div>
+              </div>
+
+              {/* WM-Einstellungen (read-only für alle) */}
+              {settings && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>WM-Einstellungen</p>
+                  </div>
+                  {[
+                    { label: "Startelf",       value: `${settings.squad_size} Spieler` },
+                    { label: "Bank",           value: `${settings.bench_size} Spieler` },
+                    { label: "Transfers/GW",   value: settings.transfers_unlimited ? "Unlimited" : settings.transfers_per_gameweek },
+                    { label: "Waiver-System",  value: settings.waiver_budget_enabled ? "FAAB Budget" : "Priority" },
+                    { label: "Waiver ab",      value: `GW ${settings.waiver_mode_starts_gameweek}` },
+                    { label: "Claims/GW",      value: settings.waiver_claims_limit_enabled ? settings.waiver_max_claims_per_gameweek : "Unlimited" },
+                    { label: "Auto-Subs",      value: settings.auto_subs_enabled ? "An" : "Aus" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{label}</p>
+                      <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{value}</span>
+                    </div>
+                  ))}
+                  {(settings.allowed_formations?.length > 0) && (
+                    <div className="px-4 py-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>Formationen</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {settings.allowed_formations.map((f: string) => (
+                          <span key={f} className="px-2 py-0.5 rounded text-[9px] font-black"
+                            style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", border: "1px solid var(--color-border-subtle)" }}>
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Scoring-Regeln */}
+              {settings?.scoring_rules !== undefined && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Scoring-Regeln</p>
+                  </div>
+                  {(() => {
+                    const r = mergeRules(settings.scoring_rules);
+                    return RULE_GROUPS.map(group => (
+                      <div key={group.label} className="px-4 py-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+                        <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: group.color }}>{group.label}</p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          {group.fields.map(({ key, label }) => (
+                            <div key={key} className="flex items-center gap-1.5">
+                              <span className="text-[8px] font-black uppercase" style={{ color: "var(--color-muted)" }}>{label}</span>
+                              <span className="text-[9px] font-black" style={{ color: "var(--color-text)" }}>{r[key]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )}
+
+              {/* Mein Team — Teamname editieren */}
+              {myTeam && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Mein Team</p>
+                  </div>
+                  <div className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editTeamName}
+                        onChange={e => setEditTeamName(e.target.value)}
+                        maxLength={24}
+                        className="flex-1 p-2.5 rounded-xl text-sm focus:outline-none"
+                        style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                      />
+                      <button
+                        onClick={saveTeamName}
+                        disabled={savingName || editTeamName.trim().length < 2 || editTeamName.trim() === myTeam.name}
+                        className="px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest disabled:opacity-40 transition-opacity"
+                        style={{ background: nameSaved ? "var(--color-success)" : "var(--color-primary)", color: "var(--bg-page)" }}>
+                        {savingName ? "…" : nameSaved ? "✓" : "Speichern"}
+                      </button>
+                    </div>
+                    <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>2–24 Zeichen</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Admin-Link (nur Owner) */}
+              {league?.owner_id === user?.id && (
+                <button onClick={() => { setShowSettings(false); window.location.href = `/wm/${leagueId}/admin`; }}
+                  className="flex items-center justify-between w-full px-4 py-3.5 rounded-2xl"
+                  style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border-subtle)" }}>
+                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Admin-Einstellungen</p>
+                  <span className="text-[10px]" style={{ color: "var(--color-primary)" }}>→</span>
+                </button>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
       <BottomNav />
     </main>
   );
