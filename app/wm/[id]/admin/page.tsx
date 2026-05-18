@@ -88,6 +88,9 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const [editWaiverClaimsLimit, setEditWaiverClaimsLimit] = useState(false);
   const [editWaiverMaxClaims, setEditWaiverMaxClaims]     = useState(3);
   const [editAutoSubs, setEditAutoSubs]                   = useState(false);
+  const [editPosLimits, setEditPosLimits] = useState<Record<string, { min: number; max: number }>>({
+    GK: { min: 1, max: 1 }, DF: { min: 3, max: 5 }, MF: { min: 3, max: 5 }, FW: { min: 1, max: 3 },
+  });
 
   // ── Scoring rules ─────────────────────────────────────────────
   const [scoringRules, setScoringRules] = useState<ScoringRules>(DEFAULT_SCORING_RULES);
@@ -140,6 +143,9 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       setEditWaiverClaimsLimit(settingsData.waiver_claims_limit_enabled ?? false);
       setEditWaiverMaxClaims(settingsData.waiver_max_claims_per_gameweek ?? 3);
       setEditAutoSubs(settingsData.auto_subs_enabled ?? false);
+      if (settingsData.position_limits) {
+        setEditPosLimits(settingsData.position_limits);
+      }
       const rules = settingsData.scoring_rules;
       setScoringRules(mergeRules(rules));
       setVcEnabled((rules as any)?.vice_captain_enabled ?? true);
@@ -260,6 +266,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
         waiver_claims_limit_enabled:   editWaiverClaimsLimit,
         waiver_max_claims_per_gameweek: editWaiverMaxClaims,
         auto_subs_enabled:             editAutoSubs,
+        position_limits:               editPosLimits,
       })
       .eq("league_id", leagueId);
     if (error) { toast("Fehler: " + error.message, "error"); setSaving(false); return; }
@@ -699,6 +706,55 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
                 {editFormations.length === 0 && (
                   <p className="text-[8px] mt-2" style={{ color: "var(--color-error)" }}>Mindestens eine Formation wählen</p>
                 )}
+              </div>
+
+              {/* Positionslimits */}
+              <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Positionslimits</p>
+                </div>
+                <div className="px-4 py-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      { pos: "GK", label: "TW / GK" },
+                      { pos: "DF", label: "AB / DF" },
+                      { pos: "MF", label: "MF"      },
+                      { pos: "FW", label: "ST / FW" },
+                    ] as const).map(({ pos, label }) => {
+                      const lim = editPosLimits[pos] ?? { min: 0, max: 0 };
+                      return (
+                        <div key={pos}>
+                          <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: "var(--color-muted)" }}>{label}</p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "var(--color-border-subtle)" }}>Min</p>
+                              <input
+                                type="number" min={0} max={15}
+                                value={lim.min}
+                                onChange={e => setEditPosLimits(prev => ({ ...prev, [pos]: { ...prev[pos], min: Number(e.target.value) } }))}
+                                className="w-full px-2 py-1.5 rounded-lg text-sm font-black text-center focus:outline-none"
+                                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-[7px] font-black uppercase mb-0.5" style={{ color: "var(--color-border-subtle)" }}>Max</p>
+                              <input
+                                type="number" min={0} max={15}
+                                value={lim.max}
+                                onChange={e => setEditPosLimits(prev => ({ ...prev, [pos]: { ...prev[pos], max: Number(e.target.value) } }))}
+                                className="w-full px-2 py-1.5 rounded-lg text-sm font-black text-center focus:outline-none"
+                                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[7px] mt-2" style={{ color: "var(--color-border)" }}>
+                    Gilt für Kader — Min/Max Spieler pro Position in der Startelf
+                  </p>
+                </div>
               </div>
 
               {/* Transfers */}
