@@ -41,7 +41,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
   const [bidAmount, setBidAmount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [nations, setNations] = useState<Array<{ name: string; eliminated_after_gameweek?: number | null }>>([]);
-  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null }>>({});
+  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null } | null>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -119,9 +119,9 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
         if (pnData && pnData.length > 0) {
           setPlayerNationMap(prev => {
-            const map: Record<number, { eliminated_after_gameweek?: number | null }> = { ...prev };
+            const map: Record<number, { eliminated_after_gameweek?: number | null } | null> = { ...prev };
             for (const pn of pnData) {
-              map[pn.player_id] = pn.wm_nations as any ?? {};
+              map[pn.player_id] = (pn.wm_nations as any) ?? null;
             }
             return map;
           });
@@ -148,9 +148,9 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
 
         if (pnData && pnData.length > 0) {
           setPlayerNationMap(prev => {
-            const map: Record<number, { eliminated_after_gameweek?: number | null }> = { ...prev };
+            const map: Record<number, { eliminated_after_gameweek?: number | null } | null> = { ...prev };
             for (const pn of pnData) {
-              map[pn.player_id] = pn.wm_nations as any ?? {};
+              map[pn.player_id] = (pn.wm_nations as any) ?? null;
             }
             return map;
           });
@@ -237,9 +237,9 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
   }
 
   function isPlayerEliminated(player: Player): boolean {
-    const mapped = playerNationMap[player.id];
-    if (mapped) {
-      if (!mapped.eliminated_after_gameweek) return false;
+    if (player.id in playerNationMap) {
+      const mapped = playerNationMap[player.id];
+      if (!mapped?.eliminated_after_gameweek) return false;
       return currentGW > mapped.eliminated_after_gameweek;
     }
     // TODO remove fallback after real WM player import

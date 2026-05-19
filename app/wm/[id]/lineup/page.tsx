@@ -43,7 +43,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const [gameweek, setGameweek] = useState(1);
   const [gameweekId, setGameweekId] = useState<string | null>(null);
   const [nations, setNations] = useState<Array<{ name: string; eliminated_after_gameweek?: number | null }>>([]);
-  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null }>>({});
+  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null } | null>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -117,7 +117,6 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
 
       // FK-based nation lookup
       if (settingsData?.tournament_id && picks && picks.length > 0) {
-        const playerIds = picks.map(p => p.player_id);
         const { data: pnData } = await supabase
           .from("wm_player_nations")
           .select("player_id, wm_nations(eliminated_after_gameweek)")
@@ -125,9 +124,9 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
           .in("player_id", playerIds);
 
         if (pnData && pnData.length > 0) {
-          const map: Record<number, { eliminated_after_gameweek?: number | null }> = {};
+          const map: Record<number, { eliminated_after_gameweek?: number | null } | null> = {};
           for (const pn of pnData) {
-            map[pn.player_id] = pn.wm_nations as any ?? {};
+            map[pn.player_id] = (pn.wm_nations as any) ?? null;
           }
           setPlayerNationMap(map);
         }
@@ -219,9 +218,9 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   }
 
   function isEliminated(player: Player): boolean {
-    const mapped = playerNationMap[player.id];
-    if (mapped) {
-      if (!mapped.eliminated_after_gameweek) return false;
+    if (player.id in playerNationMap) {
+      const mapped = playerNationMap[player.id];
+      if (!mapped?.eliminated_after_gameweek) return false;
       return gameweek > mapped.eliminated_after_gameweek;
     }
     // TODO remove fallback after real WM player import
