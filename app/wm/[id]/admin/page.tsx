@@ -368,9 +368,10 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
           if (!player) continue;
 
           // FK-based lookup; falls back to string match for pre-migration players
-          const playerNation = playerNationMap[playerId]
-            ?? nations.find(n => n.name === player.team_name) // TODO remove fallback after real WM player import
-            ?? null;
+          const playerNation = (playerId in playerNationMap)
+            ? playerNationMap[playerId]
+            : nations.find(n => n.name === player.team_name) // TODO remove fallback after real WM player import
+              ?? null;
           const isCaptain    = playerId === effectiveCaptain;
 
           const result = calculateWMGameweekPoints(
@@ -1027,9 +1028,10 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
             {squadPlayers.map(({ player_id, players: p }) => {
               if (!p) return null;
               const s      = getStat(player_id);
-              const nation = playerNationMap[player_id]
-                ?? nations.find(n => n.name === p.team_name) // TODO remove fallback after real WM player import
-                ?? null;
+              const nation = (player_id in playerNationMap)
+                ? playerNationMap[player_id]
+                : nations.find(n => n.name === p.team_name) // TODO remove fallback after real WM player import
+                  ?? null;
               const isElim = nation?.eliminated_after_gameweek && selectedGW > nation.eliminated_after_gameweek;
               return (
                 <div key={player_id} className="rounded-xl p-3"
