@@ -50,6 +50,7 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const [nations, setNations]       = useState<WMNation[]>([]);
   const [selectedGW, setSelectedGW] = useState<number>(1);
   const [squadPlayers, setSquadPlayers] = useState<any[]>([]);
+  const [playerNationMap, setPlayerNationMap] = useState<Record<number, WMNation | null>>({});
   const [playerStats, setPlayerStats]   = useState<Record<number, Omit<GWStats, "position">>>({});
   const [tournament, setTournament]     = useState<any>(null);
   const [teamsCount, setTeamsCount]     = useState(0);
@@ -191,6 +192,23 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
         if (!seen.has(p.player_id)) { seen.add(p.player_id); unique.push(p); }
       }
       setSquadPlayers(unique);
+
+      if (settingsData?.tournament_id && unique.length > 0) {
+        const playerIds = unique.map((p: any) => p.player_id);
+        const { data: pnData } = await supabase
+          .from("wm_player_nations")
+          .select("player_id, wm_nations(*)")
+          .eq("tournament_id", settingsData.tournament_id)
+          .in("player_id", playerIds);
+
+        if (pnData && pnData.length > 0) {
+          const map: Record<number, WMNation | null> = {};
+          for (const pn of pnData) {
+            map[pn.player_id] = pn.wm_nations as unknown as WMNation | null;
+          }
+          setPlayerNationMap(map);
+        }
+      }
 
       const playerIds = unique.map((p: any) => p.player_id);
       if (playerIds.length > 0) {
@@ -349,7 +367,10 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
           const player = squadPlayers.find(p => p.player_id === playerId)?.players;
           if (!player) continue;
 
-          const playerNation = nations.find(n => n.name === player.team_name);
+          // FK-based lookup; falls back to string match for pre-migration players
+          const playerNation = playerNationMap[playerId]
+            ?? nations.find(n => n.name === player.team_name) // TODO remove fallback after real WM player import
+            ?? null;
           const isCaptain    = playerId === effectiveCaptain;
 
           const result = calculateWMGameweekPoints(
@@ -1006,7 +1027,9 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
             {squadPlayers.map(({ player_id, players: p }) => {
               if (!p) return null;
               const s      = getStat(player_id);
-              const nation = nations.find(n => n.name === p.team_name);
+              const nation = playerNationMap[player_id]
+                ?? nations.find(n => n.name === p.team_name) // TODO remove fallback after real WM player import
+                ?? null;
               const isElim = nation?.eliminated_after_gameweek && selectedGW > nation.eliminated_after_gameweek;
               return (
                 <div key={player_id} className="rounded-xl p-3"

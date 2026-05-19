@@ -41,6 +41,7 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
   const [bidAmount, setBidAmount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [nations, setNations] = useState<Array<{ name: string; eliminated_after_gameweek?: number | null }>>([]);
+  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null }>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -107,6 +108,25 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
       const { data: playersData } = await supabase
         .from("players").select("*").in("id", ids).order("fpts", { ascending: false });
       setWaiverWire(playersData || []);
+
+      // FK-based nation lookup for waiver wire players
+      if (settingsData?.tournament_id) {
+        const { data: pnData } = await supabase
+          .from("wm_player_nations")
+          .select("player_id, wm_nations(eliminated_after_gameweek)")
+          .eq("tournament_id", settingsData.tournament_id)
+          .in("player_id", ids);
+
+        if (pnData && pnData.length > 0) {
+          setPlayerNationMap(prev => {
+            const map: Record<number, { eliminated_after_gameweek?: number | null }> = { ...prev };
+            for (const pn of pnData) {
+              map[pn.player_id] = pn.wm_nations as any ?? {};
+            }
+            return map;
+          });
+        }
+      }
     }
 
     // WM-Kader aus isolierter Tabelle laden
@@ -117,6 +137,25 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
       const { data: squadPlayers } = await supabase
         .from("players").select("*").in("id", ids);
       setMySquad(squadPlayers || []);
+
+      // FK-based nation lookup for squad players
+      if (settingsData?.tournament_id) {
+        const { data: pnData } = await supabase
+          .from("wm_player_nations")
+          .select("player_id, wm_nations(eliminated_after_gameweek)")
+          .eq("tournament_id", settingsData.tournament_id)
+          .in("player_id", ids);
+
+        if (pnData && pnData.length > 0) {
+          setPlayerNationMap(prev => {
+            const map: Record<number, { eliminated_after_gameweek?: number | null }> = { ...prev };
+            for (const pn of pnData) {
+              map[pn.player_id] = pn.wm_nations as any ?? {};
+            }
+            return map;
+          });
+        }
+      }
     }
 
     // Meine Claims
@@ -198,6 +237,12 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
   }
 
   function isPlayerEliminated(player: Player): boolean {
+    const mapped = playerNationMap[player.id];
+    if (mapped) {
+      if (!mapped.eliminated_after_gameweek) return false;
+      return currentGW > mapped.eliminated_after_gameweek;
+    }
+    // TODO remove fallback after real WM player import
     const nation = nations.find(n => n.name === player.team_name);
     if (!nation?.eliminated_after_gameweek) return false;
     return currentGW > nation.eliminated_after_gameweek;

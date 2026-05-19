@@ -142,17 +142,34 @@ export async function POST(
   // ── 10b. Eliminierte Nationen → playerEliminated Map ──────────────
   const playerEliminated: Record<number, boolean> = {};
   if (tournamentId) {
-    const { data: nationRows } = await supabase
-      .from("wm_nations")
-      .select("name, eliminated_after_gameweek")
+    // FK-based lookup via wm_player_nations
+    const { data: pnRows } = await supabase
+      .from("wm_player_nations")
+      .select("player_id, wm_nations(eliminated_after_gameweek)")
       .eq("tournament_id", tournamentId)
-      .not("eliminated_after_gameweek", "is", null);
+      .in("player_id", [...allPlayerIds]);
 
-    if (nationRows && nationRows.length > 0) {
-      for (const [pid, teamName] of Object.entries(playerTeamMap)) {
-        const nation = nationRows.find(n => n.name === teamName);
+    if (pnRows && pnRows.length > 0) {
+      for (const pn of pnRows) {
+        const nation = pn.wm_nations as unknown as { eliminated_after_gameweek: number | null } | null;
         if (nation?.eliminated_after_gameweek && gw.gameweek > nation.eliminated_after_gameweek) {
-          playerEliminated[Number(pid)] = true;
+          playerEliminated[pn.player_id] = true;
+        }
+      }
+    } else {
+      // TODO remove fallback after real WM player import
+      const { data: nationRows } = await supabase
+        .from("wm_nations")
+        .select("name, eliminated_after_gameweek")
+        .eq("tournament_id", tournamentId)
+        .not("eliminated_after_gameweek", "is", null);
+
+      if (nationRows) {
+        for (const [pid, teamName] of Object.entries(playerTeamMap)) {
+          const nation = nationRows.find(n => n.name === teamName);
+          if (nation?.eliminated_after_gameweek && gw.gameweek > nation.eliminated_after_gameweek) {
+            playerEliminated[Number(pid)] = true;
+          }
         }
       }
     }
