@@ -26,13 +26,14 @@ const EMPTY_STATS: Omit<GWStats, "position"> = {
   saves: 0, clean_sheet: false, yellow_cards: 0, red_cards: 0,
 };
 
-type AdminTab = "general" | "points" | "waiver" | "autosubs" | "nations" | "fixtures" | "debug";
+type AdminTab = "general" | "points" | "waiver" | "autosubs" | "recovery" | "nations" | "fixtures" | "debug";
 
 const TABS: { id: AdminTab; label: string }[] = [
   { id: "general",  label: "Allgemein"      },
   { id: "points",   label: "Spieltage"      },
   { id: "waiver",   label: "Waiver"         },
   { id: "autosubs", label: "Auto-Subs"      },
+  { id: "recovery", label: "Recovery"       },
   { id: "nations",  label: "Ausscheidungen" },
   { id: "fixtures", label: "Spielplan"      },
   { id: "debug",    label: "Debug"          },
@@ -72,6 +73,15 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   const [processingAutoSubs, setProcessingAutoSubs] = useState(false);
   const [eliminateNation, setEliminateNation]   = useState<string>("");
   const [copied, setCopied]                     = useState(false);
+
+  const [rebuildingPoints, setRebuildingPoints]   = useState(false);
+  const [resettingAutoSubs, setResettingAutoSubs] = useState(false);
+  const [rebuildingWaiver, setRebuildingWaiver]   = useState(false);
+  const [debugPoints, setDebugPoints] = useState<Array<{
+    team_id: string; team_name: string; player_id: number; player_name: string;
+    gameweek: number; points: number; nation_active: boolean; is_captain: boolean;
+  }>>([]);
+  const [loadingDebug, setLoadingDebug] = useState(false);
 
   // ── Editable liga fields ──────────────────────────────────────
   const [editName, setEditName]     = useState("");
@@ -438,6 +448,116 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       }
     } catch (e: any) { toast("Fehler: " + e.message, "error"); }
     setProcessingAutoSubs(false);
+  }
+
+  // ── Recovery: Total Points Rebuild ────────────────────────────────
+  async function rebuildTotalPoints() {
+    if (!window.confirm(`Alle team.total_points neu aus wm_gameweek_points berechnen? Bestehende Werte werden überschrieben.`)) return;
+    if (rebuildingPoints) return;
+    setRebuildingPoints(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/wm/${leagueId}/rebuild-points`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${session?.access_token ?? ""}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast(`Total Points neu berechnet: ${data.updated.length} Teams aktualisiert`, "success");
+      } else {
+        toast("Fehler: " + (data.error || "Unbekannt"), "error");
+      }
+    } catch (e: any) { toast("Fehler: " + e.message, "error"); }
+    setRebuildingPoints(false);
+  }
+
+  // ── Recovery: Auto-Subs Reset ─────────────────────────────────────
+  async function resetAutoSubsForGW() {
+    if (!window.confirm(`Auto-Subs für GW${selectedGW} zurücksetzen? Einwechslungen werden gelöscht und Lineups wiederhergestellt.`)) return;
+    if (resettingAutoSubs) return;
+    setResettingAutoSubs(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/wm/${leagueId}/auto-subs-reset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token ?? ""}` },
+        body: JSON.stringify({ gameweek: selectedGW }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        const total = (data.results || []).reduce((n: number, r: any) => n + (r.subs_reversed || 0), 0);
+        toast(
+          data.message || `GW${selectedGW} Reset: ${total} Einwechslungen zurückgesetzt`,
+          total > 0 ? "success" : "info",
+        );
+      } else {
+        toast("Fehler: " + (data.error || "Unbekannt"), "error");
+      }
+    } catch (e: any) { toast("Fehler: " + e.message, "error"); }
+    setResettingAutoSubs(false);
+  }
+
+  // ── Recovery: Waiver Wire Rebuild ─────────────────────────────────
+  async function rebuildWaiverWireWM() {
+    if (!window.confirm(`Waiver Wire neu aufbauen? Alle bestehenden waiver_wire Einträge dieser Liga werden gelöscht und neu generiert.`)) return;
+    if (rebuildingWaiver) return;
+    setRebuildingWaiver(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/wm/${leagueId}/rebuild-waiver`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${session?.access_token ?? ""}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast(`Waiver Wire neu aufgebaut: ${data.inserted} Spieler verfügbar (GW${data.activeGW} Priority Reset)`, "success");
+      } else {
+        toast("Fehler: " + (data.error || "Unbekannt"), "error");
+      }
+    } catch (e: any) { toast("Fehler: " + e.message, "error"); }
+    setRebuildingWaiver(false);
+  }
+
+  // ── Debug: load stored GW points ─────────────────────────────────
+  async function loadDebugPoints(gwNum: number) {
+    setLoadingDebug(true);
+    try {
+      const { data: teamsData } = await supabase
+        .from("teams").select("id, name").eq("league_id", leagueId);
+      const teamIds = (teamsData || []).map((t: any) => t.id);
+      const teamNameMap: Record<string, string> = {};
+      for (const t of (teamsData || [])) teamNameMap[t.id] = t.name;
+
+      if (teamIds.length === 0) { setDebugPoints([]); setLoadingDebug(false); return; }
+
+      const { data: rows } = await supabase
+        .from("wm_gameweek_points")
+        .select("team_id, player_id, gameweek, points, nation_active, is_captain")
+        .in("team_id", teamIds)
+        .eq("gameweek", gwNum)
+        .order("team_id")
+        .order("points", { ascending: false });
+
+      const playerIds = [...new Set((rows || []).map((r: any) => r.player_id))];
+      let playerNameMap: Record<number, string> = {};
+      if (playerIds.length > 0) {
+        const { data: players } = await supabase
+          .from("players").select("id, name").in("id", playerIds);
+        for (const p of (players || [])) playerNameMap[p.id] = p.name;
+      }
+
+      setDebugPoints((rows || []).map((r: any) => ({
+        team_id:     r.team_id,
+        team_name:   teamNameMap[r.team_id] ?? r.team_id,
+        player_id:   r.player_id,
+        player_name: playerNameMap[r.player_id] ?? `#${r.player_id}`,
+        gameweek:    r.gameweek,
+        points:      r.points,
+        nation_active: r.nation_active,
+        is_captain:  r.is_captain,
+      })));
+    } catch (e: any) { toast("Fehler: " + e.message, "error"); }
+    setLoadingDebug(false);
   }
 
   // ── Waiver ────────────────────────────────────────────────────
@@ -1162,6 +1282,84 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       )}
 
       {/* ════════════════════════════════
+          TAB: RECOVERY
+      ════════════════════════════════ */}
+      {tab === "recovery" && (
+        <div className="w-full max-w-xl space-y-3">
+          {GWSelector}
+
+          {/* Card 1 — Total Points Rebuild */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                Total Points Rebuild
+              </p>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-xs mb-4" style={{ color: "var(--color-muted)" }}>
+                Summiert alle wm_gameweek_points-Einträge pro Team neu und schreibt teams.total_points.
+                Alle Gameweeks werden berücksichtigt.
+              </p>
+              <button
+                onClick={rebuildTotalPoints}
+                disabled={rebuildingPoints}
+                className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", color: "var(--color-primary)", border: "1px solid color-mix(in srgb, var(--color-primary) 40%, transparent)" }}>
+                {rebuildingPoints ? "Berechne..." : "Total Points neu berechnen ▶"}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2 — Auto-Subs Reset */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid color-mix(in srgb, #f59e0b 30%, var(--color-border))" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                Auto-Subs Reset — GW{selectedGW}
+              </p>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-xs mb-1" style={{ color: "var(--color-muted)" }}>
+                Löscht Auto-Sub-Einträge für GW{selectedGW} und stellt die originalen Lineups wieder her.
+              </p>
+              <p className="text-[8px] mb-4" style={{ color: "var(--color-error)" }}>
+                ⚠ Danach Auto-Subs manuell erneut ausführen (Tab &quot;Auto-Subs&quot;).
+              </p>
+              <button
+                onClick={resetAutoSubsForGW}
+                disabled={resettingAutoSubs}
+                className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)", border: "1px solid color-mix(in srgb, var(--color-error) 40%, transparent)" }}>
+                {resettingAutoSubs ? "Setze zurück..." : `GW${selectedGW} Auto-Subs zurücksetzen ▶`}
+              </button>
+            </div>
+          </div>
+
+          {/* Card 3 — Waiver Wire Rebuild */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid color-mix(in srgb, var(--color-info) 30%, var(--color-border))" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                Waiver Wire Rebuild
+              </p>
+            </div>
+            <div className="px-4 py-4">
+              <p className="text-xs mb-4" style={{ color: "var(--color-muted)" }}>
+                Baut den Waiver Wire neu auf — alle Spieler die nicht in wm_squad_players sind werden als verfügbar gesetzt.
+                Waiver Priority wird nach aktuellem GW neu berechnet.
+              </p>
+              <button
+                onClick={rebuildWaiverWireWM}
+                disabled={rebuildingWaiver}
+                className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                style={{ background: "color-mix(in srgb, var(--color-info) 15%, var(--bg-page))", color: "var(--color-info)", border: "1px solid color-mix(in srgb, var(--color-info) 40%, transparent)" }}>
+                {rebuildingWaiver ? "Aufbauen..." : "Waiver Wire neu aufbauen ▶"}
+              </button>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ════════════════════════════════
           TAB: AUSSCHEIDUNGEN / NATIONEN
       ════════════════════════════════ */}
       {tab === "nations" && (
@@ -1436,6 +1634,58 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       ════════════════════════════════ */}
       {tab === "debug" && (
         <div className="w-full max-w-xl space-y-4">
+
+          {/* Debug: stored GW points viewer */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                GW{selectedGW} Points (gespeichert)
+              </p>
+              <button
+                onClick={() => loadDebugPoints(selectedGW)}
+                disabled={loadingDebug}
+                className="text-[8px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+                style={{ background: "var(--bg-page)", color: "var(--color-primary)", border: "1px solid var(--color-border)" }}>
+                {loadingDebug ? "Lade..." : "Laden ▶"}
+              </button>
+            </div>
+            {debugPoints.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[8px]">
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      {["Team", "Spieler", "Pts", "Aktiv", "C"].map(h => (
+                        <th key={h} className="px-3 py-2 text-left font-black uppercase tracking-widest"
+                          style={{ color: "var(--color-muted)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {debugPoints.map((r, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid var(--color-border)", opacity: r.nation_active ? 1 : 0.5 }}>
+                        <td className="px-3 py-2 font-black truncate max-w-[80px]" style={{ color: "var(--color-text)" }}>{r.team_name}</td>
+                        <td className="px-3 py-2 truncate max-w-[100px]" style={{ color: "var(--color-muted)" }}>{r.player_name}</td>
+                        <td className="px-3 py-2 font-black" style={{ color: r.points > 0 ? "var(--color-primary)" : "var(--color-muted)" }}>{r.points.toFixed(1)}</td>
+                        <td className="px-3 py-2" style={{ color: r.nation_active ? "var(--color-success)" : "var(--color-error)" }}>
+                          {r.nation_active ? "✓" : "✗"}
+                        </td>
+                        <td className="px-3 py-2" style={{ color: "var(--color-muted)" }}>
+                          {r.is_captain ? "★" : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="px-3 py-2 text-[7px]" style={{ color: "var(--color-border)", borderTop: "1px solid var(--color-border)" }}>
+                  {debugPoints.length} Einträge · nur gespeicherte Werte · read-only
+                </p>
+              </div>
+            ) : (
+              <p className="px-4 py-4 text-[9px] text-center" style={{ color: "var(--color-muted)" }}>
+                {loadingDebug ? "Lade..." : "Klick auf 'Laden ▶' um GW-Punkte anzuzeigen"}
+              </p>
+            )}
+          </div>
 
           {gameweeks.length > 0 && (
             <div className="space-y-2">
