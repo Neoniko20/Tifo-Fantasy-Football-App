@@ -31,7 +31,7 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "Ungültiger Request-Body" }, { status: 400 });
   }
-  if (!gameweek || typeof gameweek !== "number") {
+  if (gameweek == null || typeof gameweek !== "number" || gameweek <= 0) {
     return NextResponse.json({ error: "gameweek (number) ist Pflichtfeld" }, { status: 400 });
   }
 
@@ -50,13 +50,38 @@ export async function POST(
   const teamIds = (teams || []).map((t: any) => t.id);
   if (teamIds.length === 0) return NextResponse.json({ ok: true, results: [], message: "Keine Teams in dieser Liga" });
 
+  // ── Validate gameweek exists in this tournament ───────────────────
+  const { data: wmSettings } = await supabase
+    .from("wm_league_settings")
+    .select("tournament_id")
+    .eq("league_id", leagueId)
+    .maybeSingle();
+
+  if (wmSettings?.tournament_id) {
+    const { data: gwRow } = await supabase
+      .from("wm_gameweeks")
+      .select("id")
+      .eq("tournament_id", wmSettings.tournament_id)
+      .eq("gameweek", gameweek)
+      .maybeSingle();
+    if (!gwRow) {
+      return NextResponse.json({ error: `GW${gameweek} nicht gefunden in diesem Turnier` }, { status: 404 });
+    }
+  }
+  // NOTE: accepts gameweek as integer (not gameweek_id UUID like auto-subs/route.ts)
+  // because the admin UI passes the display number directly for recovery operations.
+
   // ── Load auto-subs for this GW ────────────────────────────────────
+  // Order by id ensures deterministic reversal order.
+  // applyLiveSubs uses independent substitutions (unique player_in/player_out per usedBench),
+  // so order does not affect correctness — but explicit ordering makes this safe if that changes.
   const { data: allSubs, error: subsError } = await supabase
     .from("team_substitutions")
     .select("id, team_id, player_in, player_out")
     .in("team_id", teamIds)
     .eq("gameweek", gameweek)
-    .eq("auto", true);
+    .eq("auto", true)
+    .order("id");
 
   if (subsError) return NextResponse.json({ error: "Fehler beim Laden der Auto-Subs" }, { status: 500 });
 
@@ -113,6 +138,17 @@ export async function POST(
       }
     }
 
+    // ── Guard: XI must remain exactly 11 players ────────────────────
+    if (xi.length !== 11) {
+      results.push({
+        team_id: teamId,
+        subs_reversed: 0,
+        skipped: true,
+        skip_reason: `Reversal würde XI auf ${xi.length} Spieler bringen — übersprungen. Lineup manuell prüfen.`,
+      });
+      continue;
+    }
+
     // ── Write restored lineup ───────────────────────────────────────
     const { error: updateError } = await supabase
       .from("team_lineups")
@@ -135,7 +171,14 @@ export async function POST(
 
     if (deleteError) {
       console.error(`[auto-subs-reset] delete subs team ${teamId}:`, deleteError.message);
-      results.push({ team_id: teamId, subs_reversed: 0, skipped: true, skip_reason: "DB-Fehler beim Löschen der Subs" });
+      // IMPORTANT: lineup was already restored above — sub records still exist and
+      // must be deleted manually or auto-subs will be skipped for this team next run.
+      results.push({
+        team_id: teamId,
+        subs_reversed: 0,
+        skipped: true,
+        skip_reason: `Lineup wurde wiederhergestellt, aber Sub-Records konnten nicht gelöscht werden (${deleteError.message}). Manuell aus team_substitutions löschen!`,
+      });
       continue;
     }
 
