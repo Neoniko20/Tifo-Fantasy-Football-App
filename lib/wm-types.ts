@@ -166,6 +166,44 @@ export interface WMGameweekPoints {
   clean_sheet: boolean;
 }
 
+// ── Ingest Layer Types ─────────────────────────────────────────────────────────
+
+export type WMEventType =
+  | "fixture.status_changed"       // scheduled → live → finished
+  | "fixture.score_updated"        // home_score, away_score
+  | "fixture.penalties_updated"    // penalties_home, penalties_away
+  | "player.stat_update"           // goals, assists, minutes, cards, saves, clean_sheet
+  | "gameweek.status_changed"      // upcoming → active → finished
+  | "nation.eliminated"            // nach einem GW ausgeschieden
+  | "gameweek.points_recalculated" // Punkte neu berechnet — triggert Live Center
+  | "auto_sub.applied"             // Auto-Sub durchgeführt — triggert Chat
+  | "waiver.claim_processed";      // Waiver-Entscheidung — triggert Chat
+
+export interface WMIngestEvent {
+  type: WMEventType;
+  version?: 1;               // Event-Schema-Version; immer 1 setzen für Zukunftssicherheit
+  tournament_id: string;
+  gameweek?: number;
+  payload: Record<string, unknown>;
+  idempotency_key?: string;  // Simulator + API-Football Sync
+  source?: "simulator" | "admin" | "api_football";
+}
+
+export type ProcessedBy =
+  | "ingest_api"
+  | "simulator"
+  | "recovery_job"
+  | "manual_admin"
+  | "api_football_sync";
+
+export interface IngestResult {
+  ok: boolean;
+  event_id?: string;
+  applied: string[];
+  warnings: string[];
+  error?: string;
+}
+
 // Default-Werte für neue Liga-Settings
 export const DEFAULT_WM_SETTINGS: Omit<WMLeagueSettings, "league_id" | "tournament_id"> = {
   squad_size: 11,
