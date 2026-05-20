@@ -53,12 +53,15 @@ Supabase Realtime → UI liest aus Ergebnis-Tabellen
 ```typescript
 interface WMIngestEvent {
   type: WMEventType;
+  version?: 1;                // Event-Schema-Version — vorbereitet für spätere Migrationen
   tournament_id: string;
   gameweek?: number;
   payload: Record<string, unknown>;
   idempotency_key?: string;   // für Simulator + API-Football Sync
   source?: "simulator" | "admin" | "api_football";
 }
+// version ist optional für Rückwärtskompatibilität. Alle neuen Producers setzen version: 1.
+// API-Football Sync wird bei Integration ggf. version: 2 einführen — ohne Breaking Change.
 
 type WMEventType =
   | "fixture.status_changed"       // scheduled → live → finished
@@ -94,13 +97,14 @@ CREATE TABLE wm_event_log (
   id                  uuid primary key default gen_random_uuid(),
   league_id           text not null,
   tournament_id       text not null,
+  gameweek            int,                    -- direkt gespeichert, nicht nur in payload
   event_type          text not null,
   payload             jsonb not null default '{}',
   source              text,                   -- simulator | admin | api_football
   idempotency_key     text unique,            -- verhindert Doppel-Processing
   status              text default 'pending', -- pending | processed | failed
   error_message       text,
-  processed_by        text,
+  processed_by        text,                   -- siehe processed_by-Standardwerte unten
   related_fixture_id  uuid,
   related_team_id     uuid,
   related_player_id   int,
@@ -109,9 +113,41 @@ CREATE TABLE wm_event_log (
 );
 
 -- Indexes
-CREATE INDEX wm_event_log_league_gw ON wm_event_log(league_id, event_type);
+CREATE INDEX wm_event_log_league_gw ON wm_event_log(league_id, gameweek);
 CREATE INDEX wm_event_log_source ON wm_event_log(source);
+CREATE INDEX wm_event_log_status ON wm_event_log(status);
 ```
+
+**`processed_by` Standardwerte (exhaustive list):**
+
+```typescript
+type ProcessedBy =
+  | "ingest_api"         // normaler POST /api/wm/[id]/events Aufruf
+  | "simulator"          // POST /api/wm/[id]/simulate
+  | "recovery_job"       // Recovery-Tools (rebuild-points, auto-subs-reset, etc.)
+  | "manual_admin"       // direkter Admin-Eingriff ohne Route
+  | "api_football_sync"  // zukünftiger API-Football Sync-Job
+```
+
+Konsistente Nutzung ist Pflicht — kein freier String.
+
+#### Side Effect Idempotenz
+
+Jeder Side Effect bekommt einen eigenen Idempotenz-Key, abgeleitet von der Event-ID:
+
+```typescript
+// Beispiel: System Message für ein spezifisches Event
+const systemMessageKey = `${event_id}:system_message`;
+
+// Vor dem Senden prüfen:
+const alreadySent = await checkIdempotencyKey(systemMessageKey);
+if (!alreadySent) {
+  await sendSystemMessage(leagueId, content, metadata);
+  await markIdempotencyKey(systemMessageKey);
+}
+```
+
+Verhindert Ghost-Duplikate bei Retries (z.B. wenn DB-Write erfolgreich war, aber Response-Delivery fehlschlug). Idempotenz-Keys werden in `wm_event_log.idempotency_key` oder einer separaten In-Memory/Redis-Map gespeichert — V1: direkt im Event-Log-Eintrag als `${id}:system_message`.
 
 #### Antwort-Format
 
@@ -184,9 +220,16 @@ Vor jedem Write prüft der Simulator `wm_event_log` auf Einträge mit `source IN
 
 #### Reset-Scopes
 
-- `simulated_only` (default): Nur `source = 'simulator'` Einträge entfernen
-- `gameweek`: Alle Events/Scores eines GW zurücksetzen (unabhängig von source) — erfordert `window.confirm()` in Admin-UI
-- `tournament`: Ganzes Turnier — erfordert doppeltes `window.confirm()`
+- `simulated_only` (default): Nur `source = 'simulator'` Einträge entfernen — einfaches `window.confirm()`
+- `gameweek`: Alle Events/Scores eines GW zurücksetzen (unabhängig von source) — erfordert doppeltes `window.confirm()`
+- `tournament`: **Gefährlichste Aktion im gesamten WM-System.** Erfordert:
+  1. Owner-Auth
+  2. Prüfung: Tournament darf nicht `status = 'finished'` haben (locked check)
+  3. Erstes `window.confirm()`: "Bist du sicher?"
+  4. Zweites `window.confirm()`: "Diese Aktion löscht alle simulierten Daten für das gesamte Turnier."
+  5. Typed Confirmation: User muss `"RESET"` eintippen (input-Feld in Admin-UI)
+  6. Nur dann: API-Call mit `{ reset_scope: "tournament", typed_confirmation: "RESET" }`
+  7. Route prüft `typed_confirmation === "RESET"` serverseitig — ohne gültiges Feld → 400
 
 #### Score-Generierung
 
@@ -228,6 +271,17 @@ Im bestehenden Admin-Panel (`/wm/[id]/admin`):
 - Keine Spieler-Verletzungen
 - Kein Minuten-Timeline (Tor in Minute 67)
 - Keine automatische Waiver-Simulation
+
+**V2 vorbereitet — Speed Modes:**
+
+```typescript
+// Noch NICHT bauen — nur für V2 dokumentiert
+speed?: "instant" | "realistic"
+// instant   = alle Events sofort (für Tests, Bulk-Demo)
+// realistic = Events über Zeit verteilt, Matches laufen ~90 Minuten
+```
+
+`realistic` wird für Live-Demos wertvoll sein, bei denen das Turnier sich "echt" anfühlen soll. V1 verhält sich wie `instant`.
 
 Lib: `lib/wm-simulator.ts` — enthält Score-Generierung und Event-Builder, keine DB-Calls.
 
@@ -304,13 +358,26 @@ supabase.channel('wm-live-center')
   .subscribe()
 ```
 
-**Fehlerbehandlung Realtime:**
+**Fehlerbehandlung Realtime + Soft-Polling Fallback:**
+
 ```typescript
 .on('system', { event: 'disconnect' }, () => {
-  setRealtimeStatus('disconnected')
+  setRealtimeStatus('disconnected');
   // zeigt Banner: "Verbindung unterbrochen — [Neu laden]"
-})
+});
+
+// Soft-Polling Fallback: wenn Realtime > 15s disconnected
+useEffect(() => {
+  if (realtimeStatus !== 'disconnected') return;
+  const interval = setInterval(() => {
+    // Lightweight poll: nur wm_gameweek_points + wm_fixtures für diesen GW
+    refreshLiveCenterData();
+  }, 10_000);
+  return () => clearInterval(interval);
+}, [realtimeStatus]);
 ```
+
+Ohne Fallback wäre der Live Center bei Supabase Realtime-Ausfall eine tote Seite. 10s Polling ist ein akzeptabler Kompromiss für Live-Feeling ohne Echtzeitgarantie.
 
 #### Leaderboard-Datenmodell
 
@@ -471,13 +538,24 @@ Bestehende `PushSubscriptionManager`-Infra wird genutzt. V1: nur `priority: "hig
 
 **Grundsatz:** Matchday bleibt fixture-zentriert. Kein Fantasy-Leaderboard, keine Spielerpunkte, kein Chat. Das gehört ins Live Center.
 
-#### Neue Zentral-Komponente: `MatchCard`
+#### Neue Zentral-Komponente: `MatchCard` (Tier-1)
 
-`/app/components/wm/MatchCard.tsx` — wird überall verwendet:
+`/app/components/wm/MatchCard.tsx` — **Tier-1-Komponente**: wird überall verwendet und muss dementsprechend behandelt werden.
+
+**Einsatzorte:**
 - `/wm/[id]/matchday` (Haupt-Fixture-Liste)
 - Live Center `FixtureStrip`
 - KO-Bracket Match-Nodes
 - Optional: Hub-Preview-Karte
+
+**Tier-1-Anforderungen:**
+- **Lightweight:** Keine unnötigen Imports, keine Heavy-Dependencies
+- **Memoized:** `React.memo()` — verhindert Re-Renders bei nicht relevanten State-Änderungen
+- **Realtime-safe:** Props-only, kein interner Supabase-Call — Parent managed den Datenfluss
+- **Animation-safe:** CSS transitions statt JS-Animationen — kein Layout-Thrashing
+- **Responsive:** funktioniert in schmalen Strips (Live Center) und breiten Cards (Matchday)
+
+Jede Änderung an `MatchCard` muss gegen alle 4 Einsatzorte geprüft werden.
 
 Match-Stati:
 
@@ -575,6 +653,20 @@ Platzhalter-Text kommt aus Stage-Mapping-Tabelle oder wird generisch generiert.
 - **Mobile (default):** Vertikale Stage-Sections, jede Stage expandierbar. Kein erzwungenes Mini-Bracket — wäre auf kleinen Screens unlesbar.
 - **Desktop (≥768px):** Horizontales SVG-Bracket mit `<line>`-Verbindungen. Keine externe Bibliothek — simples CSS-Grid + SVG.
 
+#### Performance: Memoization
+
+Die Bracket-Struktur wird aus Fixtures/Nations abgeleitet — diese Berechnung ist O(n) aber sollte nicht bei jedem Render laufen:
+
+```typescript
+// Stage-Grouping und BracketMatch-Aufbau memoizen
+const bracketRounds = useMemo(
+  () => buildBracketFromFixtures(fixtures, nations),
+  [fixtures, nations]   // nur neu berechnen wenn Fixtures/Nations sich ändern
+);
+```
+
+SVG-Verbindungslinien ebenfalls memoizen — nicht bei jedem Render neu berechnen. Das SVG ist rein dekorativ und ändert sich nur wenn neue Stages freigeschaltet werden.
+
 ---
 
 ## Gesamtübersicht: Neue Artefakte
@@ -583,7 +675,7 @@ Platzhalter-Text kommt aus Stage-Mapping-Tabelle oder wird generisch generiert.
 
 | Tabelle | Phase | Beschreibung |
 |---|---|---|
-| `wm_event_log` | A1 | Audit-Trail aller Ingest-Events |
+| `wm_event_log` | A1 | Audit-Trail aller Ingest-Events (inkl. `gameweek` direkt als Spalte) |
 
 ### Neues Feld
 
@@ -641,6 +733,19 @@ Platzhalter-Text kommt aus Stage-Mapping-Tabelle oder wird generisch generiert.
 - Kein Drift-Correction für Live-Spielzeit
 - Keine komplexen Projected-Points-Algorithmen (V1: ~ Indikator)
 - Kein Fantasy-Leaderboard in `/matchday` — gehört ins Live Center
+- Simulator `speed: "realistic"` — V2, nach Ingest Layer stabil läuft
+
+## Systemverantwortlichkeiten (Zusammenfassung)
+
+| System | Verantwortung |
+|---|---|
+| **Ingest Layer** | Wahrheit — einzige Quelle für DB-Writes |
+| **Event Log** | Historie — Audit, Replay, Recovery, Debug |
+| **Realtime** | Delivery — UI-Updates, kein Business-Logic |
+| **Live Center** | Fantasy Experience — Punkte, Spieler, Drama |
+| **Matchday** | Broadcast Structure — Fixtures, Stages, Bracket |
+| **Simulator** | Data Producer — synthetische Events für Tests/Demos |
+| **Admin** | Operations — manuelle Eingriffe, Recovery |
 
 ---
 
