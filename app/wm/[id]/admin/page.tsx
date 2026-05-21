@@ -26,7 +26,7 @@ const EMPTY_STATS: Omit<GWStats, "position"> = {
   saves: 0, clean_sheet: false, yellow_cards: 0, red_cards: 0,
 };
 
-type AdminTab = "general" | "points" | "waiver" | "autosubs" | "recovery" | "nations" | "fixtures" | "debug";
+type AdminTab = "general" | "points" | "waiver" | "autosubs" | "recovery" | "nations" | "fixtures" | "simulator" | "debug";
 
 const TABS: { id: AdminTab; label: string }[] = [
   { id: "general",  label: "Allgemein"      },
@@ -35,8 +35,9 @@ const TABS: { id: AdminTab; label: string }[] = [
   { id: "autosubs", label: "Auto-Subs"      },
   { id: "recovery", label: "Recovery"       },
   { id: "nations",  label: "Ausscheidungen" },
-  { id: "fixtures", label: "Spielplan"      },
-  { id: "debug",    label: "Debug"          },
+  { id: "fixtures",   label: "Spielplan"    },
+  { id: "simulator",  label: "Simulator"    },
+  { id: "debug",      label: "Debug"        },
 ];
 
 export default function WMAdminPage({ params }: { params: Promise<{ id: string }> }) {
@@ -82,6 +83,17 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
     gameweek: number; points: number; nation_active: boolean; is_captain: boolean;
   }>>([]);
   const [loadingDebug, setLoadingDebug] = useState(false);
+
+  // ── Simulator state ───────────────────────────────────────────
+  const [simScope, setSimScope]                   = useState<"fixture" | "gameweek" | "tournament">("gameweek");
+  const [simFixtureId, setSimFixtureId]           = useState("");
+  const [simSeed, setSimSeed]                     = useState("");
+  const [simDryRun, setSimDryRun]                 = useState(true);
+  const [simRunning, setSimRunning]               = useState(false);
+  const [simResult, setSimResult]                 = useState<any>(null);
+  const [resetScope, setResetScope]               = useState<"simulated_only" | "gameweek" | "tournament">("simulated_only");
+  const [resetTypedConfirm, setResetTypedConfirm] = useState("");
+  const [resetting, setResetting]                 = useState(false);
 
   // ── Editable liga fields ──────────────────────────────────────
   const [editName, setEditName]     = useState("");
@@ -558,6 +570,79 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
       })));
     } catch (e: any) { toast("Fehler: " + e.message, "error"); }
     setLoadingDebug(false);
+  }
+
+  // ── Simulator ─────────────────────────────────────────────────────────────
+  async function runSimulator() {
+    if (simRunning) return;
+    setSimRunning(true);
+    setSimResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const body: Record<string, unknown> = {
+        scope: simScope,
+        dry_run: simDryRun,
+        gameweek: selectedGW,
+      };
+      if (simScope === "fixture" && simFixtureId) body.fixture_id = simFixtureId;
+      if (simSeed) body.seed = parseInt(simSeed, 10);
+
+      const res = await fetch(`/api/wm/${leagueId}/simulate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setSimResult(data);
+      if (data.ok && !simDryRun) {
+        toast(`Simulator: ${data.executed ?? 0} Events ausgeführt`, "success");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast("Fehler: " + msg, "error");
+    }
+    setSimRunning(false);
+  }
+
+  async function runSimReset() {
+    if (resetting) return;
+    if (resetScope === "tournament") {
+      if (resetTypedConfirm !== "RESET") {
+        toast('Bitte "RESET" eintippen zum Bestätigen', "error");
+        return;
+      }
+      if (!window.confirm("LETZTES WARNING: Alle simulierten Turnierdaten werden gelöscht. Fortfahren?")) return;
+    } else {
+      if (!window.confirm(`Simulation zurücksetzen (${resetScope})?`)) return;
+    }
+    setResetting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/wm/${leagueId}/simulate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          scope: "reset",
+          reset_scope: resetScope,
+          gameweek: selectedGW,
+          typed_confirmation: resetTypedConfirm || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) toast(`Reset (${resetScope}) erfolgreich`, "success");
+      else toast("Reset fehlgeschlagen: " + (data.error || "Unbekannt"), "error");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast("Fehler: " + msg, "error");
+    }
+    setResetting(false);
+    setResetTypedConfirm("");
   }
 
   // ── Waiver ────────────────────────────────────────────────────
@@ -1625,6 +1710,122 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
               {fixtureSaveAll ? "Speichere..." : `Alle speichern (${Object.keys(fixtureEdits).length})`}
             </button>
           )}
+
+        </div>
+      )}
+
+      {/* ════════════════════════════════
+          TAB: SIMULATOR
+      ════════════════════════════════ */}
+      {tab === "simulator" && (
+        <div className="w-full max-w-xl space-y-3">
+          {GWSelector}
+
+          {/* Scope + Seed */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Simulation konfigurieren</p>
+            </div>
+            <div className="px-4 py-4 space-y-3">
+              {/* Scope */}
+              <div>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: "var(--color-muted)" }}>Scope</p>
+                <div className="flex gap-1.5">
+                  {(["fixture", "gameweek", "tournament"] as const).map(s => (
+                    <button key={s} onClick={() => setSimScope(s)}
+                      className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest"
+                      style={{
+                        background: simScope === s ? "var(--color-primary)" : "var(--bg-page)",
+                        color: simScope === s ? "var(--bg-page)" : "var(--color-muted)",
+                        border: "1px solid var(--color-border)",
+                      }}>
+                      {s === "fixture" ? "Fixture" : s === "gameweek" ? `GW${selectedGW}` : "Turnier"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Fixture ID (nur bei scope:fixture) */}
+              {simScope === "fixture" && (
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: "var(--color-muted)" }}>Fixture ID</p>
+                  <input value={simFixtureId} onChange={e => setSimFixtureId(e.target.value)}
+                    placeholder="uuid..."
+                    className="w-full px-3 py-2 rounded-lg text-xs focus:outline-none"
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+                </div>
+              )}
+              {/* Seed */}
+              <div>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: "var(--color-muted)" }}>Seed (optional — für reproduzierbare Läufe)</p>
+                <input value={simSeed} onChange={e => setSimSeed(e.target.value)}
+                  placeholder="z.B. 42"
+                  className="w-full px-3 py-2 rounded-lg text-xs focus:outline-none"
+                  style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+              </div>
+              {/* Dry-run toggle */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={simDryRun} onChange={e => setSimDryRun(e.target.checked)} />
+                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+                  Dry-Run (Vorschau — kein DB-Write)
+                </span>
+              </label>
+              {/* Run button */}
+              <button onClick={runSimulator} disabled={simRunning}
+                className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                style={{
+                  background: simDryRun
+                    ? "color-mix(in srgb, var(--color-info) 15%, var(--bg-page))"
+                    : "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))",
+                  color: simDryRun ? "var(--color-info)" : "var(--color-primary)",
+                  border: `1px solid ${simDryRun ? "color-mix(in srgb, var(--color-info) 40%, transparent)" : "color-mix(in srgb, var(--color-primary) 40%, transparent)"}`,
+                }}>
+                {simRunning ? "Läuft..." : simDryRun ? "Dry-Run ▶" : "Simulieren ▶"}
+              </button>
+            </div>
+          </div>
+
+          {/* Result */}
+          {simResult && (
+            <div className="rounded-xl p-4 text-[8px] font-mono" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
+              <pre className="overflow-x-auto">{JSON.stringify(simResult, null, 2)}</pre>
+            </div>
+          )}
+
+          {/* Reset */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid color-mix(in srgb, var(--color-error) 30%, var(--color-border))" }}>
+            <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Simulation zurücksetzen</p>
+            </div>
+            <div className="px-4 py-4 space-y-3">
+              <div className="flex gap-1.5">
+                {(["simulated_only", "gameweek", "tournament"] as const).map(s => (
+                  <button key={s} onClick={() => setResetScope(s)}
+                    className="px-2.5 py-1.5 rounded-lg text-[7px] font-black uppercase tracking-widest"
+                    style={{
+                      background: resetScope === s ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "var(--bg-page)",
+                      color: resetScope === s ? "var(--color-error)" : "var(--color-muted)",
+                      border: "1px solid var(--color-border)",
+                    }}>
+                    {s === "simulated_only" ? "Nur Sim" : s === "gameweek" ? `GW${selectedGW}` : "Turnier"}
+                  </button>
+                ))}
+              </div>
+              {resetScope === "tournament" && (
+                <div>
+                  <p className="text-[8px] mb-1.5" style={{ color: "var(--color-error)" }}>⚠ Bitte &quot;RESET&quot; eintippen:</p>
+                  <input value={resetTypedConfirm} onChange={e => setResetTypedConfirm(e.target.value)}
+                    placeholder="RESET"
+                    className="w-full px-3 py-2 rounded-lg text-xs focus:outline-none"
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-error)", color: "var(--color-error)" }} />
+                </div>
+              )}
+              <button onClick={runSimReset} disabled={resetting || (resetScope === "tournament" && resetTypedConfirm !== "RESET")}
+                className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)", border: "1px solid color-mix(in srgb, var(--color-error) 40%, transparent)" }}>
+                {resetting ? "Zurücksetzen..." : "Reset ▶"}
+              </button>
+            </div>
+          </div>
 
         </div>
       )}
