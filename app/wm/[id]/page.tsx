@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
 import { Spinner } from "@/app/components/ui/Spinner";
@@ -309,6 +310,21 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
             </button>
           </div>
         </div>
+
+        {/* ── Live Center Banner ────────────────────────────────────── */}
+        {currentGW?.status === "active" && (
+          <Link href={`/wm/${leagueId}/live`}
+            className="flex items-center gap-2 px-4 py-3 rounded-xl mb-3"
+            style={{
+              background: "color-mix(in srgb, var(--color-primary) 12%, var(--bg-card))",
+              border: "1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-border))",
+            }}>
+            <span className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "var(--color-primary)" }} />
+            <span className="text-xs font-black flex-1" style={{ color: "var(--color-primary)" }}>
+              GW{currentGW.gameweek} läuft — Live Center →
+            </span>
+          </Link>
+        )}
 
         {/* ── Status: setup ──────────────────────────────────────────── */}
         {league?.status === "setup" && (
