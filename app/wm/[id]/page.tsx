@@ -578,6 +578,28 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
                     style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}>
                     Spielplan →
                   </button>
+                  <button
+                    onClick={() => { if (currentGW) window.location.href = `/wm/${leagueId}/live`; }}
+                    disabled={!currentGW}
+                    className="col-span-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center flex items-center justify-center gap-2 disabled:opacity-40 transition-all active:scale-[0.97]"
+                    style={currentGW?.status === "active" ? {
+                      background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-card))",
+                      border: "1px solid color-mix(in srgb, var(--color-primary) 50%, transparent)",
+                      color: "var(--color-primary)",
+                    } : {
+                      background: "var(--bg-card)",
+                      border: "1px solid var(--color-border)",
+                      color: currentGW ? "var(--color-text)" : "var(--color-muted)",
+                    }}>
+                    {currentGW?.status === "active" && (
+                      <span className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0" style={{ background: "var(--color-primary)" }} />
+                    )}
+                    {currentGW?.status === "active"
+                      ? `GW${currentGW.gameweek} Live Center →`
+                      : currentGW
+                        ? "Live Center →"
+                        : "Kein aktiver Spieltag"}
+                  </button>
                 </div>
 
                 {/* ── Standings Preview (Top 5) ─────────────────────────── */}

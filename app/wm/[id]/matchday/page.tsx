@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
@@ -156,6 +157,32 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Live Center Banner */}
+      {currentGW?.status === "active" ? (
+        <Link href={`/wm/${leagueId}/live`}
+          className="w-full max-w-md flex items-center gap-3 px-4 py-3 rounded-2xl mb-4"
+          style={{
+            background: "color-mix(in srgb, var(--color-primary) 12%, var(--bg-card))",
+            border: "1px solid color-mix(in srgb, var(--color-primary) 40%, var(--color-border))",
+          }}>
+          <span className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ background: "var(--color-primary)" }} />
+          <span className="flex-1 text-xs font-black" style={{ color: "var(--color-primary)" }}>
+            Fantasy Live Center öffnen →
+          </span>
+          <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "color-mix(in srgb, var(--color-primary) 60%, transparent)" }}>
+            GW{currentGW.gameweek}
+          </span>
+        </Link>
+      ) : (
+        <div className="w-full max-w-md flex justify-end mb-2">
+          <Link href={`/wm/${leagueId}/live`}
+            className="text-[9px] font-black uppercase tracking-widest"
+            style={{ color: "var(--color-muted)" }}>
+            Live Center →
+          </Link>
         </div>
       )}
 
