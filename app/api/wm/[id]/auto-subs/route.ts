@@ -3,6 +3,7 @@ import { createServiceRoleClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
 import { applyLiveSubs } from "@/lib/live-sub";
 import { validateFormation } from "@/lib/wm-formations";
+import { processIngestEvent } from "@/lib/wm-ingest";
 
 type TeamResult = {
   team_id: string;
@@ -81,13 +82,15 @@ export async function POST(
     return NextResponse.json({ error: "Gameweek hat noch nicht begonnen" }, { status: 409 });
   }
 
-  // ── 6. Alle Teams der Liga laden ──────────────────────────────────
+  // ── 6. Alle Teams der Liga laden (inkl. name für System Messages) ───
   const { data: teams } = await supabase
     .from("teams")
-    .select("id")
+    .select("id, name")
     .eq("league_id", leagueId);
 
   const teamIds = (teams || []).map(t => t.id);
+  const teamNameMap: Record<string, string> = {};
+  for (const t of (teams || [])) teamNameMap[t.id] = t.name ?? `Team ${t.id.slice(0, 8)}`;
   if (teamIds.length === 0) {
     return NextResponse.json({ ok: true, results: [], message: "Keine Teams in dieser Liga" });
   }
@@ -129,14 +132,16 @@ export async function POST(
   // ── 10. Spieler-Positionen + team_name laden ─────────────────────
   const { data: playerRows } = await supabase
     .from("players")
-    .select("id, position, team_name")
+    .select("id, name, position, team_name")
     .in("id", [...allPlayerIds]);
 
   const playerPositionMap: Record<number, string> = {};
   const playerTeamMap: Record<number, string> = {};
+  const playerNameMap: Record<number, string> = {};
   for (const p of (playerRows || [])) {
     playerPositionMap[p.id] = p.position;
     playerTeamMap[p.id] = p.team_name ?? "";
+    playerNameMap[p.id] = p.name ?? `Spieler #${p.id}`;
   }
 
   // ── 10b. Eliminierte Nationen → playerEliminated Map ──────────────
@@ -278,6 +283,27 @@ export async function POST(
       .update({ starting_xi: effectiveXI, updated_at: new Date().toISOString() })
       .eq("team_id", teamId)
       .eq("gameweek", gw.gameweek);
+
+    // ── System messages — one per sub (idempotent via team+gw+players)
+    const fantasyTeamName = teamNameMap[teamId] ?? `Team ${teamId.slice(0, 8)}`;
+    for (const sub of subs) {
+      await processIngestEvent(leagueId, {
+        type: "auto_sub.applied",
+        tournament_id: tournamentId ?? "",
+        gameweek: gw.gameweek,
+        source: "admin",
+        idempotency_key: `wm-autosub-${teamId}-gw${gw.gameweek}-${sub.out}-${sub.in}`,
+        payload: {
+          team_id:         teamId,
+          team_name:       fantasyTeamName,
+          player_out_id:   sub.out,
+          player_out_name: playerNameMap[sub.out] ?? `Spieler #${sub.out}`,
+          player_in_id:    sub.in,
+          player_in_name:  playerNameMap[sub.in] ?? `Spieler #${sub.in}`,
+          reason:          "not_playing",
+        },
+      }, "ingest_api");
+    }
 
     results.push({ team_id: teamId, subs, skipped: false });
   }

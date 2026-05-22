@@ -19,6 +19,7 @@ import {
   nationEliminatedMessage,
   autoSubMessage,
   waiverMessage,
+  waiverRejectedMessage,
 } from "@/lib/wm-system-messages";
 
 // ── Main entry point ──────────────────────────────────────────────────────────
@@ -422,6 +423,15 @@ async function handleWaiverClaim(
 ) {
   const p = event.payload as unknown as WaiverClaimPayload;
   const src = (event.source === "simulator" ? "simulator" : "ingest_api") as "simulator" | "ingest_api";
+
+  if (p.status === "rejected") {
+    const reason = p.rejected_reason ?? "höhere Priorität";
+    const msg = waiverRejectedMessage(p.team_name, p.player_in_name, reason, src, p.team_id);
+    await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);
+    return { applied: ["league_messages:waiver_rejected"], warnings: [] };
+  }
+
+  // Default: approved
   const msg = waiverMessage(p.team_name, p.player_in_name, p.player_out_name ?? null, src, p.team_id);
   await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);
   return { applied: ["league_messages:waiver"], warnings: [] };

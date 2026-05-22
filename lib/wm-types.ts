@@ -210,6 +210,8 @@ export interface WaiverClaimPayload {
   player_out_id?: number;
   player_out_name?: string;
   claim_rank?: number;
+  status?: "approved" | "rejected";   // set by processor; approved = message, rejected = optional rejection notice
+  rejected_reason?: string;           // short human-readable reason for rejection message
 }
 
 export type ProcessedBy =

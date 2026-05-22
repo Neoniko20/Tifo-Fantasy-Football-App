@@ -24,6 +24,7 @@ export interface SystemMessageMeta {
     | "nation_eliminated"
     | "auto_sub"
     | "waiver"
+    | "waiver_rejected"
     | "yellow_card"
     | "red_card"
     | "clean_sheet"
@@ -227,6 +228,28 @@ export function waiverMessage(
       priority: "low",
       source,
       event_type: "waiver",
+      related_team_id: teamId,
+    },
+  };
+}
+
+export function waiverRejectedMessage(
+  teamName: string,
+  playerName: string,
+  reason: string,
+  source: SystemMessageMeta["source"],
+  teamId: string,
+): { content: string; meta: SystemMessageMeta } {
+  const ticker = `❌ ${teamName}: Waiver für ${playerName} abgelehnt (${reason})`;
+  return {
+    content: ticker,
+    meta: {
+      kind: "system",
+      icon: "❌",
+      ticker_text: ticker,
+      priority: "low",
+      source,
+      event_type: "waiver_rejected",
       related_team_id: teamId,
     },
   };
