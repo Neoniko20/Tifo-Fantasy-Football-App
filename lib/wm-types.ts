@@ -189,6 +189,28 @@ export interface WMIngestEvent {
   source?: "simulator" | "admin" | "api_football";
 }
 
+// ── Typed payloads for side-effect events ────────────────────────────────────
+
+export interface AutoSubPayload {
+  team_id: string;
+  team_name: string;
+  player_out_id: number;
+  player_out_name: string;
+  player_in_id: number;
+  player_in_name: string;
+  reason?: "injured" | "not_playing" | "red_card";
+}
+
+export interface WaiverClaimPayload {
+  team_id: string;
+  team_name: string;
+  player_in_id: number;
+  player_in_name: string;
+  player_out_id?: number;
+  player_out_name?: string;
+  claim_rank?: number;
+}
+
 export type ProcessedBy =
   | "ingest_api"
   | "simulator"

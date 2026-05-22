@@ -7,9 +7,19 @@ import { createServiceRoleClient } from "@/lib/supabase-server";
 import { calculateWMGameweekPoints } from "@/lib/wm-points";
 import type {
   WMIngestEvent, WMEventType, ProcessedBy, IngestResult,
-  WMNation, Position,
+  WMNation, Position, AutoSubPayload, WaiverClaimPayload,
 } from "@/lib/wm-types";
 import type { GWStats } from "@/lib/wm-points";
+import {
+  writeSystemMessage,
+  fanOutSystemMessage,
+  goalMessage,
+  fixtureStartMessage,
+  fixtureEndMessage,
+  nationEliminatedMessage,
+  autoSubMessage,
+  waiverMessage,
+} from "@/lib/wm-system-messages";
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
@@ -97,16 +107,15 @@ async function dispatchEvent(
 ): Promise<{ applied: string[]; warnings: string[] }> {
   switch (event.type) {
     case "fixture.score_updated":     return handleScoreUpdated(event, supabase);
-    case "fixture.status_changed":    return handleFixtureStatus(event, supabase);
+    case "fixture.status_changed":    return handleFixtureStatus(leagueId, event, supabase);
     case "fixture.penalties_updated": return handlePenaltiesUpdated(event, supabase);
     case "player.stat_update":        return handlePlayerStatUpdate(leagueId, event, supabase);
     case "gameweek.status_changed":   return handleGameweekStatus(event, supabase);
     case "nation.eliminated":         return handleNationEliminated(event, supabase);
-    // Side-effect-only events (system messages added in Phase B2)
+    case "auto_sub.applied":          return handleAutoSub(leagueId, event, supabase);
+    case "waiver.claim_processed":    return handleWaiverClaim(leagueId, event, supabase);
     case "gameweek.points_recalculated":
-    case "auto_sub.applied":
-    case "waiver.claim_processed":
-      return { applied: [`event_logged:${event.type}`], warnings: [] };
+      return { applied: ["event_logged:gameweek.points_recalculated"], warnings: [] };
     default:
       return { applied: [], warnings: [`unknown_event_type:${(event as any).type}`] };
   }
@@ -130,6 +139,7 @@ async function handleScoreUpdated(
 }
 
 async function handleFixtureStatus(
+  leagueId: string,
   event: WMIngestEvent,
   supabase: ReturnType<typeof createServiceRoleClient>,
 ) {
@@ -143,7 +153,35 @@ async function handleFixtureStatus(
   const { error } = await supabase
     .from("wm_fixtures").update(update).eq("id", fixture_id);
   if (error) throw new Error("fixture status update failed: " + error.message);
-  return { applied: ["wm_fixtures.status"], warnings: [] };
+
+  const applied = ["wm_fixtures.status"];
+  const warnings: string[] = [];
+
+  // Write system message for live/finished transitions
+  if (status === "live" || status === "finished") {
+    const { data: fixture } = await supabase
+      .from("wm_fixtures")
+      .select("home_score, away_score, home_nation:wm_nations!home_nation_id(name,flag_url), away_nation:wm_nations!away_nation_id(name,flag_url)")
+      .eq("id", fixture_id)
+      .maybeSingle();
+
+    if (fixture) {
+      const src = (event.source === "simulator" ? "simulator" : "ingest_api") as "simulator" | "ingest_api";
+      const home = (fixture.home_nation as any) ?? {};
+      const away = (fixture.away_nation as any) ?? {};
+
+      const msg = status === "live"
+        ? fixtureStartMessage(home.name ?? "?", home.flag_url ?? null, away.name ?? "?", away.flag_url ?? null, src, fixture_id)
+        : fixtureEndMessage(home.name ?? "?", home.flag_url ?? null, fixture.home_score ?? 0, away.name ?? "?", away.flag_url ?? null, fixture.away_score ?? 0, src, fixture_id);
+
+      await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);
+      applied.push("league_messages:fixture_" + status);
+    } else {
+      warnings.push("fixture not found for system message");
+    }
+  }
+
+  return { applied, warnings };
 }
 
 async function handlePenaltiesUpdated(
@@ -191,7 +229,29 @@ async function handleNationEliminated(
     .update({ eliminated_after_gameweek })
     .eq("id", nation_id);
   if (error) throw new Error("nation elimination failed: " + error.message);
-  return { applied: ["wm_nations.eliminated_after_gameweek"], warnings: [] };
+
+  const applied = ["wm_nations.eliminated_after_gameweek"];
+  const warnings: string[] = [];
+
+  // Fan-out to all leagues in this tournament
+  const { data: nation } = await supabase
+    .from("wm_nations")
+    .select("name, flag_url")
+    .eq("id", nation_id)
+    .maybeSingle();
+
+  const src = (event.source === "simulator" ? "simulator" : "ingest_api") as "simulator" | "ingest_api";
+  const msg = nationEliminatedMessage(
+    nation?.name ?? "Unbekannte Nation",
+    nation?.flag_url ?? null,
+    eliminated_after_gameweek,
+    src,
+    nation_id,
+  );
+  await fanOutSystemMessage(supabase, event.tournament_id, msg.content, msg.meta);
+  applied.push("league_messages:nation_eliminated");
+
+  return { applied, warnings };
 }
 
 async function handlePlayerStatUpdate(
@@ -217,9 +277,9 @@ async function handlePlayerStatUpdate(
     return { applied, warnings };
   }
 
-  // Lookup player position
+  // Lookup player name + position
   const { data: player } = await supabase
-    .from("players").select("position").eq("id", p.player_id).maybeSingle();
+    .from("players").select("name, position").eq("id", p.player_id).maybeSingle();
   if (!player?.position) warnings.push(`player ${p.player_id} position not found, defaulted to MF`);
 
   // Lookup player nation for this tournament
@@ -305,5 +365,64 @@ async function handlePlayerStatUpdate(
     }
   }
 
+  // ── Goal system message ───────────────────────────────────────────────────
+  // Write once per stat-update (not per team) when goals > 0
+  if ((p.goals ?? 0) > 0 && player?.name) {
+    const src = (event.source === "simulator" ? "simulator" : "ingest_api") as "simulator" | "ingest_api";
+
+    // Find the live fixture for this player's nation
+    let fixtureId: string | undefined;
+    if (nation?.id) {
+      const { data: fixtureRow } = await supabase
+        .from("wm_fixtures")
+        .select("id")
+        .eq("tournament_id", event.tournament_id)
+        .eq("status", "live")
+        .or(`home_nation_id.eq.${nation.id},away_nation_id.eq.${nation.id}`)
+        .maybeSingle();
+      fixtureId = fixtureRow?.id;
+    }
+
+    const msg = goalMessage(
+      player.name,
+      nation?.name ?? "Unbekannte Nation",
+      nation?.flag_url ?? null,
+      p.goals ?? 1,
+      src,
+      p.player_id,
+      fixtureId,
+    );
+    await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);
+    applied.push("league_messages:goal");
+  }
+
   return { applied, warnings };
+}
+
+// ── Auto-Sub handler ──────────────────────────────────────────────────────────
+
+async function handleAutoSub(
+  leagueId: string,
+  event: WMIngestEvent,
+  supabase: ReturnType<typeof createServiceRoleClient>,
+) {
+  const p = event.payload as unknown as AutoSubPayload;
+  const src = (event.source === "simulator" ? "simulator" : "ingest_api") as "simulator" | "ingest_api";
+  const msg = autoSubMessage(p.team_name, p.player_out_name, p.player_in_name, src, p.team_id);
+  await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);
+  return { applied: ["league_messages:auto_sub"], warnings: [] };
+}
+
+// ── Waiver-Claim handler ──────────────────────────────────────────────────────
+
+async function handleWaiverClaim(
+  leagueId: string,
+  event: WMIngestEvent,
+  supabase: ReturnType<typeof createServiceRoleClient>,
+) {
+  const p = event.payload as unknown as WaiverClaimPayload;
+  const src = (event.source === "simulator" ? "simulator" : "ingest_api") as "simulator" | "ingest_api";
+  const msg = waiverMessage(p.team_name, p.player_in_name, p.player_out_name ?? null, src, p.team_id);
+  await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);
+  return { applied: ["league_messages:waiver"], warnings: [] };
 }
