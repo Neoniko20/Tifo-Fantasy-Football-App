@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { BottomNav } from "@/app/components/BottomNav";
+import { MatchCard } from "@/app/components/wm/MatchCard";
 import type { WMFixture, WMGameweek, WMStage } from "@/lib/wm-types";
 
 const STAGE_LABEL: Record<WMStage, string> = {
@@ -19,29 +20,6 @@ const STAGE_LABEL: Record<WMStage, string> = {
 
 const STAGE_ORDER: WMStage[] = ["group", "round_of_32", "round_of_16", "quarter", "semi", "final"];
 
-function formatKickoff(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString("de-DE", {
-    weekday: "short", day: "2-digit", month: "2-digit",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function StatusDot({ status }: { status: WMFixture["status"] }) {
-  if (status === "live") return (
-    <span className="flex items-center gap-1">
-      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-primary)" }} />
-      <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>Live</span>
-    </span>
-  );
-  if (status === "finished") return (
-    <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-success)" }}>Beendet</span>
-  );
-  return (
-    <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Geplant</span>
-  );
-}
-
 export default function MatchdayPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: leagueId } = React.use(params);
 
@@ -50,6 +28,7 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
   const [fixtures, setFixtures]         = useState<WMFixture[]>([]);
   const [allGameweeks, setAllGameweeks] = useState<WMGameweek[]>([]);
   const [selectedGW, setSelectedGW]     = useState<number>(1);
+  const [tournamentId, setTournamentId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -59,6 +38,24 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Realtime score updates
+  useEffect(() => {
+    if (!tournamentId) return;
+    const channel = supabase
+      .channel("wm-matchday-fixtures")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "wm_fixtures", filter: `tournament_id=eq.${tournamentId}` },
+        (payload) => {
+          setFixtures(prev =>
+            prev.map(f => f.id === (payload.new as WMFixture).id ? { ...f, ...(payload.new as WMFixture) } : f)
+          );
+        },
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [tournamentId]);
+
   async function loadAll() {
     const { data: settings } = await supabase
       .from("wm_league_settings")
@@ -67,12 +64,13 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
       .maybeSingle();
 
     if (!settings?.tournament_id) { setLoading(false); return; }
-    const tournamentId = settings.tournament_id;
+    const tid = settings.tournament_id;
+    setTournamentId(tid);
 
     const { data: gws } = await supabase
       .from("wm_gameweeks")
       .select("*")
-      .eq("tournament_id", tournamentId)
+      .eq("tournament_id", tid)
       .order("gameweek");
     setAllGameweeks(gws || []);
 
@@ -81,11 +79,11 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
     setCurrentGW(active || null);
     setSelectedGW(activeGW);
 
-    await loadFixtures(tournamentId, activeGW);
+    await loadFixtures(tid, activeGW);
     setLoading(false);
   }
 
-  async function loadFixtures(tournamentId: string, gw: number) {
+  async function loadFixtures(tid: string, gw: number) {
     const { data } = await supabase
       .from("wm_fixtures")
       .select(`
@@ -93,7 +91,7 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
         home_nation:wm_nations!home_nation_id(*),
         away_nation:wm_nations!away_nation_id(*)
       `)
-      .eq("tournament_id", tournamentId)
+      .eq("tournament_id", tid)
       .eq("gameweek", gw)
       .order("kickoff");
     setFixtures((data as WMFixture[]) || []);
@@ -198,76 +196,16 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
             {STAGE_LABEL[stage]}
           </p>
           <div className="space-y-2">
-            {items.map(fixture => {
-              const isFinished = fixture.status === "finished";
-              const isLive     = fixture.status === "live";
-              return (
-                <div key={fixture.id}
-                  className="rounded-2xl p-3"
-                  style={{
-                    background: "var(--bg-card)",
-                    border: `1px solid ${isLive ? "var(--color-primary)" : isFinished ? "var(--color-border-subtle)" : "var(--color-border)"}`,
-                  }}>
-                  {/* Status + time */}
-                  <div className="flex items-center justify-between mb-2">
-                    <StatusDot status={fixture.status} />
-                    <p className="text-[8px]" style={{ color: "var(--color-muted)" }}>
-                      {formatKickoff(fixture.kickoff)}
-                    </p>
-                  </div>
-
-                  {/* Match row */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 flex items-center gap-2 min-w-0">
-                      {fixture.home_nation?.flag_url && (
-                        <img src={fixture.home_nation.flag_url} alt="" className="w-6 h-4 object-cover rounded-sm flex-shrink-0" />
-                      )}
-                      <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>
-                        {fixture.home_nation?.name ?? "—"}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col items-center flex-shrink-0">
-                      <div className="flex items-center gap-1.5">
-                        {isFinished || isLive ? (
-                          <>
-                            <span className="text-base font-black w-5 text-center" style={{ color: "var(--color-primary)" }}>
-                              {fixture.home_score ?? 0}
-                            </span>
-                            <span className="text-[9px] font-black" style={{ color: "var(--color-border)" }}>:</span>
-                            <span className="text-base font-black w-5 text-center" style={{ color: "var(--color-primary)" }}>
-                              {fixture.away_score ?? 0}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-[9px] font-black px-2" style={{ color: "var(--color-muted)" }}>vs</span>
-                        )}
-                      </div>
-                      {(isFinished || isLive) && fixture.penalties_home != null && (
-                        <p className="text-[7px] font-black text-center mt-0.5" style={{ color: "var(--color-muted)" }}>
-                          n.E. {fixture.penalties_home}:{fixture.penalties_away ?? "?"}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex-1 flex items-center gap-2 justify-end min-w-0">
-                      <p className="text-xs font-black truncate text-right" style={{ color: "var(--color-text)" }}>
-                        {fixture.away_nation?.name ?? "—"}
-                      </p>
-                      {fixture.away_nation?.flag_url && (
-                        <img src={fixture.away_nation.flag_url} alt="" className="w-6 h-4 object-cover rounded-sm flex-shrink-0" />
-                      )}
-                    </div>
-                  </div>
-
-                  {fixture.city && (
-                    <p className="text-[7px] text-center mt-1.5" style={{ color: "var(--color-border)" }}>
-                      {fixture.stadium ? `${fixture.stadium}, ` : ""}{fixture.city}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+            {items.map(f => (
+              <MatchCard
+                key={f.id}
+                fixture={f}
+                homeNationName={f.home_nation?.name}
+                awayNationName={f.away_nation?.name}
+                homeNationFlag={f.home_nation?.flag_url}
+                awayNationFlag={f.away_nation?.flag_url}
+              />
+            ))}
           </div>
         </div>
       ))}

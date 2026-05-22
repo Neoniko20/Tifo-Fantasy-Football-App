@@ -74,6 +74,7 @@ export interface WMFixture {
   away_score: number | null;
   penalties_home?: number | null;   // display only — no scoring impact
   penalties_away?: number | null;
+  extra_status?: string | null;     // half_time | extra_time | penalties | delayed | interrupted
   api_fixture_id?: number | null;
   created_at?: string;
   // Joined relations (optional — populated by select with FK expansion)
