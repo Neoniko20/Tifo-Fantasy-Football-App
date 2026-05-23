@@ -7,6 +7,7 @@ import type { WMLeagueSettings } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
 import { PlayerCard } from "@/app/components/PlayerCard";
 import { BottomNav } from "@/app/components/BottomNav";
+import { OnTheClock } from "@/app/components/wm/draft/OnTheClock";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -796,6 +797,18 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           <UserBadge teamName={myTeam?.name} />
         </div>
       </div>
+
+      {draftSession.status === "active" && (
+        <OnTheClock
+          currentTeamName={currentTeam?.name ?? null}
+          isMyTurn={isMyTurn}
+          timeLeft={timeLeft}
+          secondsPerPick={draftSession.seconds_per_pick ?? 0}
+          pickNumber={draftSession.current_pick}
+          totalPicks={draftSession.total_picks}
+          isConnected={true}
+        />
+      )}
 
       {/* Body: board + player list */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
