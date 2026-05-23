@@ -70,6 +70,8 @@ timeLeft = max(0, seconds_per_pick - floor((now - pick_started_at) / 1000))
 
 This calculation runs in a `useEffect` that ticks every second. On reconnect or refresh, the client immediately gets the correct remaining time by reading `draftSession.pick_started_at` from the DB.
 
+**Clock source rule:** The client always calculates against `Date.now()` relative to `pick_started_at` from the DB. There is no separate local "master timer" state — `timeLeft` is derived entirely from `draftSession.pick_started_at` and `draftSession.seconds_per_pick`. No `setInterval`-based countdown state accumulation.
+
 **Timer display thresholds (unchanged):**
 - > 30s → green
 - 10–30s → blue  
@@ -120,6 +122,7 @@ Three components extracted from `page.tsx` — purely presentational, no new log
 - Shows: player photo, player name, team that picked, position badge
 - Own picks: slightly larger / different accent color (not confetti — just visual weight)
 - Pure CSS transition (`opacity` + `translateY`), no external library
+- **Must NOT fire on:** initial load, reconnect + full reload, or historical picks being backfilled. Implementation: track `initialLoadDone` ref set to `true` after first `loadPicks()` resolves; only trigger announcement when `draftPicks.length > prevLengthRef.current && initialLoadDone.current === true`.
 - ~70 lines
 
 **`components/wm/draft/DraftPlayerRow.tsx`**
@@ -138,7 +141,9 @@ A small badge in the top-right of the draft UI reads the channel state via a `us
 - `SUBSCRIBED` → `⚡ Live` (green dot, subtle)
 - anything else → `⏳ Verbinde...` (amber dot, slightly more prominent)
 
-No auto-reconnect logic added — Supabase handles this. The badge is purely informational.
+**Disconnect behavior beyond the badge:** When channel state is not `SUBSCRIBED`, pick buttons are disabled and a small inline hint appears below the player list: "Verbindung wird wiederhergestellt…". This prevents blind spam-clicking while disconnected. Buttons re-enable automatically when the channel returns to `SUBSCRIBED`.
+
+No auto-reconnect logic added — Supabase handles this. The badge + disabled state are purely reactive to channel state.
 
 ### 4.6 Mobile UX
 
