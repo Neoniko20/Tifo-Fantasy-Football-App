@@ -58,7 +58,9 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const [nationFilter, setNationFilter] = useState("ALL");
   const [timeLeft, setTimeLeft] = useState(60);
   const [isOwner, setIsOwner] = useState(false);
-  const [view, setView] = useState<"board" | "list">("board");
+  const [view, setView] = useState<"board" | "list">(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "list" : "board"
+  );
   const [draftType, setDraftType] = useState<"snake" | "linear">("snake");
   const [timerSeconds, setTimerSeconds] = useState(60);
   const [adminPickSlot, setAdminPickSlot] = useState<{ pickNum: number; teamId: string; round: number } | null>(null);
@@ -376,13 +378,17 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.error("Bot pick error:", err.error || res.status);
-        // Retry after 3s so bot doesn't get permanently stuck on transient errors
-        setTimeout(() => {
-          const s = draftSessionRef.current;
-          if (s?.status === "active") {
-            triggerBot(s, draftPicksRef.current, teamsRef.current, userIdRef.current);
-          }
-        }, 3000);
+        // Only retry on server errors (5xx) or network failures.
+        // 409 means pick conflict or optimistic lock mismatch — the next Realtime
+        // event will trigger triggerBot() again when current_pick advances.
+        if (res.status >= 500) {
+          setTimeout(() => {
+            const s = draftSessionRef.current;
+            if (s?.status === "active") {
+              triggerBot(s, draftPicksRef.current, teamsRef.current, userIdRef.current);
+            }
+          }, 3000);
+        }
         return;
       }
 
