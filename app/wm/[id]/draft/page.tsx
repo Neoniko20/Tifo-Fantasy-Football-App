@@ -63,6 +63,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const [timerSeconds, setTimerSeconds] = useState(60);
   const [adminPickSlot, setAdminPickSlot] = useState<{ pickNum: number; teamId: string; round: number } | null>(null);
   const [adminSearch, setAdminSearch] = useState("");
+  const [isConnected, setIsConnected] = useState(true);
   const [announcedPick, setAnnouncedPick] = useState<AnnouncedPick | null>(null);
   const [announcementVisible, setAnnouncementVisible] = useState(false);
   const { toast } = useToast();
@@ -288,7 +289,9 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        setIsConnected(status === "SUBSCRIBED");
+      });
     channelRef.current = channel;
   }
 
@@ -834,6 +837,13 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
             </button>
           )}
           <UserBadge teamName={myTeam?.name} />
+          <span
+            className="text-[8px] font-black flex-shrink-0"
+            style={{ color: isConnected ? "var(--color-success)" : "var(--color-error)" }}
+            title={isConnected ? "Verbunden" : "Verbindung wird wiederhergestellt..."}
+          >
+            {isConnected ? "⚡" : "⏳"}
+          </span>
         </div>
       </div>
 
@@ -845,7 +855,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           secondsPerPick={draftSession.seconds_per_pick ?? 0}
           pickNumber={draftSession.current_pick}
           totalPicks={draftSession.total_picks}
-          isConnected={true}
+          isConnected={isConnected}
         />
       )}
 
@@ -1055,6 +1065,18 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
         <div className="flex-1 min-h-0 md:flex-none md:w-64 flex flex-col flex-shrink-0 border-t md:border-t-0 md:border-l"
           style={{ borderColor: "var(--color-border)" }}>
           <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--color-border)" }}>
+            {!isConnected && (
+              <p
+                className="text-[9px] font-black text-center mb-2 py-1 px-2 rounded-lg"
+                style={{
+                  background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
+                  color: "var(--color-error)",
+                  border: "1px solid color-mix(in srgb, var(--color-error) 30%, transparent)",
+                }}
+              >
+                Verbindung wird wiederhergestellt…
+              </p>
+            )}
             <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>
               {availablePlayers.length} verfügbar · {players.length} WM-Spieler
             </p>
@@ -1099,7 +1121,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
                 nation={nations.find((n: any) => n.name === p.team_name)}
                 posColor={POS_COLOR[p.position]}
                 isMyTurn={isMyTurn}
-                isConnected={true}
+                isConnected={isConnected}
                 onPick={pickPlayer}
               />
             ))}
