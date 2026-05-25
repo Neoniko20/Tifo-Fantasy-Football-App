@@ -285,6 +285,10 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           const newSession = payload.new as any;
           setDraftSession(newSession);
           draftSessionRef.current = newSession;
+          if (newSession.status !== "active") {
+            botRunningRef.current = true;
+            if (botTimerRef.current) clearTimeout(botTimerRef.current);
+          }
           const picks = await loadPicks(sessionId);
           if (isOwnerRef.current && newSession.status === "active") {
             triggerBot(newSession, picks, teamsRef.current, userIdRef.current);
@@ -359,27 +363,39 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
       const n = allTeams.length;
       const round = Math.floor(session.current_pick / n);
 
-      const res = await fetch(`/api/wm/${leagueId}/draft/pick`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${accessTokenRef.current}`,
-        },
-        body: JSON.stringify({
-          player_id: best.id,
-          team_id:   currentTeam.id,
-          round,
-          pick:      session.current_pick,
-        }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(`/api/wm/${leagueId}/draft/pick`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessTokenRef.current}`,
+          },
+          body: JSON.stringify({
+            player_id: best.id,
+            team_id:   currentTeam.id,
+            round,
+            pick:      session.current_pick,
+          }),
+        });
+      } catch {
+        // Network failure (offline, DNS, etc.) — release lock and retry after reconnect
+        botRunningRef.current = false;
+        setTimeout(() => {
+          const s = draftSessionRef.current;
+          if (s?.status === "active") {
+            triggerBot(s, draftPicksRef.current, teamsRef.current, userIdRef.current);
+          }
+        }, 5000);
+        return;
+      }
 
       botRunningRef.current = false;
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.error("Bot pick error:", err.error || res.status);
-        // Only retry on server errors (5xx) or network failures.
-        // 409 means pick conflict or optimistic lock mismatch — the next Realtime
+        // Retry on server errors (5xx). 409 means conflict — next Realtime
         // event will trigger triggerBot() again when current_pick advances.
         if (res.status >= 500) {
           setTimeout(() => {
@@ -844,7 +860,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           )}
           <UserBadge teamName={myTeam?.name} />
           <span
-            className="text-[8px] font-black flex-shrink-0"
+            className="text-sm flex-shrink-0"
             style={{ color: isConnected ? "var(--color-success)" : "var(--color-error)" }}
             title={isConnected ? "Verbunden" : "Verbindung wird wiederhergestellt..."}
           >
