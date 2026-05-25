@@ -9,6 +9,7 @@ import { PlayerCard } from "@/app/components/PlayerCard";
 import { BottomNav } from "@/app/components/BottomNav";
 import { OnTheClock } from "@/app/components/wm/draft/OnTheClock";
 import { PickAnnouncement, type AnnouncedPick } from "@/app/components/wm/draft/PickAnnouncement";
+import { DraftPlayerRow } from "@/app/components/wm/draft/DraftPlayerRow";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -1091,42 +1092,17 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {availablePlayers.slice(0, 150).map(p => {
-              const posColor = POS_COLOR[p.position];
-              const nation = nations.find((n: any) => n.name === p.team_name);
-              return (
-                <div key={p.id}
-                  onClick={() => isMyTurn && pickPlayer(p.id)}
-                  className="flex items-center gap-2 p-2 transition-all"
-                  style={{
-                    borderBottom: "1px solid var(--color-border)",
-                    opacity: isMyTurn ? 1 : 0.4,
-                    cursor: isMyTurn ? "pointer" : "not-allowed",
-                    background: "transparent",
-                  }}
-                  onMouseEnter={e => { if (isMyTurn) (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                  <PlayerCard player={p} posColor={posColor} size={32} nationFlagUrl={nation?.flag_url} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
-                    <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>
-                      {nation?.code || p.team_name}
-                      {nation?.group_letter && <span style={{ color: "var(--color-border)" }}> · Gr.{nation.group_letter}</span>}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{p.fpts?.toFixed(0)}</p>
-                    <span className="text-[7px] font-black px-1 rounded-sm"
-                      style={{
-                        background: posColor ? posColor + "20" : "var(--color-border)",
-                        color: posColor || "var(--color-muted)",
-                      }}>
-                      {p.position}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {availablePlayers.slice(0, 150).map((p) => (
+              <DraftPlayerRow
+                key={p.id}
+                player={p}
+                nation={nations.find((n: any) => n.name === p.team_name)}
+                posColor={POS_COLOR[p.position]}
+                isMyTurn={isMyTurn}
+                isConnected={true}
+                onPick={pickPlayer}
+              />
+            ))}
           </div>
         </div>
       </div>
