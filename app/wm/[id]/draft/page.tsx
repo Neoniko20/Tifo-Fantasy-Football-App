@@ -8,6 +8,7 @@ import { useToast } from "@/app/components/ToastProvider";
 import { PlayerCard } from "@/app/components/PlayerCard";
 import { BottomNav } from "@/app/components/BottomNav";
 import { OnTheClock } from "@/app/components/wm/draft/OnTheClock";
+import { PickAnnouncement, type AnnouncedPick } from "@/app/components/wm/draft/PickAnnouncement";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -61,6 +62,8 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const [timerSeconds, setTimerSeconds] = useState(60);
   const [adminPickSlot, setAdminPickSlot] = useState<{ pickNum: number; teamId: string; round: number } | null>(null);
   const [adminSearch, setAdminSearch] = useState("");
+  const [announcedPick, setAnnouncedPick] = useState<AnnouncedPick | null>(null);
+  const [announcementVisible, setAnnouncementVisible] = useState(false);
   const { toast } = useToast();
 
   const channelRef = useRef<any>(null);
@@ -75,12 +78,17 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const settingsRef = useRef<WMLeagueSettings | null>(null);
   const botRunningRef = useRef(false);
   const accessTokenRef = useRef<string>("");
+  const initialLoadDoneRef = useRef(false);
+  const prevPicksLengthRef = useRef(0);
+  const myTeamRef = useRef<any>(null);
+  const announcementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { playersRef.current = players; }, [players]);
   useEffect(() => { draftPicksRef.current = draftPicks; }, [draftPicks]);
   useEffect(() => { teamsRef.current = teams; }, [teams]);
   useEffect(() => { draftSessionRef.current = draftSession; }, [draftSession]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { myTeamRef.current = myTeam; }, [myTeam]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -99,12 +107,28 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
       if (channelRef.current) supabase.removeChannel(channelRef.current);
       if (botTimerRef.current) clearTimeout(botTimerRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
+      if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
     };
   }, []);
 
   function totalRounds(s: WMLeagueSettings | null) {
     if (!s) return 15;
     return (s.squad_size || 11) + (s.bench_size || 4);
+  }
+
+  function showPickAnnouncement(pick: any) {
+    const team = teamsRef.current.find((t: any) => t.id === pick.team_id);
+    if (!team) return;
+    setAnnouncedPick({
+      playerName: pick.players?.name ?? "?",
+      playerPhoto: pick.players?.photo_url ?? "",
+      position: pick.players?.position ?? "",
+      teamName: team.name,
+      isOwnPick: team.id === myTeamRef.current?.id,
+    });
+    setAnnouncementVisible(true);
+    if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
+    announcementTimerRef.current = setTimeout(() => setAnnouncementVisible(false), 1200);
   }
 
   async function loadAll(userId: string) {
@@ -139,7 +163,8 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
     if (session) {
       setDraftSession(session);
       draftSessionRef.current = session;
-      await loadPicks(session.id);
+      await loadPicks(session.id, { skipAnnouncement: true });
+      initialLoadDoneRef.current = true;
       subscribeToRealtime(session.id);
       startPolling(session.id);
     }
@@ -153,15 +178,28 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  async function loadPicks(sessionId: string) {
+  async function loadPicks(sessionId: string, options: { skipAnnouncement?: boolean } = {}) {
     const { data: picks } = await supabase
       .from("draft_picks")
       .select("*, players(name, photo_url, position, team_name, fpts)")
       .eq("draft_session_id", sessionId)
       .order("pick_number");
-    setDraftPicks(picks || []);
-    draftPicksRef.current = picks || [];
-    return picks || [];
+    const result = picks || [];
+
+    // Only fire pick announcement for genuine new picks after initial load
+    if (
+      !options.skipAnnouncement &&
+      initialLoadDoneRef.current &&
+      result.length > prevPicksLengthRef.current
+    ) {
+      const latestPick = result[result.length - 1];
+      if (latestPick) showPickAnnouncement(latestPick);
+    }
+    prevPicksLengthRef.current = result.length;
+
+    setDraftPicks(result);
+    draftPicksRef.current = result;
+    return result;
   }
 
   async function loadPlayers() {
@@ -1092,6 +1130,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           </div>
         </div>
       </div>
+      <PickAnnouncement pick={announcedPick} visible={announcementVisible} />
     </main>
   );
 }
