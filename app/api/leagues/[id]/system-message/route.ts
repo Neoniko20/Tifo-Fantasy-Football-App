@@ -37,18 +37,16 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Verify league membership (caller must have a team in this league)
-  const anonSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
-  const { data: team } = await anonSupabase
+  // 2. Verify league membership via service role (anon client can't see teams under RLS)
+  const memberCheck = createServiceRoleClient();
+  const { data: team } = await memberCheck
     .from("teams")
     .select("id")
     .eq("league_id", leagueId)
     .eq("user_id", user.id)
     .maybeSingle();
   if (!team) {
+    console.warn("[system-message] 403: user", user.id, "not in league", leagueId);
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -2,6 +2,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fetchLeagueMessages, fetchLeagueUnreadCount, LeagueMessage } from "@/lib/chat";
+import { supabase } from "@/lib/supabase";
 
 interface Props {
   leagueId: string;
@@ -13,8 +14,34 @@ export default function ChatDock({ leagueId, onOpen }: Props) {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    fetchLeagueMessages(leagueId, 1).then(msgs => setLastMessage(msgs[0] ?? null));
-    fetchLeagueUnreadCount(leagueId).then(setUnread);
+    async function load() {
+      try {
+        const msgs = await fetchLeagueMessages(leagueId, 1);
+        setLastMessage(msgs[0] ?? null);
+      } catch { /* keep default */ }
+      try {
+        const count = await fetchLeagueUnreadCount(leagueId);
+        setUnread(count);
+      } catch { /* keep default */ }
+    }
+
+    load();
+
+    const channel = supabase
+      .channel(`dock-${leagueId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "league_messages",
+          filter: `league_id=eq.${leagueId}`,
+        },
+        () => { load(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [leagueId]);
 
   function buildPreview() {
@@ -25,11 +52,15 @@ export default function ChatDock({ leagueId, onOpen }: Props) {
   }
 
   return (
+    <div
+      className="fixed inset-x-0 z-40 flex justify-center pointer-events-none"
+      style={{ bottom: "calc(56px + env(safe-area-inset-bottom) + 8px)" }}
+    >
+      <div className="w-full max-w-[430px] px-3 pointer-events-none">
     <button
       onClick={onOpen}
-      className="fixed left-3 right-3 z-40 flex items-center gap-3 rounded-2xl px-4 py-2.5 active:scale-[0.98] transition-transform"
+      className="w-full pointer-events-auto flex items-center gap-3 rounded-2xl px-4 py-2.5 active:scale-[0.98] transition-transform"
       style={{
-        bottom: "calc(56px + env(safe-area-inset-bottom) + 8px)",
         background: "var(--bg-elevated)",
         border: "1px solid var(--color-border-subtle)",
         boxShadow: "0 0 16px var(--color-glow)",
@@ -55,5 +86,7 @@ export default function ChatDock({ leagueId, onOpen }: Props) {
         </span>
       )}
     </button>
+      </div>
+    </div>
   );
 }

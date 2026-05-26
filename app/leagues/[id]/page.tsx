@@ -7,8 +7,7 @@ import { Spinner } from "@/app/components/ui/Spinner";
 import { TransactionsFeed } from "@/app/components/TransactionsFeed";
 import { TradesView } from "@/app/components/trades/TradesView";
 import { TeamDetailSheet } from "@/app/components/TeamDetailSheet";
-import ChatDock from "@/app/components/chat/ChatDock";
-import ChatSheet from "@/app/components/chat/ChatSheet";
+import { useLeagueChatContext } from "@/app/components/chat/LeagueChatProvider";
 
 // ── Team initials avatar ──────────────────────────────────────────────────────
 
@@ -93,10 +92,13 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
   const [showSettings, setShowSettings] = useState(false);
   const [actFilter, setActFilter]       = useState<"alle" | "transfer" | "trade" | "waiver">("alle");
   const [sheetTeam, setSheetTeam]       = useState<any>(null);
-  const [chatOpen, setChatOpen]         = useState(false);
   const [standingsView, setStandingsView] = useState<"table" | "details">("table");
   const [allMatchups, setAllMatchups]   = useState<any[]>([]);
   const [waiverPriority, setWaiverPriority] = useState<Record<string, number>>({});
+  const [isWmLeague, setIsWmLeague]         = useState(false);
+  const [ligaSettings, setLigaSettings]     = useState<any>(null);
+
+  const { openDM } = useLeagueChatContext();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -116,6 +118,12 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
       .from("leagues").select("*").eq("id", leagueId).single();
     setLeague(leagueData);
 
+    // WM-Ligen dürfen niemals auf /leagues/[id] landen → immer /wm/[id]
+    if (leagueData?.mode === "wm") {
+      window.location.replace(`/wm/${leagueId}`);
+      return;
+    }
+
     const { data: teamsData } = await supabase
       .from("teams")
       .select("id, name, user_id, total_points, profiles(username)")
@@ -126,6 +134,18 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
     const { data: ds } = await supabase
       .from("draft_sessions").select("*").eq("league_id", leagueId).maybeSingle();
     setDraftSession(ds);
+
+    const { data: wmCheck } = await supabase
+      .from("wm_league_settings").select("tournament_id").eq("league_id", leagueId).maybeSingle();
+    setIsWmLeague(!!wmCheck?.tournament_id);
+
+    // Liga settings für Settings-Modal
+    const { data: ls } = await supabase
+      .from("liga_settings")
+      .select("squad_size, bench_size, allowed_formations, transfers_per_gameweek, transfers_unlimited, auto_subs_enabled")
+      .eq("league_id", leagueId)
+      .maybeSingle();
+    setLigaSettings(ls);
 
     if (leagueData?.status === "setup" || leagueData?.status === "drafting") {
       setLoading(false);
@@ -247,6 +267,11 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
   // Table: show top 5 by default, all when expanded
   const visibleTeams = tableExpanded ? teams : teams.slice(0, 5);
 
+  async function handleOpenDM(otherUserId: string, teamName: string) {
+    setSheetTeam(null);
+    await openDM(otherUserId, teamName);
+  }
+
   return (
     <main
       className="flex min-h-screen flex-col items-center pb-28"
@@ -275,7 +300,7 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
               <p className="text-lg font-black leading-tight flex-1 mr-2 truncate" style={{ color: "var(--color-text)" }}>
                 {league.name}
               </p>
-              {gameweeks.length > 0 && league.status !== "setup" && league.status !== "drafting" && (
+              {(gameweeks.length > 0 || isWmLeague) && league.status !== "setup" && league.status !== "drafting" && (
                 <button
                   onClick={() => setShowSettings(true)}
                   className="w-8 h-8 flex items-center justify-center rounded-full flex-shrink-0 transition-all active:scale-90"
@@ -347,6 +372,30 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {league?.owner_id === user?.id && league?.invite_code && (
+              <div className="rounded-2xl p-4 flex items-center justify-between"
+                style={{ background: "var(--bg-card)", border: "1px solid color-mix(in srgb, var(--color-primary) 25%, transparent)" }}>
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
+                    Liga einladen
+                  </p>
+                  <p className="text-base font-black tracking-widest" style={{ color: "var(--color-primary)", textShadow: "0 0 12px color-mix(in srgb, var(--color-primary) 35%, transparent)" }}>
+                    {league.invite_code}
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigator.clipboard.writeText(league.invite_code)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest"
+                  style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)", color: "var(--color-primary)" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  Kopieren
+                </button>
               </div>
             )}
 
@@ -1162,9 +1211,42 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
                 </div>
               </div>
 
+              {/* Liga-Einstellungen */}
+              {ligaSettings && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Liga-Einstellungen</p>
+                  </div>
+                  {[
+                    { label: "Startelf",       value: `${ligaSettings.squad_size ?? 15} Spieler` },
+                    { label: "Bank",           value: `${ligaSettings.bench_size ?? 4} Spieler` },
+                    { label: "Transfers/GW",   value: ligaSettings.transfers_unlimited ? "Unlimited" : (ligaSettings.transfers_per_gameweek ?? 2) },
+                    { label: "Auto-Subs",      value: ligaSettings.auto_subs_enabled ? "An" : "Aus" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="px-4 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{label}</p>
+                      <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>{value}</span>
+                    </div>
+                  ))}
+                  {(ligaSettings.allowed_formations?.length > 0) && (
+                    <div className="px-4 py-3" style={{ borderTop: "1px solid var(--color-border)" }}>
+                      <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>Formationen</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ligaSettings.allowed_formations.map((f: string) => (
+                          <span key={f} className="px-2 py-0.5 rounded text-[9px] font-black"
+                            style={{ background: "var(--bg-elevated)", color: "var(--color-primary)", border: "1px solid var(--color-border-subtle)" }}>
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Admin link */}
               {league?.owner_id === user?.id && (
-                <a href={`/leagues/${leagueId}/admin`}
+                <a href={isWmLeague ? `/wm/${leagueId}/admin` : `/leagues/${leagueId}/admin`}
                   className="flex items-center justify-between px-4 py-3.5 rounded-2xl"
                   style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border-subtle)" }}>
                   <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>Admin-Einstellungen</p>
@@ -1182,25 +1264,8 @@ export default function LeagueSpieltagPage({ params }: { params: Promise<{ id: s
         user={user}
         isH2H={isH2H}
         onClose={() => setSheetTeam(null)}
+        onOpenDM={handleOpenDM}
       />
-
-      {/* Chat Dock — floats above BottomNav when user has a team */}
-      {myTeam && user && (
-        <ChatDock
-          leagueId={leagueId}
-          onOpen={() => setChatOpen(true)}
-        />
-      )}
-
-      {/* Chat Sheet overlay */}
-      {chatOpen && myTeam && user && (
-        <ChatSheet
-          leagueId={leagueId}
-          myTeamId={myTeam.id}
-          myUserId={user.id}
-          onClose={() => setChatOpen(false)}
-        />
-      )}
 
       <BottomNav />
     </main>

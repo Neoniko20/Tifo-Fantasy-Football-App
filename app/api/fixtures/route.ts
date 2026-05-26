@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-const API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY || "";
+const API_KEY = process.env.FOOTBALL_API_KEY || "";
 const BASE = "https://v3.football.api-sports.io";
 
 const LEAGUE_KEY_TO_API_ID: Record<string, number> = {

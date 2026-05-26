@@ -1,9 +1,12 @@
 // ═══════════════════════════════════════════════════════
 // TIFO — WM PUNKTE-BERECHNUNG
-// Gleiche Logik wie Liga, aber mit Nation-Status-Check
+// Gleiche Logik wie Liga, nutzt ScoringRules aus lib/scoring.ts
 // ═══════════════════════════════════════════════════════
 
 import type { Position, WMNation } from "./wm-types";
+import { mergeRules, type ScoringRules } from "./scoring";
+
+export type { ScoringRules };
 
 export interface GWStats {
   goals: number;
@@ -31,69 +34,69 @@ export interface GWPointsResult {
 /**
  * Berechnet Punkte für einen Spieler in einem Gameweek.
  * Gibt 0 zurück wenn die Nation des Spielers ausgeschieden ist.
+ * rules=undefined → DEFAULT_SCORING_RULES (identisches Ergebnis wie vorher)
  */
 export function calculateWMGameweekPoints(
   stats: GWStats,
   nation: WMNation | null,
   gameweek: number,
-  isCaptain = false
+  isCaptain = false,
+  rules?: Partial<ScoringRules> | null,
 ): GWPointsResult {
-  // Nation-Check: ist das Team noch im Turnier?
   const nation_active =
     !nation?.eliminated_after_gameweek ||
     gameweek <= nation.eliminated_after_gameweek;
 
   if (!nation_active) {
-    return {
-      points: 0,
-      nation_active: false,
-      breakdown: { ...stats },
-    };
+    return { points: 0, nation_active: false, breakdown: { ...stats } };
   }
 
+  const r = mergeRules(rules);
   let p = 0;
   const pos = stats.position;
 
   // Tore (positionsabhängig)
-  if (pos === "GK" || pos === "DF") p += stats.goals * 6;
-  else if (pos === "MF")            p += stats.goals * 5;
-  else                              p += stats.goals * 4; // FW
+  if (pos === "GK")      p += stats.goals * r.goal_gk;
+  else if (pos === "DF") p += stats.goals * r.goal_df;
+  else if (pos === "MF") p += stats.goals * r.goal_mf;
+  else                   p += stats.goals * r.goal_fw;
 
   // Assists
-  p += stats.assists * 3;
+  p += stats.assists * r.assist;
 
   // Clean Sheet (positionsabhängig)
   if (stats.clean_sheet) {
-    if (pos === "GK" || pos === "DF") p += 4;
-    else if (pos === "MF")            p += 1;
+    if (pos === "GK")       p += r.clean_sheet_gk;
+    else if (pos === "DF")  p += r.clean_sheet_df;
+    else if (pos === "MF")  p += r.clean_sheet_mf;
+    // FW: r.clean_sheet_fw (default 0) — nothing to add
   }
 
   // Saves (nur GK)
-  if (pos === "GK") p += stats.saves * 1.5;
+  if (pos === "GK") p += stats.saves * r.save;
 
   // Offensive Stats
-  p += stats.shots_on * 0.5;
-  p += stats.key_passes * 0.8;
-  p += (stats.pass_accuracy / 100) * 0.5;
-  p += stats.dribbles * 0.2;
+  p += stats.shots_on   * r.shot_on_target;
+  p += stats.key_passes * r.key_pass;
+  p += (stats.pass_accuracy / 100) * r.pass_accuracy;
+  p += stats.dribbles   * r.dribble;
 
   // Defensive Stats
-  p += stats.tackles * 0.6;
-  p += stats.interceptions * 0.6;
+  p += stats.tackles       * r.tackle;
+  p += stats.interceptions * r.interception;
 
   // Karten
-  p -= stats.yellow_cards * 1;
-  p -= stats.red_cards * 3;
+  p -= stats.yellow_cards * Math.abs(r.yellow_card);
+  p -= stats.red_cards    * Math.abs(r.red_card);
 
   // Spielzeit
-  if (stats.minutes >= 60) p += 1;
-  else if (stats.minutes > 0) p += 0.4;
+  if (stats.minutes >= 60)     p += r.minutes_full;
+  else if (stats.minutes > 0)  p += r.minutes_partial;
 
   const base = Math.round(p * 10) / 10;
-  const captain_bonus = isCaptain ? base : 0;
 
   return {
-    points: base + captain_bonus,
+    points: isCaptain ? base * r.captain_multiplier : base,
     nation_active: true,
     breakdown: { ...stats },
   };

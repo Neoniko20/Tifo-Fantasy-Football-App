@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { LeagueMessage, fetchLeagueMessages, sendLeagueMessage, markLeagueRead } from "@/lib/chat";
+import { supabase } from "@/lib/supabase";
 import MessageBubble from "./MessageBubble";
 
 interface Props {
@@ -13,16 +14,38 @@ export default function LeagueChatView({ leagueId, myTeamId, myUserId }: Props) 
   const [messages, setMessages] = useState<LeagueMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   async function load() {
-    const msgs = await fetchLeagueMessages(leagueId);
-    setMessages(msgs);
-    await markLeagueRead(leagueId);
+    try {
+      const msgs = await fetchLeagueMessages(leagueId);
+      setMessages(msgs);
+      await markLeagueRead(leagueId);
+      setError(null);
+    } catch {
+      setError("Chat konnte nicht geladen werden.");
+    }
   }
 
   useEffect(() => {
     load();
+
+    const channel = supabase
+      .channel(`league-chat-${leagueId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "league_messages",
+          filter: `league_id=eq.${leagueId}`,
+        },
+        () => { load(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [leagueId]);
 
   useEffect(() => {
@@ -37,6 +60,8 @@ export default function LeagueChatView({ leagueId, myTeamId, myUserId }: Props) 
       await sendLeagueMessage(leagueId, myTeamId, text);
       setInput("");
       await load();
+    } catch {
+      // send failure: keep input, user can retry
     } finally {
       setSending(false);
     }
@@ -52,11 +77,13 @@ export default function LeagueChatView({ leagueId, myTeamId, myUserId }: Props) 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-3 py-2">
-        {messages.length === 0 && (
+        {error ? (
+          <p className="text-center text-sm mt-10" style={{ color: "var(--color-error, #ef4444)" }}>{error}</p>
+        ) : messages.length === 0 ? (
           <p className="text-center text-sm mt-10" style={{ color: "var(--color-muted)" }}>
             Noch keine Nachrichten. Startet den Chat! 🏆
           </p>
-        )}
+        ) : null}
         {messages.map(msg => (
           <MessageBubble
             key={msg.id}

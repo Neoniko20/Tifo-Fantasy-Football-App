@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import LeagueChatView from "./LeagueChatView";
+import DirectThreadList from "./DirectThreadList";
+import DirectChatView from "./DirectChatView";
 
 type Tab = "liga" | "direkt";
 
@@ -9,10 +11,23 @@ interface Props {
   myTeamId: string | null;
   myUserId: string;
   onClose: () => void;
+  initialTab?: Tab;
+  initialThreadId?: string;
+  initialOtherTeamName?: string;
 }
 
-export default function ChatSheet({ leagueId, myTeamId, myUserId, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>("liga");
+export default function ChatSheet({
+  leagueId,
+  myTeamId,
+  myUserId,
+  onClose,
+  initialTab,
+  initialThreadId,
+  initialOtherTeamName,
+}: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? "liga");
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(initialThreadId ?? null);
+  const [activeOtherTeamName, setActiveOtherTeamName] = useState<string>(initialOtherTeamName ?? "");
 
   return (
     <div
@@ -48,9 +63,9 @@ export default function ChatSheet({ leagueId, myTeamId, myUserId, onClose }: Pro
             Liga
           </button>
           <button
-            disabled
-            className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider cursor-not-allowed"
-            style={{ color: "var(--color-muted)", opacity: 0.35 }}
+            onClick={() => setTab("direkt")}
+            className="flex-1 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider"
+            style={tab === "direkt" ? { background: "var(--bg-card)", color: "var(--color-primary)" } : { color: "var(--color-muted)" }}
           >
             Direkt
           </button>
@@ -63,6 +78,24 @@ export default function ChatSheet({ leagueId, myTeamId, myUserId, onClose }: Pro
               leagueId={leagueId}
               myTeamId={myTeamId}
               myUserId={myUserId}
+            />
+          )}
+          {tab === "direkt" && activeThreadId && (
+            <DirectChatView
+              threadId={activeThreadId}
+              myUserId={myUserId}
+              otherTeamName={activeOtherTeamName}
+              onBack={() => setActiveThreadId(null)}
+            />
+          )}
+          {tab === "direkt" && !activeThreadId && (
+            <DirectThreadList
+              leagueId={leagueId}
+              myUserId={myUserId}
+              onSelectThread={(threadId, otherTeamName) => {
+                setActiveThreadId(threadId);
+                setActiveOtherTeamName(otherTeamName);
+              }}
             />
           )}
         </div>

@@ -23,6 +23,11 @@ export interface DirectThread {
   created_at: string;
 }
 
+export interface DirectThreadWithTeam extends DirectThread {
+  otherUserId: string;
+  otherTeamName: string;
+}
+
 export interface DirectMessage {
   id: string;
   thread_id: string;
@@ -121,6 +126,50 @@ export async function fetchDirectThreads(
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []) as DirectThread[];
+}
+
+export async function fetchDirectThreadsWithTeams(
+  leagueId: string
+): Promise<DirectThreadWithTeam[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data: threads, error: tErr } = await supabase
+    .from("direct_threads")
+    .select("*")
+    .eq("league_id", leagueId)
+    .or(`participant_a.eq.${user.id},participant_b.eq.${user.id}`)
+    .order("created_at", { ascending: false });
+  if (tErr) throw tErr;
+  if (!threads || threads.length === 0) return [];
+
+  const otherUserIds = threads.map((t: DirectThread) =>
+    t.participant_a === user.id ? t.participant_b : t.participant_a
+  );
+
+  const { data: teams, error: teErr } = await supabase
+    .from("teams")
+    .select("user_id, name")
+    .eq("league_id", leagueId)
+    .in("user_id", otherUserIds);
+  if (teErr) throw teErr;
+
+  const teamMap: Record<string, string> = {};
+  for (const team of teams ?? []) {
+    teamMap[team.user_id] = team.name;
+  }
+
+  return threads.map((t: DirectThread) => {
+    const otherUserId =
+      t.participant_a === user.id ? t.participant_b : t.participant_a;
+    return {
+      ...t,
+      otherUserId,
+      otherTeamName: teamMap[otherUserId] ?? "Unbekannt",
+    };
+  });
 }
 
 export async function fetchDirectMessages(

@@ -89,11 +89,12 @@ export async function loadLeagueTransactions(
   if (opts?.onlyTeamId) txQuery = txQuery.eq("team_id", opts.onlyTeamId);
   const { data: txRows } = await txQuery;
 
-  // 3. Trades
+  // 3. Trades — only accepted trades appear in activity feeds
   let trQuery = supabase
     .from("liga_trades")
     .select("id, proposer_team_id, receiver_team_id, offer_player_ids, request_player_ids, status, gameweek, created_at")
     .eq("league_id", leagueId)
+    .eq("status", "accepted")
     .order("created_at", { ascending: false })
     .limit(perKindLimit);
   if (opts?.onlyTeamId) {

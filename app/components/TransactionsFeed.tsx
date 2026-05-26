@@ -8,13 +8,14 @@ import { EmptyState } from "@/app/components/ui/EmptyState";
 
 interface Props {
   leagueId: string;
-  onlyTeamId?: string;   // when set → "meine Aktivitäten"
+  onlyTeamId?: string;
   kindFilter?: ("transfer" | "trade" | "waiver")[];
   emptyLabel?: string;
-  maxHeight?: string;    // e.g. "60vh"
+  maxHeight?: string;
+  compact?: boolean;
 }
 
-export function TransactionsFeed({ leagueId, onlyTeamId, kindFilter, emptyLabel, maxHeight }: Props) {
+export function TransactionsFeed({ leagueId, onlyTeamId, kindFilter, emptyLabel, maxHeight, compact }: Props) {
   const [items, setItems]     = useState<LeagueTransaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,8 +43,8 @@ export function TransactionsFeed({ leagueId, onlyTeamId, kindFilter, emptyLabel,
   }
 
   return (
-    <div className="space-y-2 w-full overflow-y-auto" style={{ maxHeight }}>
-      {items.map(tx => <TransactionRow key={tx.id} tx={tx} />)}
+    <div className={`w-full overflow-y-auto ${compact ? "space-y-1" : "space-y-2"}`} style={{ maxHeight }}>
+      {items.map((tx, i) => <TransactionRow key={tx.id} tx={tx} compact={compact} index={i} />)}
     </div>
   );
 }

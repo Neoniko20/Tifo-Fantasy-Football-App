@@ -37,32 +37,43 @@ function PlayerPill({ p, tone }: { p: PlayerStub | null | undefined; tone: "in" 
 
 interface Props {
   tx: LeagueTransaction;
+  compact?: boolean;
+  index?: number;
 }
 
-export function TransactionRow({ tx }: Props) {
+export function TransactionRow({ tx, compact, index = 0 }: Props) {
   const accent = kindColor(tx.kind);
 
   return (
-    <div className="rounded-2xl p-3"
-      style={{ background: "var(--bg-card)", border: `1px solid ${accent}20` }}>
+    <div
+      className={`tifo-fade-up ${compact ? "rounded-xl p-2" : "rounded-2xl p-3"}`}
+      style={{
+        background: "var(--bg-card)",
+        border: `1px solid ${accent}${compact ? "14" : "20"}`,
+        opacity: compact ? 0.82 : 1,
+        animationDelay: `${index * 40}ms`,
+      }}
+    >
       {/* Header row: kind badge + team(s) + timestamp */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded flex-shrink-0"
-            style={{ background: accent + "20", color: accent }}>
+      <div className={`flex items-center justify-between ${compact ? "mb-1" : "mb-2"}`}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className={`font-black uppercase tracking-widest rounded flex-shrink-0 ${compact ? "text-[7px] px-1 py-0.5" : "text-[8px] px-1.5 py-0.5"}`}
+            style={{ background: accent + "20", color: accent }}
+          >
             {kindLabel(tx.kind)}
           </span>
           {tx.kind === "trade" ? (
-            <span className="text-[10px] font-black truncate" style={{ color: "var(--color-text)" }}>
+            <span className={`font-black truncate ${compact ? "text-[9px]" : "text-[10px]"}`} style={{ color: compact ? "var(--color-muted)" : "var(--color-text)" }}>
               {tx.proposer.name} ↔ {tx.receiver.name}
             </span>
           ) : (
-            <span className="text-[10px] font-black truncate" style={{ color: "var(--color-text)" }}>
+            <span className={`font-black truncate ${compact ? "text-[9px]" : "text-[10px]"}`} style={{ color: compact ? "var(--color-muted)" : "var(--color-text)" }}>
               {tx.team.name}
             </span>
           )}
           {tx.kind === "trade" && (
-            <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full flex-shrink-0"
+            <span className="text-[7px] font-black px-1 py-0.5 rounded-full flex-shrink-0"
               style={{
                 background: TRADE_STATUS_COLOR[tx.status] + "20",
                 color: TRADE_STATUS_COLOR[tx.status],
@@ -72,14 +83,14 @@ export function TransactionRow({ tx }: Props) {
           )}
         </div>
         <p className="text-[7px] font-black flex-shrink-0 ml-2" style={{ color: "var(--color-border)" }}>
-          {formatDate(tx.created_at)} {formatTime(tx.created_at)}
+          {formatDate(tx.created_at)}{!compact && ` ${formatTime(tx.created_at)}`}
           {tx.gameweek ? ` · GW${tx.gameweek}` : ""}
         </p>
       </div>
 
       {/* Body */}
       {tx.kind === "transfer" && (
-        <div className="space-y-1">
+        <div className={compact ? "space-y-0.5" : "space-y-1"}>
           <PlayerPill p={tx.playerOut} tone="out" />
           <PlayerPill p={tx.playerIn}  tone="in" />
         </div>
@@ -103,7 +114,7 @@ export function TransactionRow({ tx }: Props) {
       )}
 
       {tx.kind === "waiver" && (
-        <div className="space-y-1">
+        <div className={compact ? "space-y-0.5" : "space-y-1"}>
           <PlayerPill p={tx.playerOut} tone="out" />
           <PlayerPill p={tx.playerIn}  tone="in" />
           {typeof tx.bidAmount === "number" && tx.bidAmount > 0 && (

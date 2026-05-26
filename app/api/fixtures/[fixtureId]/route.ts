@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_KEY = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY || "";
+const API_KEY = process.env.FOOTBALL_API_KEY || "";
 const BASE = "https://v3.football.api-sports.io";
 
 // Cache per fixture: live = 45s, finished = 1h
