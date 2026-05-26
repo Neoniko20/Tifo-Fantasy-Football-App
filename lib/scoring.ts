@@ -49,8 +49,13 @@ export interface ScoringRules {
   minutes_full:     number;  // ≥60 min,  default 1
   minutes_partial:  number;  // 1–59 min, default 0.4
 
-  // Captain
-  captain_multiplier: number; // default 2
+  // Captain / Vice-Captain
+  captain_multiplier:      number; // default 2
+  vice_captain_multiplier: number; // default 1
+  // Note: vice_captain_enabled (bool) and vice_mode ("backup"|"bonus") are stored
+  // as extra keys alongside scoring_rules in JSONB but are NOT part of this interface
+  // because they're non-numeric and would break the numeric input rendering in RULE_GROUPS.
+  // They are read back via (rules as any)?.vice_captain_enabled in admin pages.
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +83,8 @@ export const DEFAULT_SCORING_RULES: ScoringRules = {
   red_card:           -3,
   minutes_full:       1,
   minutes_partial:    0.4,
-  captain_multiplier: 2,
+  captain_multiplier:      2,
+  vice_captain_multiplier: 1,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,7 +248,7 @@ export const RULE_GROUPS: RuleGroup[] = [
     label: "Kapitän",
     color: "#f5a623",
     fields: [
-      { key: "captain_multiplier", label: "Multiplikator", step: 0.5, min: 1, max: 4 },
+      { key: "captain_multiplier", label: "C Multiplikator", step: 0.5, min: 1, max: 4 },
     ],
   },
 ];

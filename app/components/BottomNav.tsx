@@ -3,12 +3,18 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useNotifications } from "./NotificationsProvider";
+import { TifoUILogo } from "@/app/components/brand/TifoUILogo";
 
-const STORAGE_KEY = "tifo_last_league_id";
+const STORAGE_KEY    = "tifo_last_league_id";
+const STORAGE_WM_KEY = "tifo_last_league_is_wm";
 
-function extractLeagueId(pathname: string): string | null {
-  const m = pathname.match(/\/leagues\/([^/]+)/);
-  return m ? m[1] : null;
+/** Returns the league ID from either /leagues/[id]/... or /wm/[id]/... paths */
+function extractLeagueInfo(pathname: string): { id: string; isWm: boolean } | null {
+  const wmMatch = pathname.match(/\/wm\/([^/]+)/);
+  if (wmMatch) return { id: wmMatch[1], isWm: true };
+  const lgMatch = pathname.match(/\/leagues\/([^/]+)/);
+  if (lgMatch) return { id: lgMatch[1], isWm: false };
+  return null;
 }
 
 // ── Icons ────────────────────────────────────────────────────────────────────
@@ -61,37 +67,43 @@ export function BottomNav() {
   const pathname = usePathname();
   const { unreadCount } = useNotifications();
 
-  // Read persisted leagueId from localStorage (client-side only)
+  // Read persisted leagueId + WM flag from localStorage (client-side only)
   const [storedLeagueId, setStoredLeagueId] = useState<string | null>(null);
+  const [storedIsWm,     setStoredIsWm]     = useState<boolean>(false);
 
-  // Persist leagueId from URL → localStorage whenever we're on a league page
+  // Persist leagueId + isWm from URL → localStorage whenever we're on a league page
   useEffect(() => {
     try {
-      const fromUrl = extractLeagueId(pathname);
+      const fromUrl = extractLeagueInfo(pathname);
       if (fromUrl) {
-        localStorage.setItem(STORAGE_KEY, fromUrl);
-        setStoredLeagueId(fromUrl);
+        localStorage.setItem(STORAGE_KEY, fromUrl.id);
+        localStorage.setItem(STORAGE_WM_KEY, fromUrl.isWm ? "1" : "0");
+        setStoredLeagueId(fromUrl.id);
+        setStoredIsWm(fromUrl.isWm);
       } else {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        setStoredLeagueId(stored);
+        setStoredLeagueId(localStorage.getItem(STORAGE_KEY));
+        setStoredIsWm(localStorage.getItem(STORAGE_WM_KEY) === "1");
       }
     } catch {
       // localStorage unavailable (e.g. SSR guard)
     }
   }, [pathname]);
 
-  // Resolve the best leagueId: current URL wins, then stored, then null
-  const leagueId = extractLeagueId(pathname) ?? storedLeagueId;
+  // Resolve the best leagueId + isWm: current URL wins, then stored, then null/false
+  const urlInfo  = extractLeagueInfo(pathname);
+  const leagueId = urlInfo?.id  ?? storedLeagueId;
+  const isWm     = urlInfo?.isWm ?? storedIsWm;
 
-  const myTeamHref  = leagueId ? `/leagues/${leagueId}/lineup` : "/leagues";
-  const leaguesHref = leagueId ? `/leagues/${leagueId}`         : "/leagues";
+  const myTeamHref   = !leagueId ? "/my-team" : isWm ? `/wm/${leagueId}/lineup`   : `/leagues/${leagueId}/lineup`;
+  const matchdayHref = !leagueId ? "/scores"   : isWm ? `/wm/${leagueId}/matchday` : `/leagues/${leagueId}/matchday`;
+  const leaguesHref  = !leagueId ? "/leagues"  : isWm ? `/wm/${leagueId}`          : `/leagues/${leagueId}`;
 
   // Active tab detection
   const activeTab =
-    pathname === "/"                                                   ? "home"     :
-    pathname.includes("/lineup")                                       ? "myteam"   :
-    pathname.startsWith("/scores")                                     ? "matchday" :
-    pathname.startsWith("/leagues") && !pathname.includes("/lineup")   ? "leagues"  :
+    pathname === "/"                                                            ? "home"     :
+    pathname.includes("/lineup") || pathname === "/my-team"                    ? "myteam"   :
+    pathname.startsWith("/scores") || pathname.includes("/matchday")            ? "matchday" :
+    pathname.startsWith("/leagues") && !pathname.includes("/lineup")            ? "leagues"  :
     pathname.startsWith("/wm")                                         ? "leagues"  :
     pathname.startsWith("/account")                                    ? "profile"  :
     "home";
@@ -99,7 +111,7 @@ export function BottomNav() {
   const TABS = [
     { id: "home",     label: "Home",     href: "/",           Icon: HomeIcon },
     { id: "myteam",   label: "My Team",  href: myTeamHref,    Icon: MyTeamIcon },
-    { id: "matchday", label: "Matchday", href: "/scores",      Icon: MatchdayIcon },
+    { id: "matchday", label: "Matchday", href: matchdayHref,   Icon: MatchdayIcon },
     {
       id: "leagues",
       label: "Leagues",
@@ -149,7 +161,10 @@ export function BottomNav() {
                   transform: isActive ? "scale(1.08) translateY(-1px)" : "scale(1)",
                 }}
               >
-                <Icon active={isActive} />
+                {id === "home"
+                  ? <TifoUILogo variant="icon" size="sm" />
+                  : <Icon active={isActive} />
+                }
                 {/* Notification badge */}
                 {badge !== undefined && (
                   <span

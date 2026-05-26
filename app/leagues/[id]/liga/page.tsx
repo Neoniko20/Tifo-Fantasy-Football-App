@@ -520,7 +520,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
             {selectedTeam.user_id !== user?.id && (
               <div className="flex gap-2 px-5 pb-4 flex-shrink-0">
                 {[
-                  { label: "Trade", icon: "⇄", href: `/leagues/${leagueId}/trades` },
+                  { label: "Trade", icon: "⇄", href: `/leagues/${leagueId}/trades?receiverTeamId=${selectedTeam.id}` },
                   { label: "Trans.", icon: "📋", href: null },
                   { label: "Chat", icon: "💬", href: null },
                 ].map(({ label, icon, href }) => (
@@ -709,7 +709,7 @@ export default function LigaPage({ params }: { params: Promise<{ id: string }> }
                       </p>
                     </div>
                     {!isMine && (
-                      <a href={`/leagues/${leagueId}/trades?target=${playerOwner.id}&player=${selectedPlayer.id}`}
+                      <a href={`/leagues/${leagueId}/trades?receiverTeamId=${playerOwner.id}&requestPlayerId=${selectedPlayer.id}`}
                         className="px-3 py-1.5 rounded-lg text-[8px] font-black uppercase"
                         style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", color: "var(--color-primary)", border: "1px solid var(--color-primary)30" }}>
                         Trade anfragen

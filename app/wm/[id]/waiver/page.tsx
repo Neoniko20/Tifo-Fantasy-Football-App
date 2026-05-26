@@ -40,6 +40,8 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
   const [playerOut, setPlayerOut] = useState<number | null>(null);
   const [bidAmount, setBidAmount] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [nations, setNations] = useState<Array<{ name: string; eliminated_after_gameweek?: number | null }>>([]);
+  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null } | null>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -75,6 +77,15 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
       setWindowOpen(gwData.waiver_window_open);
     }
 
+    // Nationen für Eliminations-Check
+    if (settingsData?.tournament_id) {
+      const { data: nData } = await supabase
+        .from("wm_nations")
+        .select("name, eliminated_after_gameweek")
+        .eq("tournament_id", settingsData.tournament_id);
+      setNations(nData || []);
+    }
+
     // Waiver Priority
     const { data: priorities } = await supabase
       .from("waiver_priority")
@@ -97,16 +108,54 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
       const { data: playersData } = await supabase
         .from("players").select("*").in("id", ids).order("fpts", { ascending: false });
       setWaiverWire(playersData || []);
+
+      // FK-based nation lookup for waiver wire players
+      if (settingsData?.tournament_id) {
+        const { data: pnData } = await supabase
+          .from("wm_player_nations")
+          .select("player_id, wm_nations(eliminated_after_gameweek)")
+          .eq("tournament_id", settingsData.tournament_id)
+          .in("player_id", ids);
+
+        if (pnData && pnData.length > 0) {
+          setPlayerNationMap(prev => {
+            const map: Record<number, { eliminated_after_gameweek?: number | null } | null> = { ...prev };
+            for (const pn of pnData) {
+              map[pn.player_id] = (pn.wm_nations as any) ?? null;
+            }
+            return map;
+          });
+        }
+      }
     }
 
-    // Mein Kader
+    // WM-Kader aus isolierter Tabelle laden
     const { data: squad } = await supabase
-      .from("squad_players").select("player_id").eq("team_id", team.id);
+      .from("wm_squad_players").select("player_id").eq("team_id", team.id);
     if (squad && squad.length > 0) {
       const ids = squad.map((s: any) => s.player_id);
       const { data: squadPlayers } = await supabase
         .from("players").select("*").in("id", ids);
       setMySquad(squadPlayers || []);
+
+      // FK-based nation lookup for squad players
+      if (settingsData?.tournament_id) {
+        const { data: pnData } = await supabase
+          .from("wm_player_nations")
+          .select("player_id, wm_nations(eliminated_after_gameweek)")
+          .eq("tournament_id", settingsData.tournament_id)
+          .in("player_id", ids);
+
+        if (pnData && pnData.length > 0) {
+          setPlayerNationMap(prev => {
+            const map: Record<number, { eliminated_after_gameweek?: number | null } | null> = { ...prev };
+            for (const pn of pnData) {
+              map[pn.player_id] = (pn.wm_nations as any) ?? null;
+            }
+            return map;
+          });
+        }
+      }
     }
 
     // Meine Claims
@@ -128,6 +177,10 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
     if (settings?.waiver_claims_limit_enabled && myClaims.filter(c => c.status === "pending").length >= maxClaims) {
       toast(`Max. ${maxClaims} Claims pro GW erreicht`, "error");
       return;
+    }
+
+    if (isPlayerEliminated(selectedPlayer)) {
+      toast(`⚠ ${selectedPlayer.name} ist aus einer ausgeschiedenen Nation — gibt 0 Punkte!`, "error");
     }
 
     setSubmitting(true);
@@ -181,6 +234,18 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
     ]);
     setReordering(false);
     loadAll(user.id);
+  }
+
+  function isPlayerEliminated(player: Player): boolean {
+    if (player.id in playerNationMap) {
+      const mapped = playerNationMap[player.id];
+      if (!mapped?.eliminated_after_gameweek) return false;
+      return currentGW > mapped.eliminated_after_gameweek;
+    }
+    // TODO remove fallback after real WM player import
+    const nation = nations.find(n => n.name === player.team_name);
+    if (!nation?.eliminated_after_gameweek) return false;
+    return currentGW > nation.eliminated_after_gameweek;
   }
 
   const filteredWire = waiverWire.filter(p => {
@@ -340,6 +405,16 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
             </p>
           </div>
 
+          {isPlayerEliminated(selectedPlayer) && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-3"
+              style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 30%, transparent)" }}>
+              <span style={{ color: "var(--color-error)", fontSize: 14 }}>⚠</span>
+              <p className="text-[9px] font-black" style={{ color: "var(--color-error)" }}>
+                Ausgeschiedene Nation — dieser Spieler gibt 0 Punkte
+              </p>
+            </div>
+          )}
+
           {/* Wer fliegt raus? */}
           <div className="mb-3">
             <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
@@ -448,24 +523,37 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
         {filteredWire.slice(0, 50).map(player => {
           const posColor = POS_COLOR[player.position] || "var(--color-text)";
           const alreadyClaimed = pendingClaims.some((c: any) => c.player_in === player.id);
+          const elim = isPlayerEliminated(player);
           return (
             <div key={player.id}
               onClick={() => !alreadyClaimed && setSelectedPlayer(player)}
               className="flex items-center gap-3 p-3 rounded-2xl transition-all"
               style={{
                 background: "var(--bg-card)",
-                border: `1px solid ${selectedPlayer?.id === player.id ? "var(--color-primary)" : alreadyClaimed ? "var(--color-border-subtle)" : "var(--color-border)"}`,
+                border: `1px solid ${
+                  selectedPlayer?.id === player.id ? "var(--color-primary)"
+                  : elim ? "color-mix(in srgb, var(--color-error) 25%, transparent)"
+                  : alreadyClaimed ? "var(--color-border-subtle)"
+                  : "var(--color-border)"
+                }`,
                 cursor: alreadyClaimed ? "default" : "pointer",
-                opacity: alreadyClaimed ? 0.6 : 1,
+                opacity: alreadyClaimed ? 0.6 : elim ? 0.7 : 1,
               }}>
               <img src={player.photo_url} className="w-10 h-10 rounded-full flex-shrink-0"
-                style={{ border: `2px solid ${posColor}` }} alt="" />
+                style={{ border: `2px solid ${elim ? "var(--color-error)" : posColor}` }} alt="" />
               <div className="flex-1 min-w-0">
-                <p className="font-black text-sm truncate" style={{ color: "var(--color-text)" }}>{player.name}</p>
+                <p className="font-black text-sm truncate" style={{ color: elim ? "var(--color-error)" : "var(--color-text)" }}>{player.name}</p>
                 <p className="text-[9px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
               </div>
               <div className="text-right flex-shrink-0">
-                <p className="font-black text-base" style={{ color: "var(--color-primary)" }}>{player.fpts?.toFixed(0)}</p>
+                {elim ? (
+                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-sm block mb-0.5"
+                    style={{ background: "color-mix(in srgb, var(--color-error) 15%, transparent)", color: "var(--color-error)" }}>
+                    Ausgeschieden
+                  </span>
+                ) : (
+                  <p className="font-black text-base" style={{ color: "var(--color-primary)" }}>{player.fpts?.toFixed(0)}</p>
+                )}
                 <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
                   style={{ background: posColor + "30", color: posColor }}>
                   {player.position}

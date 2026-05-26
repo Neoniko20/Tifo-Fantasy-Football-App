@@ -2,6 +2,8 @@
 // TIFO — WM MODUS TYPEN
 // ═══════════════════════════════════════════════════════
 
+import type { ScoringRules } from "./scoring";
+
 export type WMPhase = "group" | "round_of_32" | "round_of_16" | "quarter" | "semi" | "final";
 export type WMStatus = "upcoming" | "active" | "finished";
 export type WaiverSystem = "priority" | "budget" | "none";
@@ -38,9 +40,46 @@ export interface WMGameweek {
   phase: WMPhase;
   start_date?: string;
   end_date?: string;
+  deadline?: string;        // ISO timestamptz — Lineup-Abgabefrist
+  updated_at?: string;
   status: WMStatus;
   transfer_window_open: boolean;
   waiver_window_open: boolean;
+}
+
+// ── Fixtures ──────────────────────────────────────────────────────────────────
+
+export type WMFixtureStatus = "scheduled" | "live" | "finished";
+
+export type WMStage =
+  | "group"
+  | "round_of_32"
+  | "round_of_16"
+  | "quarter"
+  | "semi"
+  | "final";
+
+export interface WMFixture {
+  id: string;
+  tournament_id: string;
+  gameweek: number;
+  stage: WMStage;
+  home_nation_id: string;
+  away_nation_id: string;
+  kickoff: string;         // ISO timestamptz
+  stadium?: string | null;
+  city?: string | null;
+  status: WMFixtureStatus;
+  home_score: number | null;
+  away_score: number | null;
+  penalties_home?: number | null;   // display only — no scoring impact
+  penalties_away?: number | null;
+  extra_status?: string | null;     // half_time | extra_time | penalties | delayed | interrupted
+  api_fixture_id?: number | null;
+  created_at?: string;
+  // Joined relations (optional — populated by select with FK expansion)
+  home_nation?: WMNation;
+  away_nation?: WMNation;
 }
 
 export interface PositionLimit {
@@ -73,6 +112,9 @@ export interface WMLeagueSettings {
 
   // Auto-Subs
   auto_subs_enabled: boolean;
+
+  // Scoring
+  scoring_rules?: Partial<ScoringRules> | null;
 }
 
 export interface TeamLineup {
@@ -123,6 +165,68 @@ export interface WMGameweekPoints {
   yellow_cards: number;
   red_cards: number;
   clean_sheet: boolean;
+}
+
+// ── Ingest Layer Types ─────────────────────────────────────────────────────────
+
+export type WMEventType =
+  | "fixture.status_changed"       // scheduled → live → finished
+  | "fixture.score_updated"        // home_score, away_score
+  | "fixture.penalties_updated"    // penalties_home, penalties_away
+  | "player.stat_update"           // goals, assists, minutes, cards, saves, clean_sheet
+  | "gameweek.status_changed"      // upcoming → active → finished
+  | "nation.eliminated"            // nach einem GW ausgeschieden
+  | "gameweek.points_recalculated" // Punkte neu berechnet — triggert Live Center
+  | "auto_sub.applied"             // Auto-Sub durchgeführt — triggert Chat
+  | "waiver.claim_processed";      // Waiver-Entscheidung — triggert Chat
+
+export interface WMIngestEvent {
+  type: WMEventType;
+  version?: 1;               // Event-Schema-Version; immer 1 setzen für Zukunftssicherheit
+  tournament_id: string;
+  gameweek?: number;
+  payload: Record<string, unknown>;
+  idempotency_key?: string;  // Simulator + API-Football Sync
+  source?: "simulator" | "admin" | "api_football";
+}
+
+// ── Typed payloads for side-effect events ────────────────────────────────────
+
+export interface AutoSubPayload {
+  team_id: string;
+  team_name: string;
+  player_out_id: number;
+  player_out_name: string;
+  player_in_id: number;
+  player_in_name: string;
+  reason?: "injured" | "not_playing" | "red_card";
+}
+
+export interface WaiverClaimPayload {
+  team_id: string;
+  team_name: string;
+  player_in_id: number;
+  player_in_name: string;
+  player_out_id?: number;
+  player_out_name?: string;
+  claim_rank?: number;
+  status?: "approved" | "rejected";   // set by processor; approved = message, rejected = optional rejection notice
+  rejected_reason?: string;           // short human-readable reason for rejection message
+}
+
+export type ProcessedBy =
+  | "ingest_api"
+  | "simulator"
+  | "recovery_job"
+  | "manual_admin"
+  | "api_football_sync";
+
+export interface IngestResult {
+  ok: boolean;
+  event_id?: string;
+  applied: string[];
+  warnings: string[];
+  error?: string;
 }
 
 // Default-Werte für neue Liga-Settings

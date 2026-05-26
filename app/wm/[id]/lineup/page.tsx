@@ -41,6 +41,9 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const [saved, setSaved] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ type: "xi" | "bench"; index: number } | null>(null);
   const [gameweek, setGameweek] = useState(1);
+  const [gameweekId, setGameweekId] = useState<string | null>(null);
+  const [nations, setNations] = useState<Array<{ name: string; eliminated_after_gameweek?: number | null }>>([]);
+  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null } | null>>({});
   const { toast } = useToast();
 
   useEffect(() => {
@@ -65,11 +68,40 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       setFormation(settingsData.allowed_formations[0]);
     }
 
+    // Aktive Gameweek laden
+    let activeGW: number = 1;
+    let activeGWId: string | null = null;
+    if (settingsData?.tournament_id) {
+      const { data: gw } = await supabase
+        .from("wm_gameweeks")
+        .select("id, gameweek")
+        .eq("tournament_id", settingsData.tournament_id)
+        .neq("status", "finished")
+        .order("gameweek")
+        .limit(1)
+        .maybeSingle();
+      if (gw) {
+        activeGW = gw.gameweek;
+        activeGWId = gw.id;
+        setGameweek(gw.gameweek);
+        setGameweekId(gw.id);
+      }
+    }
+
+    // Nationen für Eliminations-Check laden
+    if (settingsData?.tournament_id) {
+      const { data: nData } = await supabase
+        .from("wm_nations")
+        .select("name, eliminated_after_gameweek")
+        .eq("tournament_id", settingsData.tournament_id);
+      setNations(nData || []);
+    }
+
     if (!team) return;
 
-    // Draft-Picks (mein Kader)
+    // WM-Kader aus isolierter Tabelle laden
     const { data: picks } = await supabase
-      .from("squad_players")
+      .from("wm_squad_players")
       .select("player_id")
       .eq("team_id", team.id);
 
@@ -82,14 +114,31 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
         .in("id", playerIds);
       playersData = fetched || [];
       setDraftPicks(playersData);
+
+      // FK-based nation lookup
+      if (settingsData?.tournament_id && picks && picks.length > 0) {
+        const { data: pnData } = await supabase
+          .from("wm_player_nations")
+          .select("player_id, wm_nations(eliminated_after_gameweek)")
+          .eq("tournament_id", settingsData.tournament_id)
+          .in("player_id", playerIds);
+
+        if (pnData && pnData.length > 0) {
+          const map: Record<number, { eliminated_after_gameweek?: number | null } | null> = {};
+          for (const pn of pnData) {
+            map[pn.player_id] = (pn.wm_nations as any) ?? null;
+          }
+          setPlayerNationMap(map);
+        }
+      }
     }
 
-    // Gespeicherte Aufstellung laden
+    // Gespeicherte Aufstellung laden (activeGW statt state-Variable, die noch nicht aktualisiert ist)
     const { data: lineup } = await supabase
       .from("team_lineups")
       .select("*")
       .eq("team_id", team.id)
-      .eq("gameweek", gameweek)
+      .eq("gameweek", activeGW)
       .maybeSingle();
 
     if (lineup && playersData.length > 0) {
@@ -168,31 +217,64 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
     setSelectedSlot(null);
   }
 
+  function isEliminated(player: Player): boolean {
+    if (player.id in playerNationMap) {
+      const mapped = playerNationMap[player.id];
+      if (!mapped?.eliminated_after_gameweek) return false;
+      return gameweek > mapped.eliminated_after_gameweek;
+    }
+    // TODO remove fallback after real WM player import
+    const nation = nations.find(n => n.name === player.team_name);
+    if (!nation?.eliminated_after_gameweek) return false;
+    return gameweek > nation.eliminated_after_gameweek;
+  }
+
   async function saveLineup() {
     if (!myTeam) return;
     const xi = startingXI.filter(Boolean) as Player[];
     if (xi.length < 11) { toast("Startelf nicht vollständig (11 Spieler benötigt)", "error"); return; }
+    if (!gameweekId) { toast("Kein aktiver Spieltag gefunden", "error"); return; }
 
-    const validation = validateFormation(xi.map(p => p.position), formation);
-    if (!validation.valid) { toast(`Formation nicht erfüllt: ${validation.errors.join(", ")}`, "error"); return; }
+    const eliminatedStarters = xi.filter(p => isEliminated(p));
+    if (eliminatedStarters.length > 0) {
+      const names = eliminatedStarters.length === 1
+        ? eliminatedStarters[0].name
+        : `${eliminatedStarters.length} Spieler`;
+      toast(`⚠ ${names} aus ausgeschiedener Nation — gibt 0 Punkte in GW ${gameweek}!`, "error");
+    }
 
     setSaving(true);
-    await supabase.from("team_lineups").upsert({
-      team_id: myTeam.id,
-      tournament_id: settings?.tournament_id,
-      gameweek,
-      formation,
-      starting_xi: startingXI.filter(Boolean).map(p => p!.id),
-      bench: bench.map(p => p.id),
-      captain_id: captainId,
-      vice_captain_id: viceCaptainId,
-      locked: false,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "team_id,gameweek" });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/wm/${leagueId}/lineup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          team_id: myTeam.id,
+          gameweek_id: gameweekId,
+          formation,
+          starters: startingXI.filter(Boolean).map(p => p!.id),
+          bench: bench.map(p => p.id),
+          captain_id: captainId,
+          vice_captain_id: viceCaptainId,
+        }),
+      });
 
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+      const json = await res.json();
+      if (!res.ok) {
+        toast(json.error || "Fehler beim Speichern", "error");
+      } else {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } catch {
+      toast("Netzwerkfehler beim Speichern", "error");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const formationConfig = FORMATIONS[formation];
@@ -223,10 +305,16 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
 
       {/* Header */}
       <div className="w-full max-w-md flex justify-between items-center mb-4">
-        <button onClick={() => window.location.href = `/wm/${leagueId}`}
-          className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-          ← WM
-        </button>
+        <div className="flex flex-col gap-0.5">
+          <button onClick={() => window.location.href = `/wm/${leagueId}`}
+            className="text-[9px] font-black uppercase tracking-widest text-left" style={{ color: "var(--color-muted)" }}>
+            ← WM
+          </button>
+          <button onClick={() => window.location.href = `/wm/${leagueId}/matchday`}
+            className="text-[9px] font-black uppercase tracking-widest text-left" style={{ color: "var(--color-muted)" }}>
+            Spielplan →
+          </button>
+        </div>
         <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>Aufstellung</p>
         <button onClick={saveLineup} disabled={saving}
           className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all"
@@ -271,23 +359,31 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                 const isCap = player?.id === captainId;
                 const isVC = player?.id === viceCaptainId;
 
+                const elim = player ? isEliminated(player) : false;
                 return (
                   <div key={slotIndex}
                     onClick={() => setSelectedSlot(isSelected ? null : { type: "xi", index: slotIndex })}
                     className="flex flex-col items-center cursor-pointer transition-all"
-                    style={{ width: 64 }}>
+                    style={{ width: 64, opacity: elim ? 0.7 : 1 }}>
                     {/* Avatar */}
-                    <PlayerCard player={player} posColor={posColor} size={44} selected={isSelected} posLabel={position} isCap={isCap} isVC={isVC} />
+                    <PlayerCard player={player} posColor={elim ? "var(--color-error)" : posColor} size={44} selected={isSelected} posLabel={position} isCap={isCap} isVC={isVC} />
                     {/* Name */}
                     <p className="text-[8px] font-black text-center leading-tight mt-1 truncate w-full"
-                      style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
+                      style={{ color: player ? (elim ? "var(--color-error)" : "var(--color-text)") : "var(--color-border)" }}>
                       {player ? player.name.split(" ").pop() : position}
                     </p>
                     {player && (
                       <div className="flex gap-1 mt-0.5">
-                        <span className="text-[7px] font-black" style={{ color: "var(--color-primary)" }}>
-                          {player.fpts?.toFixed(0)}
-                        </span>
+                        {elim ? (
+                          <span className="text-[6px] font-black px-1 rounded-sm"
+                            style={{ background: "color-mix(in srgb, var(--color-error) 20%, transparent)", color: "var(--color-error)" }}>
+                            0 Pts
+                          </span>
+                        ) : (
+                          <span className="text-[7px] font-black" style={{ color: "var(--color-primary)" }}>
+                            {player.fpts?.toFixed(0)}
+                          </span>
+                        )}
                         <button onClick={e => { e.stopPropagation(); removeFromSlot("xi", slotIndex); }}
                           className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>✕</button>
                       </div>
@@ -309,17 +405,19 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
           {Array.from({ length: maxBench }).map((_, i) => {
             const player = bench[i];
             const isSelected = selectedSlot?.type === "bench" && selectedSlot.index === i;
+            const elim = player ? isEliminated(player) : false;
             return (
               <div key={i}
                 onClick={() => setSelectedSlot(isSelected ? null : { type: "bench", index: i })}
                 className="flex-1 flex flex-col items-center p-2 rounded-xl cursor-pointer transition-all"
                 style={{
                   background: isSelected ? "var(--bg-elevated)" : "var(--bg-card)",
-                  border: `1px solid ${isSelected ? "var(--color-primary)" : "var(--color-border)"}`,
+                  border: `1px solid ${isSelected ? "var(--color-primary)" : elim ? "color-mix(in srgb, var(--color-error) 40%, transparent)" : "var(--color-border)"}`,
+                  opacity: elim ? 0.7 : 1,
                 }}>
-                <PlayerCard player={player ?? null} posColor={player ? (POS_COLOR[player.position] || "var(--color-text)") : "var(--color-border)"} size={36} selected={isSelected} posLabel={String(i + 1)} />
+                <PlayerCard player={player ?? null} posColor={player ? (elim ? "var(--color-error)" : (POS_COLOR[player.position] || "var(--color-text)")) : "var(--color-border)"} size={36} selected={isSelected} posLabel={String(i + 1)} />
                 <p className="text-[7px] font-black text-center truncate w-full mt-1"
-                  style={{ color: player ? "var(--color-text)" : "var(--color-border)" }}>
+                  style={{ color: player ? (elim ? "var(--color-error)" : "var(--color-text)") : "var(--color-border)" }}>
                   {player ? player.name.split(" ").pop() : "—"}
                 </p>
                 {player && (
@@ -347,19 +445,31 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                 p.position === formationConfig.layout[selectedSlot.index].position)
               .map(player => {
                 const posColor = POS_COLOR[player.position] || "var(--color-text)";
+                const elim = isEliminated(player);
                 return (
                   <div key={player.id} onClick={() => assignPlayer(player)}
                     className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                    style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = "var(--color-primary)")}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = "var(--color-border)")}>
-                    <PlayerCard player={player} posColor={posColor} size={32} />
+                    style={{
+                      background: "var(--bg-card)",
+                      border: `1px solid ${elim ? "color-mix(in srgb, var(--color-error) 30%, transparent)" : "var(--color-border)"}`,
+                      opacity: elim ? 0.7 : 1,
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = elim ? "var(--color-error)" : "var(--color-primary)")}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = elim ? "color-mix(in srgb, var(--color-error) 30%, transparent)" : "var(--color-border)")}>
+                    <PlayerCard player={player} posColor={elim ? "var(--color-error)" : posColor} size={32} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{player.name}</p>
+                      <p className="text-xs font-black truncate" style={{ color: elim ? "var(--color-error)" : "var(--color-text)" }}>{player.name}</p>
                       <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{player.fpts?.toFixed(0)}</p>
+                      {elim ? (
+                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-sm"
+                          style={{ background: "color-mix(in srgb, var(--color-error) 15%, transparent)", color: "var(--color-error)" }}>
+                          Ausgeschieden
+                        </span>
+                      ) : (
+                        <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{player.fpts?.toFixed(0)}</p>
+                      )}
                       <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
                         style={{ background: posColor + "30", color: posColor }}>
                         {player.position}

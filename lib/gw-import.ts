@@ -89,7 +89,7 @@ export async function computeAndUpsertPoints(
   opts?: { markFinished?: boolean },
 ): Promise<ImportResult> {
   const supabase = createServiceRoleClient();
-  const apiKey = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY;
+  const apiKey = process.env.FOOTBALL_API_KEY;
   if (!apiKey) {
     return { ok: false, leagueId, gameweek, apiCallsUsed: 0, playersImported: 0, message: "API-Key fehlt", error: "missing_api_key" };
   }

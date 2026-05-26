@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bell, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BottomNav } from "@/app/components/BottomNav";
+import { TifoUILogo } from "@/app/components/brand/TifoUILogo";
 import { Spinner } from "@/app/components/ui/Spinner";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -199,96 +200,208 @@ export default function HomePage() {
     user?.email?.split("@")[0] ||
     "Manager";
 
+  // ── Derived hero values (no business logic change) ──────────────────────
+  const activeCard   = cards.find(c => c.activeGW?.status === "active") ?? cards[0] ?? null;
+  const activeGWNum  = activeCard?.activeGW?.gameweek;
+  const firstLineup  = activeCard ? `/leagues/${activeCard.league.id}/lineup` : "/leagues";
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[var(--bg-page)] text-[var(--color-text)]">
-      <div className="relative mx-auto min-h-screen max-w-[430px] pb-28">
+    <main className="min-h-screen bg-[var(--bg-page)] text-[var(--color-text)]">
+      <div className="relative mx-auto max-w-[430px]">
 
-        {/* ══════════════════════════════════════
-            BACKGROUND / HERO ATMOSPHERE
-        ══════════════════════════════════════ */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-[#050301]" />
+        {/* ══════════════════════════════════════════════════════
+            HERO CONTAINER  –  Stadium photo background
+        ══════════════════════════════════════════════════════ */}
+        <div className="relative h-[580px] overflow-hidden">
 
-          {/* Floodlight cone — top right */}
-          <div className="absolute -right-28 top-0 h-[420px] w-[360px] rotate-[-18deg] bg-[radial-gradient(ellipse_at_top,rgba(244,196,48,0.42),rgba(244,196,48,0.14)_34%,transparent_70%)] blur-2xl" />
+          {/* ── L1: Stadium photo — T rechts sichtbar lassen ── */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/tifo-hero-stadium.png"
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: "68% center" }}
+          />
 
-          {/* Stadium floodlight dots */}
-          <div className="absolute right-8 top-20 grid rotate-[-18deg] grid-cols-6 gap-1 opacity-80">
-            {Array.from({ length: 30 }).map((_, i) => (
+          {/* ── L2: Links-Gradient — rechte Seite frei ── */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.60) 40%, rgba(0,0,0,0.20) 70%, transparent 100%)",
+            }}
+          />
+
+          {/* ── L3: Pulsierender Floodlight Beam oben rechts ── */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(circle at 80% 8%, rgba(255,175,50,0.32), transparent 50%)",
+              animation: "tifo-beam-pulse 4s ease-in-out infinite",
+              transformOrigin: "80% 8%",
+            }}
+          />
+
+          {/* ── L4: Grain / Depth Layer ── */}
+          <div
+            className="pointer-events-none absolute inset-0 mix-blend-overlay"
+            style={{
+              backgroundImage: "url('/noise.svg')",
+              opacity: 0.06,
+            }}
+          />
+
+          {/* ── L5: Top fade — TopNav lesbar ── */}
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-28"
+            style={{
+              background: "linear-gradient(to bottom, rgba(0,0,0,0.50) 0%, transparent 100%)",
+            }}
+          />
+
+          {/* ── L6: Bottom fade — 25% Hero-Höhe, teased content sichtbar ── */}
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0"
+            style={{
+              height: "25%",
+              background:
+                "linear-gradient(to bottom, transparent 0%, rgba(5,3,1,0.80) 60%, var(--bg-page) 100%)",
+            }}
+          />
+
+          {/* ── Floating Gold Particles ── */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            {[
+              { left: "8%",  bottom: "28%", size: 3, delay: "0s",    dur: "7s"  },
+              { left: "18%", bottom: "22%", size: 2, delay: "1.2s",  dur: "9s"  },
+              { left: "28%", bottom: "35%", size: 2, delay: "2.5s",  dur: "8s"  },
+              { left: "14%", bottom: "18%", size: 3, delay: "0.8s",  dur: "10s" },
+              { left: "22%", bottom: "42%", size: 2, delay: "3.1s",  dur: "7s"  },
+              { left: "6%",  bottom: "50%", size: 2, delay: "1.8s",  dur: "9s"  },
+              { left: "32%", bottom: "25%", size: 3, delay: "4s",    dur: "8s"  },
+              { left: "10%", bottom: "60%", size: 2, delay: "2.2s",  dur: "11s" },
+            ].map((p, i) => (
               <span
                 key={i}
-                className="h-2 w-2 rounded-full bg-[var(--color-primary)] shadow-[0_0_16px_var(--color-glow)]"
+                className="absolute rounded-full bg-[var(--color-primary)]"
+                style={{
+                  left: p.left,
+                  bottom: p.bottom,
+                  width: p.size,
+                  height: p.size,
+                  animation: `tifo-particle-drift ${p.dur} ${p.delay} ease-in-out infinite`,
+                }}
               />
             ))}
           </div>
 
-          {/* Fan curve silhouette */}
-          <div className="absolute left-0 right-0 top-[190px] h-32 opacity-40">
-            <div className="absolute bottom-0 left-0 right-0 h-20 bg-[radial-gradient(circle_at_10px_60px,rgba(244,196,48,0.13)_0_16px,transparent_17px)] bg-[length:28px_34px]" />
-            <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black via-black/80 to-transparent" />
+          {/* ── Content layer (z-10) ── */}
+          <div className="relative z-10 flex h-full flex-col pt-5">
+
+            {/* TopNav — volle Breite */}
+            <header className="flex items-center justify-between px-5">
+              <TifoUILogo variant="wordmark" size="sm" />
+              <button
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-black/30 text-[var(--color-primary)] backdrop-blur"
+                style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+                aria-label="Benachrichtigungen"
+              >
+                <Bell size={18} />
+              </button>
+            </header>
+
+            {/* Hero copy — links fixiert, max-w-[260px], T-Bereich rechts frei */}
+            <div className="flex flex-1 flex-col items-start justify-end pb-32 pl-5" style={{ paddingRight: "40%" }}>
+              <div className="w-full max-w-[260px]">
+
+                {/* Spieltag label */}
+                <p
+                  className="mb-2 text-[9px] font-black uppercase tracking-[0.35em] text-[var(--color-primary)]"
+                  style={{ opacity: 0.85 }}
+                >
+                  {activeGWNum ? `Spieltag ${activeGWNum}` : "Fantasy Football"}
+                </p>
+
+                {/* Headline — tight typo */}
+                <h1
+                  className="text-left text-[52px] font-black uppercase text-white"
+                  style={{
+                    lineHeight: 0.9,
+                    letterSpacing: "-0.02em",
+                    textShadow:
+                      "0 2px 24px rgba(0,0,0,0.90), 0 0 20px rgba(255,200,80,0.15)",
+                  }}
+                >
+                  GAME<br />ON.
+                </h1>
+
+                {/* Subtext */}
+                <p className="mt-3 text-left text-[12px] font-semibold leading-snug text-white/55">
+                  Set your lineup and chase the glory.
+                </p>
+
+                {/* CTA — premium warm button */}
+                <div className="mt-4">
+                  <Link
+                    href={firstLineup}
+                    className="inline-flex items-center rounded-full px-6 py-2.5 text-[11px] font-black uppercase tracking-[0.18em] transition-transform duration-200 active:scale-[0.97]"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #f5c842 0%, #e8950a 100%)",
+                      color: "#050301",
+                      animation: "tifo-cta-glow 2s ease-in-out infinite",
+                    }}
+                  >
+                    Set Lineup
+                  </Link>
+                </div>
+
+              </div>
+            </div>
           </div>
+        </div>
 
-          {/* Abstract TIFO banner strips */}
-          <div className="absolute left-6 right-8 top-[170px] h-20 -rotate-2 opacity-25">
-            <div className="h-4 w-full rounded-sm bg-[var(--color-primary)]" />
-            <div className="mt-3 h-4 w-[88%] rounded-sm bg-[var(--color-primary)]" />
-            <div className="mt-3 h-4 w-[72%] rounded-sm bg-[var(--color-primary)]" />
-          </div>
-
-          {/* Vignette */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.35)_55%,rgba(0,0,0,0.88)_100%)]" />
-
-          {/* Film grain */}
+        {/* ── Gold Divider ── */}
+        <div className="relative z-20 mt-0 flex items-center justify-center">
           <div
-            className="absolute inset-0 opacity-[var(--tifo-grain-opacity)] mix-blend-overlay"
-            style={{ backgroundImage: "url('/noise.svg')" }}
+            style={{
+              width: "60%",
+              height: 1,
+              background:
+                "linear-gradient(to right, transparent, rgba(244,196,48,0.55), transparent)",
+              opacity: 0.2,
+            }}
           />
         </div>
 
-        {/* ══════════════════════════════════════
-            CONTENT
-        ══════════════════════════════════════ */}
-        <section className="relative z-10 px-5 pt-6">
+        {/* ══════════════════════════════════════════════════════
+            CONTENT — erste Card wird angeteasert
+        ══════════════════════════════════════════════════════ */}
+        <section className="relative z-20 -mt-10 px-5 pb-28">
 
-          {/* TOP NAV */}
-          <header className="flex items-center justify-between">
-            {/* TIFO wordmark */}
-            <div className="flex items-center gap-2">
-              <div className="relative h-9 w-9">
-                <div className="absolute left-1 top-0 h-8 w-6 bg-[var(--color-primary)] shadow-[0_0_18px_var(--color-glow)] [clip-path:polygon(0_0,100%_0,78%_100%,22%_100%)]" />
-                <div className="absolute left-0 top-2 h-2 w-8 bg-[var(--color-primary)]" />
-              </div>
-              <span className="text-2xl font-black tracking-tight text-[var(--color-text)]">
-                TIFO
-              </span>
-            </div>
+          {/* ── Subtle gold glow behind first card ── */}
+          <div className="pointer-events-none absolute left-1/2 top-4 h-24 w-[75%] -translate-x-1/2 rounded-full blur-2xl"
+            style={{ background: "radial-gradient(circle, rgba(244,196,48,0.16), transparent 70%)" }}
+          />
 
-            {/* Bell */}
-            <button
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--color-border)] bg-black/30 text-[var(--color-primary)] backdrop-blur"
-              aria-label="Benachrichtigungen"
-            >
-              <Bell size={18} />
-            </button>
-          </header>
+          {/* ── Lift-in wrapper ── */}
+          <div className="relative motion-safe:animate-[tifo-card-lift_520ms_ease-out_forwards]"
+            style={{ transform: "translateY(14px)", opacity: 0.96, transition: "transform 500ms ease-out, opacity 500ms ease-out" }}
+          >
 
-          {/* HERO COPY */}
-          <div className="mt-12">
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-[var(--color-primary)]/75">
-              {greeting()},
-            </p>
-            <h1 className="mt-1 max-w-[330px] text-[42px] font-black uppercase leading-[0.9] tracking-[-0.05em] text-[var(--color-text)] drop-shadow-[0_0_28px_rgba(244,196,48,0.25)]">
-              {username}
-            </h1>
-            <p className="mt-3 text-sm font-bold uppercase tracking-[0.18em] text-[var(--color-text-secondary)]">
-              Deine Ligen
-            </p>
-          </div>
+          <h2
+            className="mb-4 text-[10px] font-black uppercase tracking-[0.32em]"
+            style={{ color: "var(--color-primary)", opacity: 0.7 }}
+          >
+            Deine Ligen
+          </h2>
 
           {/* ── League Cards ── */}
-          <div className="mt-6 space-y-4">
+          <div className="space-y-4">
             {loading ? (
               <div className="flex justify-center py-16">
                 <Spinner text="Lade Ligen..." />
@@ -512,6 +625,7 @@ export default function HomePage() {
               </div>
             </div>
           )}
+          </div>
         </section>
 
         <BottomNav />

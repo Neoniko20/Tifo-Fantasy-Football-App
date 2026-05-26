@@ -6,26 +6,28 @@ import { TifoIcon } from "@/app/components/TifoLogo";
 type Step = "welcome" | "create" | "join";
 
 type Props = {
-  onCreateLeague: (name: string, mode: "liga" | "wm", scoringType: "h2h" | "standard") => Promise<void>;
-  onJoinLeague: (code: string) => Promise<void>;
+  onCreateLeague: (name: string, mode: "liga" | "wm", scoringType: "h2h" | "standard", teamName: string) => Promise<void>;
+  onJoinLeague: (code: string, teamName: string) => Promise<void>;
   saving: boolean;
 };
 
 export function OnboardingFlow({ onCreateLeague, onJoinLeague, saving }: Props) {
   const [step, setStep] = useState<Step>("welcome");
   const [leagueName, setLeagueName] = useState("");
+  const [teamName, setTeamName] = useState("");
   const [mode, setMode] = useState<"liga" | "wm">("liga");
   const [scoringType, setScoringType] = useState<"h2h" | "standard">("h2h");
   const [joinCode, setJoinCode] = useState("");
+  const [joinTeamName, setJoinTeamName] = useState("");
 
   async function handleCreate() {
-    if (!leagueName.trim()) return;
-    await onCreateLeague(leagueName.trim(), mode, scoringType);
+    if (!leagueName.trim() || teamName.trim().length < 2) return;
+    await onCreateLeague(leagueName.trim(), mode, scoringType, teamName.trim());
   }
 
   async function handleJoin() {
-    if (!joinCode.trim()) return;
-    await onJoinLeague(joinCode.trim());
+    if (!joinCode.trim() || joinTeamName.trim().length < 2) return;
+    await onJoinLeague(joinCode.trim(), joinTeamName.trim());
   }
 
   if (step === "welcome") {
@@ -108,6 +110,24 @@ export function OnboardingFlow({ onCreateLeague, onJoinLeague, saving }: Props) 
           />
         </div>
 
+        {/* Mein Teamname */}
+        <div>
+          <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>Mein Teamname</p>
+          <input
+            value={teamName}
+            onChange={(e) => setTeamName(e.target.value)}
+            placeholder="z.B. Nikos Ultras"
+            maxLength={24}
+            className="w-full p-3 rounded-xl text-sm focus:outline-none transition-colors"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text)",
+            }}
+          />
+          <p className="text-[8px] mt-1" style={{ color: "var(--color-muted)" }}>2–24 Zeichen</p>
+        </div>
+
         {/* Modus */}
         <div>
           <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>Modus</p>
@@ -157,7 +177,7 @@ export function OnboardingFlow({ onCreateLeague, onJoinLeague, saving }: Props) 
 
         <button
           onClick={handleCreate}
-          disabled={!leagueName.trim() || saving}
+          disabled={!leagueName.trim() || teamName.trim().length < 2 || saving}
           className="w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-40"
           style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
           {saving ? "Erstelle…" : "Liga erstellen"}
@@ -186,26 +206,45 @@ export function OnboardingFlow({ onCreateLeague, onJoinLeague, saving }: Props) 
       <div className="p-6 rounded-2xl flex flex-col gap-4"
         style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
         <p className="text-[9px]" style={{ color: "var(--color-muted)" }}>
-          Gib den Einladungscode ein, den dir der Liga-Owner geschickt hat.
+          Gib den Einladungscode und deinen Teamnamen ein.
         </p>
-        <input
-          value={joinCode}
-          onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-          placeholder="ABCD1234"
-          maxLength={12}
-          className="w-full p-3 rounded-xl text-sm font-black text-center tracking-widest uppercase focus:outline-none transition-colors"
-          style={{
-            background: "var(--bg-page)",
-            border: "1px solid var(--color-border)",
-            color: "var(--color-text)",
-            letterSpacing: "0.2em",
-          }}
-        />
+        <div>
+          <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>Invite-Code</p>
+          <input
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            placeholder="ABCD1234"
+            maxLength={12}
+            className="w-full p-3 rounded-xl text-sm font-black text-center tracking-widest uppercase focus:outline-none transition-colors"
+            style={{
+              background: "var(--bg-page)",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text)",
+              letterSpacing: "0.2em",
+            }}
+          />
+        </div>
+        <div>
+          <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>Teamname</p>
+          <input
+            value={joinTeamName}
+            onChange={(e) => setJoinTeamName(e.target.value)}
+            placeholder="z.B. Nikos Ultras"
+            maxLength={24}
+            className="w-full p-3 rounded-xl text-sm focus:outline-none transition-colors"
+            style={{
+              background: "var(--bg-page)",
+              border: "1px solid var(--color-border)",
+              color: "var(--color-text)",
+            }}
+          />
+          <p className="text-[8px] mt-1" style={{ color: "var(--color-muted)" }}>2–24 Zeichen</p>
+        </div>
       </div>
 
       <button
         onClick={handleJoin}
-        disabled={!joinCode.trim() || saving}
+        disabled={!joinCode.trim() || joinTeamName.trim().length < 2 || saving}
         className="w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-40"
         style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
         {saving ? "Beitreten…" : "Beitreten"}

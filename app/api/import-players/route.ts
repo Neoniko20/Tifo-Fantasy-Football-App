@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
     const maxCalls: number           = body.maxCalls || 90;
     const forceRestart: boolean      = body.restart  || false;
 
-    const apiKey = process.env.NEXT_PUBLIC_FOOTBALL_API_KEY;
+    const apiKey = process.env.FOOTBALL_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "API-Key fehlt" }, { status: 500 });
 
     const supabase = createClient(

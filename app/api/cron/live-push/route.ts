@@ -30,9 +30,9 @@ export async function GET(req: NextRequest) {
   }
 
   // Fetch live fixtures from API-Football
-  const apiKey = process.env.API_FOOTBALL_KEY;
+  const apiKey = process.env.FOOTBALL_API_KEY;
   if (!apiKey) {
-    return NextResponse.json({ ok: false, error: 'API_FOOTBALL_KEY not set' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'FOOTBALL_API_KEY not set' }, { status: 500 });
   }
 
   const res = await fetch('https://v3.football.api-sports.io/fixtures?live=all', {

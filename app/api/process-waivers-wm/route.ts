@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { rotatePriority } from "@/lib/waiver-init";
 import { sendPush } from "@/lib/push";
+import { processIngestEvent } from "@/lib/wm-ingest";
 
 const supabase = createServiceRoleClient();
 
@@ -38,10 +39,14 @@ async function getTeamFaab(teamId: string, startingBudget: number): Promise<numb
   return data?.faab_budget ?? startingBudget;
 }
 
-async function getSquadSize(teamId: string): Promise<number> {
-  const { data: sq } = await supabase
-    .from("squad_players").select("player_id", { count: "exact" }).eq("team_id", teamId);
-  return sq?.length ?? 0;
+/** WM-Kader-Größe aus wm_squad_players (scoped by league_id) */
+async function getSquadSize(teamId: string, leagueId: string): Promise<number> {
+  const { data } = await supabase
+    .from("wm_squad_players")
+    .select("player_id", { count: "exact" })
+    .eq("team_id", teamId)
+    .eq("league_id", leagueId);
+  return data?.length ?? 0;
 }
 
 async function isPlayerOnWire(leagueId: string, playerId: number): Promise<boolean> {
@@ -65,9 +70,49 @@ async function getPlayerName(playerId: number): Promise<string> {
   return data?.name ?? `Spieler #${playerId}`;
 }
 
-/** Move player_in onto this team's squad_players; optionally drop player_out back to wire. */
+async function getTeamName(teamId: string): Promise<string> {
+  const { data } = await supabase.from("teams").select("name").eq("id", teamId).single();
+  return data?.name ?? `Team ${teamId.slice(0, 8)}`;
+}
+
+/** Fire a waiver system message via the ingest layer (idempotent via claim.id). */
+async function fireWaiverMessage(
+  leagueId: string,
+  tournamentId: string | null,
+  gameweek: number,
+  claim: Claim,
+  teamName: string,
+  playerInName: string,
+  playerOutName: string | null,
+  status: "approved" | "rejected",
+  rejectedReason?: string,
+): Promise<void> {
+  await processIngestEvent(leagueId, {
+    type: "waiver.claim_processed",
+    tournament_id: tournamentId ?? "",
+    gameweek,
+    source: "admin",
+    idempotency_key: `wm-waiver-${claim.id}-${status}`,
+    payload: {
+      team_id:        claim.team_id,
+      team_name:      teamName,
+      player_in_id:   claim.player_in,
+      player_in_name: playerInName,
+      player_out_id:  claim.player_out ?? undefined,
+      player_out_name: playerOutName ?? undefined,
+      status,
+      rejected_reason: rejectedReason,
+    },
+  }, "ingest_api");
+}
+
+/**
+ * Move player_in into wm_squad_players; optionally drop player_out back to wire.
+ * Writes acquired_via = 'waiver', sets league_id + tournament_id.
+ */
 async function executeTransfer(
   leagueId: string,
+  tournamentId: string | null,
   teamId: string,
   playerIn: number,
   playerOut: number | null,
@@ -75,7 +120,7 @@ async function executeTransfer(
   bidAmount: number,
   budgetEnabled: boolean,
   currentFaab: number,
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   // 1. Remove player_in from waiver wire
   await supabase
     .from("waiver_wire")
@@ -83,17 +128,39 @@ async function executeTransfer(
     .eq("league_id", leagueId)
     .eq("player_id", playerIn);
 
-  // 2. Add player_in to squad_players
-  await supabase.from("squad_players").insert({ team_id: teamId, player_id: playerIn });
+  // 2. Add player_in to wm_squad_players
+  const { error: insertError } = await supabase.from("wm_squad_players").insert({
+    league_id:    leagueId,
+    tournament_id: tournamentId,
+    team_id:      teamId,
+    player_id:    playerIn,
+    acquired_via: "waiver",
+  });
 
-  // 3. Remove player_out from squad
+  if (insertError) {
+    // Duplicate constraint → player already claimed in this league (race condition)
+    if (insertError.code === "23505") {
+      // Roll back wire status change
+      await supabase
+        .from("waiver_wire")
+        .update({ status: "available" })
+        .eq("league_id", leagueId)
+        .eq("player_id", playerIn);
+      return { ok: false, error: "duplicate_player" };
+    }
+    console.error("[process-waivers-wm] wm_squad_players insert:", insertError.message);
+    return { ok: false, error: insertError.message };
+  }
+
+  // 3. Drop player_out from wm_squad_players + return to wire
   if (playerOut) {
-    await supabase.from("squad_players")
+    await supabase
+      .from("wm_squad_players")
       .delete()
       .eq("team_id", teamId)
+      .eq("league_id", leagueId)
       .eq("player_id", playerOut);
 
-    // Put player_out back on wire
     const { data: existing } = await supabase
       .from("waiver_wire")
       .select("id")
@@ -108,10 +175,10 @@ async function executeTransfer(
         .eq("player_id", playerOut);
     } else {
       await supabase.from("waiver_wire").insert({
-        league_id: leagueId,
-        player_id: playerOut,
-        available_from_gameweek: gameweek,
-        status: "available",
+        league_id:                leagueId,
+        player_id:                playerOut,
+        available_from_gameweek:  gameweek,
+        status:                   "available",
       });
     }
   }
@@ -123,6 +190,8 @@ async function executeTransfer(
       .update({ faab_budget: currentFaab - bidAmount })
       .eq("id", teamId);
   }
+
+  return { ok: true };
 }
 
 async function notifyTeam(
@@ -133,9 +202,9 @@ async function notifyTeam(
   link: string,
 ): Promise<void> {
   await supabase.from("notifications").insert({
-    user_id: userId,
+    user_id:   userId,
     league_id: leagueId,
-    kind: "waiver_result",
+    kind:      "waiver_result",
     title,
     body,
     link,
@@ -148,6 +217,7 @@ async function processByPriority(
   claims: Claim[],
   settings: Settings,
   leagueId: string,
+  tournamentId: string | null,
   gameweek: number,
 ): Promise<ProcessResult> {
   const log: string[] = [];
@@ -194,18 +264,17 @@ async function processByPriority(
           rejected_reason: `${pName} wurde von einem anderen Team beansprucht`,
           processed_at: new Date().toISOString(),
         }).eq("id", claim.id);
+        // ── System message (meaningful rejection — higher priority won)
+        const tName = await getTeamName(teamId);
+        await fireWaiverMessage(leagueId, tournamentId, gameweek, claim, tName, pName, null, "rejected", "höhere Priorität");
         const userId = await getTeamUserId(teamId);
         if (userId) {
-          await notifyTeam(userId, leagueId,
-            "Waiver abgelehnt",
+          await notifyTeam(userId, leagueId, "Waiver abgelehnt",
             `Dein Claim für ${pName} wurde abgelehnt — höhere Priorität.`,
-            `/wm/${leagueId}/waiver`
-          );
-          await sendPush(userId, 'waiver_rejected', {
-            title: '❌ Waiver abgelehnt',
-            body: `Dein Claim wurde abgelehnt.`,
-            link: `/wm/${leagueId}/waiver`,
-          }, leagueId);
+            `/wm/${leagueId}/waiver`);
+          await sendPush(userId, "waiver_rejected",
+            { title: "❌ Waiver abgelehnt", body: "Dein Claim wurde abgelehnt.", link: `/wm/${leagueId}/waiver` },
+            leagueId);
         }
         rejected++;
         continue;
@@ -223,7 +292,7 @@ async function processByPriority(
         continue;
       }
 
-      const squadSize = await getSquadSize(teamId);
+      const squadSize = await getSquadSize(teamId, leagueId);
       const maxSquad = settings.squad_size || 18;
       if (!claim.player_out && squadSize >= maxSquad) {
         const pName = await getPlayerName(claim.player_in);
@@ -241,7 +310,25 @@ async function processByPriority(
         ? await getTeamFaab(teamId, settings.waiver_budget_starting)
         : 0;
 
-      await executeTransfer(leagueId, teamId, claim.player_in, claim.player_out, gameweek, claim.bid_amount, settings.waiver_budget_enabled, faab);
+      const transfer = await executeTransfer(
+        leagueId, tournamentId, teamId, claim.player_in, claim.player_out,
+        gameweek, claim.bid_amount, settings.waiver_budget_enabled, faab,
+      );
+
+      if (!transfer.ok) {
+        const pName = await getPlayerName(claim.player_in);
+        const reason = transfer.error === "duplicate_player"
+          ? `${pName} ist bereits in dieser Liga vergeben`
+          : `Transfer-Fehler: ${transfer.error}`;
+        await supabase.from("waiver_claims").update({
+          status: "rejected",
+          rejected_reason: reason,
+          processed_at: new Date().toISOString(),
+        }).eq("id", claim.id);
+        log.push(`⚠️ Team ${teamId.slice(0, 8)}: ${reason}`);
+        rejected++;
+        continue;
+      }
 
       await supabase.from("waiver_claims").update({
         status: "approved",
@@ -256,18 +343,18 @@ async function processByPriority(
       const pOutName = claim.player_out ? await getPlayerName(claim.player_out) : null;
       log.push(`✅ Team ${teamId.slice(0, 8)}: +${pInName}${pOutName ? ` −${pOutName}` : ""}`);
 
+      // ── System message (idempotent via claim.id)
+      const tName = await getTeamName(teamId);
+      await fireWaiverMessage(leagueId, tournamentId, gameweek, claim, tName, pInName, pOutName, "approved");
+
       const userId = await getTeamUserId(teamId);
       if (userId) {
-        await notifyTeam(userId, leagueId,
-          "Waiver genehmigt! ✅",
+        await notifyTeam(userId, leagueId, "Waiver genehmigt! ✅",
           `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ""}.`,
-          `/wm/${leagueId}/waiver`
-        );
-        await sendPush(userId, 'waiver_approved', {
-          title: '✅ Waiver genehmigt',
-          body: `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ''}.`,
-          link: `/wm/${leagueId}/waiver`,
-        }, leagueId);
+          `/wm/${leagueId}/waiver`);
+        await sendPush(userId, "waiver_approved",
+          { title: "✅ Waiver genehmigt", body: `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ""}.`, link: `/wm/${leagueId}/waiver` },
+          leagueId);
       }
     }
   }
@@ -281,6 +368,7 @@ async function processByFaab(
   claims: Claim[],
   settings: Settings,
   leagueId: string,
+  tournamentId: string | null,
   gameweek: number,
 ): Promise<ProcessResult> {
   const log: string[] = [];
@@ -298,18 +386,17 @@ async function processByFaab(
         rejected_reason: `${pName} wurde von einem anderen Team mit höherem Gebot beansprucht`,
         processed_at: new Date().toISOString(),
       }).eq("id", claim.id);
+      // ── System message (meaningful rejection — overbid)
+      const tName = await getTeamName(claim.team_id);
+      await fireWaiverMessage(leagueId, tournamentId, gameweek, claim, tName, pName, null, "rejected", "überboten");
       const userId = await getTeamUserId(claim.team_id);
       if (userId) {
-        await notifyTeam(userId, leagueId,
-          "Waiver abgelehnt",
+        await notifyTeam(userId, leagueId, "Waiver abgelehnt",
           `Dein Claim für ${pName} wurde überboten.`,
-          `/wm/${leagueId}/waiver`
-        );
-        await sendPush(userId, 'waiver_rejected', {
-          title: '❌ Waiver abgelehnt',
-          body: `Dein Claim wurde abgelehnt.`,
-          link: `/wm/${leagueId}/waiver`,
-        }, leagueId);
+          `/wm/${leagueId}/waiver`);
+        await sendPush(userId, "waiver_rejected",
+          { title: "❌ Waiver abgelehnt", body: "Dein Claim wurde abgelehnt.", link: `/wm/${leagueId}/waiver` },
+          leagueId);
       }
       rejected++;
       continue;
@@ -339,8 +426,39 @@ async function processByFaab(
       continue;
     }
 
+    const squadSize = await getSquadSize(claim.team_id, leagueId);
+    const maxSquad = settings.squad_size || 18;
+    if (!claim.player_out && squadSize >= maxSquad) {
+      const pName = await getPlayerName(claim.player_in);
+      await supabase.from("waiver_claims").update({
+        status: "rejected",
+        rejected_reason: `Kader voll (${squadSize}/${maxSquad}) — kein Spieler zum Abgeben angegeben`,
+        processed_at: new Date().toISOString(),
+      }).eq("id", claim.id);
+      rejected++;
+      continue;
+    }
+
     // ✅ Approve
-    await executeTransfer(leagueId, claim.team_id, claim.player_in, claim.player_out, gameweek, claim.bid_amount, true, currentFaab);
+    const transfer = await executeTransfer(
+      leagueId, tournamentId, claim.team_id, claim.player_in, claim.player_out,
+      gameweek, claim.bid_amount, true, currentFaab,
+    );
+
+    if (!transfer.ok) {
+      const pName = await getPlayerName(claim.player_in);
+      const reason = transfer.error === "duplicate_player"
+        ? `${pName} ist bereits in dieser Liga vergeben`
+        : `Transfer-Fehler: ${transfer.error}`;
+      await supabase.from("waiver_claims").update({
+        status: "rejected",
+        rejected_reason: reason,
+        processed_at: new Date().toISOString(),
+      }).eq("id", claim.id);
+      log.push(`⚠️ Team ${claim.team_id.slice(0, 8)}: ${reason}`);
+      rejected++;
+      continue;
+    }
 
     await supabase.from("waiver_claims").update({
       status: "approved",
@@ -354,67 +472,68 @@ async function processByFaab(
     const pOutName = claim.player_out ? await getPlayerName(claim.player_out) : null;
     log.push(`✅ FAAB ${claim.bid_amount}: +${pInName}${pOutName ? ` −${pOutName}` : ""}`);
 
+    // ── System message (idempotent via claim.id)
+    const tName = await getTeamName(claim.team_id);
+    await fireWaiverMessage(leagueId, tournamentId, gameweek, claim, tName, pInName, pOutName, "approved");
+
     const userId = await getTeamUserId(claim.team_id);
     if (userId) {
-      await notifyTeam(userId, leagueId,
-        "Waiver genehmigt! ✅",
+      await notifyTeam(userId, leagueId, "Waiver genehmigt! ✅",
         `${pInName} gehört jetzt zu deinem Kader (Bid: ${claim.bid_amount} Bucks).`,
-        `/wm/${leagueId}/waiver`
-      );
-      await sendPush(userId, 'waiver_approved', {
-        title: '✅ Waiver genehmigt',
-        body: `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ''}.`,
-        link: `/wm/${leagueId}/waiver`,
-      }, leagueId);
+        `/wm/${leagueId}/waiver`);
+      await sendPush(userId, "waiver_approved",
+        { title: "✅ Waiver genehmigt", body: `${pInName} gehört jetzt zu deinem Kader${pOutName ? ` (${pOutName} entlassen)` : ""}.`, link: `/wm/${leagueId}/waiver` },
+        leagueId);
     }
   }
 
   return { approved, rejected, log };
 }
 
-// ─── Route Handler ─────────────────────────────────────────────────────────────
+// ─── Route Handler (manuell / via Admin) ──────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const { leagueId, gameweek: gwParam } = await req.json().catch(() => ({}));
   if (!leagueId) return NextResponse.json({ ok: false, error: "leagueId required" }, { status: 400 });
 
-  // Determine gameweek from wm_gameweeks
-  let gameweek: number = gwParam;
-  if (!gameweek) {
-    // Need tournament_id from wm_league_settings first
-    const { data: settingsRef } = await supabase
-      .from("wm_league_settings")
-      .select("tournament_id")
-      .eq("league_id", leagueId)
-      .maybeSingle();
+  return processWmWaivers(leagueId, gwParam ?? null);
+}
 
-    if (settingsRef?.tournament_id) {
-      const { data: gw } = await supabase
-        .from("wm_gameweeks")
-        .select("gameweek")
-        .eq("tournament_id", settingsRef.tournament_id)
-        .eq("status", "active")
-        .maybeSingle();
-      gameweek = gw?.gameweek ?? 1;
-    } else {
-      gameweek = 1;
-    }
-  }
+// ─── Shared processing logic (also used by cron) ──────────────────────────────
 
-  // Load WM settings
+export async function processWmWaivers(
+  leagueId: string,
+  gwParam: number | null,
+): Promise<NextResponse> {
+  // Resolve tournament_id + gameweek
   const { data: settingsData } = await supabase
     .from("wm_league_settings")
     .select("waiver_budget_enabled, waiver_budget_starting, squad_size, tournament_id")
     .eq("league_id", leagueId)
     .maybeSingle();
 
+  const tournamentId: string | null = settingsData?.tournament_id ?? null;
+
+  let gameweek: number = gwParam ?? 0;
+  if (!gameweek && tournamentId) {
+    const { data: gw } = await supabase
+      .from("wm_gameweeks")
+      .select("gameweek")
+      .eq("tournament_id", tournamentId)
+      .eq("status", "active")
+      .maybeSingle();
+    gameweek = gw?.gameweek ?? 1;
+  } else if (!gameweek) {
+    gameweek = 1;
+  }
+
   const settings: Settings = {
-    waiver_budget_enabled: settingsData?.waiver_budget_enabled ?? false,
+    waiver_budget_enabled:  settingsData?.waiver_budget_enabled  ?? false,
     waiver_budget_starting: settingsData?.waiver_budget_starting ?? 100,
-    squad_size: settingsData?.squad_size ?? 18,
+    squad_size:             settingsData?.squad_size             ?? 18,
   };
 
-  // Load all pending claims for this GW
+  // Load pending claims
   const { data: claimsData, error: claimsError } = await supabase
     .from("waiver_claims")
     .select("id, league_id, team_id, player_in, player_out, gameweek, priority, claim_order, bid_amount")
@@ -429,20 +548,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, approved: 0, rejected: 0, log: ["Keine offenen Claims"] });
   }
 
-  // Process
   const result: ProcessResult = settings.waiver_budget_enabled
-    ? await processByFaab(claims, settings, leagueId, gameweek)
-    : await processByPriority(claims, settings, leagueId, gameweek);
+    ? await processByFaab(claims, settings, leagueId, tournamentId, gameweek)
+    : await processByPriority(claims, settings, leagueId, tournamentId, gameweek);
 
-  // Rotate waiver priority after processing
+  // Rotate priority + close waiver window
   await rotatePriority(leagueId, gameweek);
 
-  // Close the waiver window in wm_gameweeks
-  if (settingsData?.tournament_id) {
+  if (tournamentId) {
     await supabase
       .from("wm_gameweeks")
       .update({ waiver_window_open: false })
-      .eq("tournament_id", settingsData.tournament_id)
+      .eq("tournament_id", tournamentId)
       .eq("gameweek", gameweek);
   }
 

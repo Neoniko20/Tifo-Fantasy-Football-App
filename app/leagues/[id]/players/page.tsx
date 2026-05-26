@@ -90,6 +90,27 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
     });
   }, []);
 
+  async function postSystemMessage(leagueId: string, content: string, metadata: Record<string, unknown> = {}) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+      if (!token) {
+        console.warn("[system-message] no session token, skipping");
+        return;
+      }
+      const res = await fetch(`/api/leagues/${leagueId}/system-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ content, metadata }),
+      });
+      if (!res.ok) {
+        console.warn("[system-message] failed:", res.status, await res.text().catch(() => ""));
+      }
+    } catch (err) {
+      console.warn("[system-message] error:", err);
+    }
+  }
+
   async function loadAll(userId: string) {
     const { data: leagueData } = await supabase
       .from("leagues").select("*").eq("id", leagueId).single();
@@ -308,6 +329,11 @@ export default function PlayersPage({ params }: { params: Promise<{ id: string }
         league_id: leagueId,
         player_out_id: playerOutId,
         player_in_id: playerIn.id,
+      });
+
+      postSystemMessage(leagueId, `🔄 Transfer: ${myTeam?.name ?? "Team"} holt ${playerIn.name}`, {
+        event: "transfer_completed",
+        player_in: playerIn.name,
       });
 
       setSavedMsg(`✓ ${playerIn.name} wurde ins Team geholt`);

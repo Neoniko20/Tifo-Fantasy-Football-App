@@ -26,6 +26,7 @@ export function applyLiveSubs(
   bench: number[],
   playerMinutes: Record<number, number>,
   playerPositionMap: Record<number, string>,
+  playerEliminated?: Record<number, boolean>,
 ): { effectiveXI: number[]; subs: SubRecord[] } {
   const effectiveXI = [...startingXI];
   const usedBench = new Set<number>();
@@ -40,6 +41,7 @@ export function applyLiveSubs(
     for (const benchPid of bench) {
       if (usedBench.has(benchPid)) continue;
       if ((playerMinutes[benchPid] ?? 0) === 0) continue; // bench player also didn't play
+      if (playerEliminated?.[benchPid]) continue; // bench player's nation eliminated — skip
 
       const benchPos = playerPositionMap[benchPid] ?? "MF";
 

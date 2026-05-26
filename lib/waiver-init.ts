@@ -4,7 +4,11 @@ const supabaseServer = createServiceRoleClient();
 
 /**
  * Rebuilds waiver_wire for a league.
- * Players currently owned (draft_picks OR squad_players OR IR) are excluded.
+ *
+ * Liga mode  — excludes players in: draft_picks, squad_players, liga_ir_slots
+ * WM mode    — excludes players in: wm_squad_players  (already includes draft picks)
+ *
+ * Mode is auto-detected from leagues.mode. No callers need to change.
  */
 export async function rebuildWaiverWire(leagueId: string): Promise<{ inserted: number }> {
   const { data: teams } = await supabaseServer
@@ -12,18 +16,42 @@ export async function rebuildWaiverWire(leagueId: string): Promise<{ inserted: n
   const teamIds = (teams || []).map((t: any) => t.id);
   if (teamIds.length === 0) return { inserted: 0 };
 
-  const [{ data: drafted }, { data: squads }, { data: irs }] = await Promise.all([
-    supabaseServer.from("draft_picks").select("player_id").in("team_id", teamIds),
-    supabaseServer.from("squad_players").select("player_id").in("team_id", teamIds),
-    supabaseServer.from("liga_ir_slots").select("player_id").in("team_id", teamIds).is("returned_at_gw", null),
-  ]);
+  // ── Detect league mode ────────────────────────────────────────────
+  const { data: leagueRow } = await supabaseServer
+    .from("leagues")
+    .select("mode")
+    .eq("id", leagueId)
+    .single();
 
-  const owned = new Set<number>([
-    ...(drafted || []).map((r: any) => r.player_id),
-    ...(squads  || []).map((r: any) => r.player_id),
-    ...(irs     || []).map((r: any) => r.player_id),
-  ]);
+  const isWm = leagueRow?.mode === "wm";
 
+  // ── Collect owned player IDs ──────────────────────────────────────
+  const owned = new Set<number>();
+
+  if (isWm) {
+    // WM: a single table holds all players regardless of acquisition method
+    const { data: wmSquad } = await supabaseServer
+      .from("wm_squad_players")
+      .select("player_id")
+      .in("team_id", teamIds);
+    for (const r of wmSquad || []) owned.add(r.player_id);
+  } else {
+    // Liga: three sources to check
+    const [{ data: drafted }, { data: squads }, { data: irs }] = await Promise.all([
+      supabaseServer.from("draft_picks").select("player_id").in("team_id", teamIds),
+      supabaseServer.from("squad_players").select("player_id").in("team_id", teamIds),
+      supabaseServer
+        .from("liga_ir_slots")
+        .select("player_id")
+        .in("team_id", teamIds)
+        .is("returned_at_gw", null),
+    ]);
+    for (const r of drafted  || []) owned.add(r.player_id);
+    for (const r of squads   || []) owned.add(r.player_id);
+    for (const r of irs      || []) owned.add(r.player_id);
+  }
+
+  // ── Build wire from all players minus owned ───────────────────────
   const { data: allPlayers } = await supabaseServer.from("players").select("id");
   const available = (allPlayers || [])
     .map((p: any) => p.id)
@@ -40,8 +68,7 @@ export async function rebuildWaiverWire(leagueId: string): Promise<{ inserted: n
 
   const chunkSize = 500;
   for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize);
-    await supabaseServer.from("waiver_wire").insert(chunk);
+    await supabaseServer.from("waiver_wire").insert(rows.slice(i, i + chunkSize));
   }
 
   return { inserted: rows.length };
@@ -62,8 +89,8 @@ export async function resetWaiverPriority(leagueId: string, gameweek: number): P
     const team = sorted[i] as any;
     await supabaseServer.from("waiver_priority").upsert({
       league_id: leagueId,
-      team_id: team.id,
-      priority: i + 1,
+      team_id:   team.id,
+      priority:  i + 1,
       gameweek,
       updated_at: new Date().toISOString(),
     }, { onConflict: "league_id,team_id" });

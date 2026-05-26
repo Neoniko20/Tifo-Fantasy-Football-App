@@ -6,6 +6,10 @@ import { UserBadge } from "@/app/components/UserBadge";
 import type { WMLeagueSettings } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { BottomNav } from "@/app/components/BottomNav";
+import { OnTheClock } from "@/app/components/wm/draft/OnTheClock";
+import { PickAnnouncement, type AnnouncedPick } from "@/app/components/wm/draft/PickAnnouncement";
+import { DraftPlayerRow } from "@/app/components/wm/draft/DraftPlayerRow";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -54,9 +58,16 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const [nationFilter, setNationFilter] = useState("ALL");
   const [timeLeft, setTimeLeft] = useState(60);
   const [isOwner, setIsOwner] = useState(false);
-  const [view, setView] = useState<"board" | "list">("board");
+  const [view, setView] = useState<"board" | "list">(() =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? "list" : "board"
+  );
   const [draftType, setDraftType] = useState<"snake" | "linear">("snake");
   const [timerSeconds, setTimerSeconds] = useState(60);
+  const [adminPickSlot, setAdminPickSlot] = useState<{ pickNum: number; teamId: string; round: number } | null>(null);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [isConnected, setIsConnected] = useState(true);
+  const [announcedPick, setAnnouncedPick] = useState<AnnouncedPick | null>(null);
+  const [announcementVisible, setAnnouncementVisible] = useState(false);
   const { toast } = useToast();
 
   const channelRef = useRef<any>(null);
@@ -70,18 +81,27 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const userIdRef = useRef<string>("");
   const settingsRef = useRef<WMLeagueSettings | null>(null);
   const botRunningRef = useRef(false);
+  const accessTokenRef = useRef<string>("");
+  const initialLoadDoneRef = useRef(false);
+  const prevPicksLengthRef = useRef(0);
+  const myTeamRef = useRef<any>(null);
+  const announcementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { playersRef.current = players; }, [players]);
   useEffect(() => { draftPicksRef.current = draftPicks; }, [draftPicks]);
   useEffect(() => { teamsRef.current = teams; }, [teams]);
   useEffect(() => { draftSessionRef.current = draftSession; }, [draftSession]);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { myTeamRef.current = myTeam; }, [myTeam]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) { window.location.href = "/auth"; return; }
       setUser(data.user);
       userIdRef.current = data.user.id;
+      supabase.auth.getSession().then(({ data: { session: authSession } }) => {
+        accessTokenRef.current = authSession?.access_token ?? "";
+      });
       loadAll(data.user.id);
     });
   }, []);
@@ -91,12 +111,28 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
       if (channelRef.current) supabase.removeChannel(channelRef.current);
       if (botTimerRef.current) clearTimeout(botTimerRef.current);
       if (pollRef.current) clearInterval(pollRef.current);
+      if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
     };
   }, []);
 
   function totalRounds(s: WMLeagueSettings | null) {
     if (!s) return 15;
     return (s.squad_size || 11) + (s.bench_size || 4);
+  }
+
+  function showPickAnnouncement(pick: any) {
+    const team = teamsRef.current.find((t: any) => t.id === pick.team_id);
+    if (!team) return;
+    setAnnouncedPick({
+      playerName: pick.players?.name ?? "?",
+      playerPhoto: pick.players?.photo_url ?? "",
+      position: pick.players?.position ?? "",
+      teamName: team.name,
+      isOwnPick: team.id === myTeamRef.current?.id,
+    });
+    setAnnouncementVisible(true);
+    if (announcementTimerRef.current) clearTimeout(announcementTimerRef.current);
+    announcementTimerRef.current = setTimeout(() => setAnnouncementVisible(false), 1200);
   }
 
   async function loadAll(userId: string) {
@@ -131,26 +167,43 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
     if (session) {
       setDraftSession(session);
       draftSessionRef.current = session;
-      const picks = await loadPicks(session.id);
+      await loadPicks(session.id, { skipAnnouncement: true });
+      initialLoadDoneRef.current = true;
       subscribeToRealtime(session.id);
       startPolling(session.id);
-      if (ownerCheck && session.status === "active") {
-        triggerBot(session, picks, teamsData || [], userId);
-      }
     }
 
-    loadPlayers();
+    // Players must be loaded BEFORE triggering bot (race condition fix)
+    await loadPlayers();
+
+    const latestSession = draftSessionRef.current;
+    if (latestSession && ownerCheck && latestSession.status === "active") {
+      triggerBot(latestSession, draftPicksRef.current, teamsRef.current, userId);
+    }
   }
 
-  async function loadPicks(sessionId: string) {
+  async function loadPicks(sessionId: string, options: { skipAnnouncement?: boolean } = {}) {
     const { data: picks } = await supabase
       .from("draft_picks")
       .select("*, players(name, photo_url, position, team_name, fpts)")
       .eq("draft_session_id", sessionId)
       .order("pick_number");
-    setDraftPicks(picks || []);
-    draftPicksRef.current = picks || [];
-    return picks || [];
+    const result = picks || [];
+
+    // Only fire pick announcement for genuine new picks after initial load
+    if (
+      !options.skipAnnouncement &&
+      initialLoadDoneRef.current &&
+      result.length > prevPicksLengthRef.current
+    ) {
+      const latestPick = result[result.length - 1];
+      if (latestPick) showPickAnnouncement(latestPick);
+    }
+    prevPicksLengthRef.current = result.length;
+
+    setDraftPicks(result);
+    draftPicksRef.current = result;
+    return result;
   }
 
   async function loadPlayers() {
@@ -171,9 +224,26 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
       nationNames = (nationsData || []).map((n: any) => n.name);
     }
 
-    // 2. Nur WM-Spieler laden (team_name muss einer Nation entsprechen)
+    if (nationNames.length === 0) {
+      setPlayers([]);
+      playersRef.current = [];
+      return;
+    }
+
+    // 2. Prüfen ob Testspieler (IDs 90001–90120) existieren.
+    // Wenn ja, nur diese laden — verhindert dass Club-Spieler mit nationalem
+    // team_name (z.B. Salah/Egypt, Palmer/England) im Draft-Pool auftauchen.
+    const { data: testCheck } = await supabase
+      .from("players")
+      .select("id")
+      .gte("id", 90001)
+      .lte("id", 90120)
+      .limit(1);
+
     let query = supabase.from("players").select("*").order("fpts", { ascending: false });
-    if (nationNames.length > 0) {
+    if (testCheck && testCheck.length > 0) {
+      query = query.gte("id", 90001).lte("id", 90200).in("team_name", nationNames);
+    } else {
       query = query.in("team_name", nationNames);
     }
 
@@ -215,13 +285,19 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           const newSession = payload.new as any;
           setDraftSession(newSession);
           draftSessionRef.current = newSession;
+          if (newSession.status !== "active") {
+            botRunningRef.current = true;
+            if (botTimerRef.current) clearTimeout(botTimerRef.current);
+          }
           const picks = await loadPicks(sessionId);
           if (isOwnerRef.current && newSession.status === "active") {
             triggerBot(newSession, picks, teamsRef.current, userIdRef.current);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        setIsConnected(status === "SUBSCRIBED");
+      });
     channelRef.current = channel;
   }
 
@@ -256,56 +332,107 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
       const available = playersRef.current.filter(p => !picked.has(p.id));
       if (available.length === 0) { botRunningRef.current = false; return; }
 
-      const best = available[0];
+      // Position-Limit-Check: Bot darf max-Grenzen nicht überschreiten
+      const posLimits = settingsRef.current?.position_limits ?? {
+        GK: { min: 1, max: 2 }, DF: { min: 2, max: 5 },
+        MF: { min: 2, max: 5 }, FW: { min: 1, max: 3 },
+      };
+      const teamPicks = draftPicksRef.current.filter((p: any) => p.team_id === currentTeam.id);
+      const posCounts: Record<string, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
+      teamPicks.forEach((p: any) => {
+        const pos = p.players?.position;
+        if (pos && posCounts[pos] !== undefined) posCounts[pos]++;
+      });
+      const totalRoundsLeft = (settingsRef.current
+        ? (settingsRef.current.squad_size || 11) + (settingsRef.current.bench_size || 4)
+        : 15) - teamPicks.length;
+      const eligible = available.filter(p => {
+        const max = (posLimits as any)[p.position]?.max ?? 99;
+        if ((posCounts[p.position] ?? 0) >= max) return false;
+        // In letzten Runden: sicherstellen dass Mindestanforderungen noch erfüllbar sind
+        const remaining = totalRoundsLeft - 1;
+        let stillNeeded = 0;
+        for (const pos of ["GK", "DF", "MF", "FW"] as const) {
+          const min = (posLimits as any)[pos]?.min ?? 0;
+          const have = posCounts[pos] ?? 0;
+          if (pos !== p.position && have < min) stillNeeded += min - have;
+        }
+        return stillNeeded <= remaining;
+      });
+      const best = (eligible.length > 0 ? eligible : available)[0];
       const n = allTeams.length;
       const round = Math.floor(session.current_pick / n);
 
-      const { error } = await supabase.from("draft_picks").insert({
-        draft_session_id: session.id,
-        team_id: currentTeam.id,
-        player_id: best.id,
-        pick_number: session.current_pick,
-        round,
-      });
+      let res: Response;
+      try {
+        res = await fetch(`/api/wm/${leagueId}/draft/pick`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessTokenRef.current}`,
+          },
+          body: JSON.stringify({
+            player_id: best.id,
+            team_id:   currentTeam.id,
+            round,
+            pick:      session.current_pick,
+          }),
+        });
+      } catch {
+        // Network failure (offline, DNS, etc.) — release lock and retry after reconnect
+        botRunningRef.current = false;
+        setTimeout(() => {
+          const s = draftSessionRef.current;
+          if (s?.status === "active") {
+            triggerBot(s, draftPicksRef.current, teamsRef.current, userIdRef.current);
+          }
+        }, 5000);
+        return;
+      }
 
       botRunningRef.current = false;
-      if (error) { console.error("Bot error:", error.message); return; }
 
-      await supabase.from("squad_players").insert({
-        team_id: currentTeam.id,
-        player_id: best.id,
-        is_captain: false,
-        is_on_bench: false,
-      });
-
-      const nextPick = session.current_pick + 1;
-      const finished = nextPick >= session.total_picks;
-
-      await supabase.from("draft_sessions").update({
-        current_pick: nextPick,
-        status: finished ? "finished" : "active",
-      }).eq("id", session.id);
-
-      if (finished) {
-        await supabase.from("leagues").update({ status: "active" }).eq("id", leagueId);
-        if (pollRef.current) clearInterval(pollRef.current);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Bot pick error:", err.error || res.status);
+        // Retry on server errors (5xx). 409 means conflict — next Realtime
+        // event will trigger triggerBot() again when current_pick advances.
+        if (res.status >= 500) {
+          setTimeout(() => {
+            const s = draftSessionRef.current;
+            if (s?.status === "active") {
+              triggerBot(s, draftPicksRef.current, teamsRef.current, userIdRef.current);
+            }
+          }, 3000);
+        }
+        return;
       }
+
+      const { finished } = await res.json();
+      if (finished && pollRef.current) clearInterval(pollRef.current);
     }, 1500);
   }
 
   useEffect(() => {
-    if (!draftSession || draftSession.status !== "active") return;
-    const secs = draftSession.seconds_per_pick || 0;
-    if (secs === 0) { setTimeLeft(0); return; }
-    setTimeLeft(secs);
-    const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
+    if (!draftSession || draftSession.status !== "active") {
+      setTimeLeft(0);
+      return;
+    }
+    const secs: number = draftSession.seconds_per_pick ?? 0;
+    if (secs === 0) {
+      setTimeLeft(0);
+      return;
+    }
+    const pickStartedAt: string | null = draftSession.pick_started_at ?? null;
+    const calc = (): number => {
+      if (!pickStartedAt) return secs; // fallback: column not yet set (pre-migration sessions)
+      const elapsed = Math.floor((Date.now() - new Date(pickStartedAt).getTime()) / 1000);
+      return Math.max(0, secs - elapsed);
+    };
+    setTimeLeft(calc());
+    const interval = setInterval(() => setTimeLeft(calc()), 1000);
     return () => clearInterval(interval);
-  }, [draftSession?.current_pick, draftSession?.status]);
+  }, [draftSession?.pick_started_at, draftSession?.seconds_per_pick, draftSession?.status]);
 
   useEffect(() => {
     if (timeLeft !== 0 || !draftSession || draftSession.status !== "active") return;
@@ -319,6 +446,13 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
 
   async function startDraft() {
     if (teams.length < 1) { toast("Mindestens 1 Team!", "error"); return; }
+    // Guard: abort if a session already exists (would create silent duplicate)
+    const { data: existingSession } = await supabase
+      .from("draft_sessions").select("id, status").eq("league_id", leagueId).maybeSingle();
+    if (existingSession) {
+      toast("Es läuft bereits eine Draft-Session. Bitte zuerst zurücksetzen.", "error");
+      return;
+    }
 
     let allTeams = [...teams];
     const botCount = (league?.max_teams || 8) - teams.length;
@@ -363,52 +497,73 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
     const n = teams.length;
     const round = Math.floor(draftSession.current_pick / n);
 
-    const { error } = await supabase.from("draft_picks").insert({
-      draft_session_id: draftSession.id,
-      team_id: myTeam.id,
-      player_id: playerId,
-      pick_number: draftSession.current_pick,
-      round,
+    const res = await fetch(`/api/wm/${leagueId}/draft/pick`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessTokenRef.current}`,
+      },
+      body: JSON.stringify({
+        player_id: playerId,
+        team_id:   myTeam.id,
+        round,
+        pick:      draftSession.current_pick,
+      }),
     });
 
-    if (error) { console.error("Pick error:", error.message); return; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast(err.error || `Pick fehlgeschlagen (${res.status})`, "error");
+      return;
+    }
 
-    await supabase.from("squad_players").insert({
-      team_id: myTeam.id,
-      player_id: playerId,
-      is_captain: false,
-      is_on_bench: false,
-    });
-
-    const nextPick = draftSession.current_pick + 1;
-    const finished = nextPick >= draftSession.total_picks;
+    const { nextPick, finished } = await res.json();
     const newStatus = finished ? "finished" : "active";
-
-    await supabase.from("draft_sessions").update({
-      current_pick: nextPick,
-      status: newStatus,
-    }).eq("id", draftSession.id);
-
     const updatedSession = { ...draftSession, current_pick: nextPick, status: newStatus };
     setDraftSession(updatedSession);
     draftSessionRef.current = updatedSession;
     const updatedPicks = await loadPicks(draftSession.id);
 
     if (finished) {
-      await supabase.from("leagues").update({ status: "active" }).eq("id", leagueId);
       if (pollRef.current) clearInterval(pollRef.current);
     } else {
       triggerBot(updatedSession, updatedPicks, teamsRef.current, userIdRef.current);
     }
   }
 
+  async function adminPick(playerId: number) {
+    if (!adminPickSlot || !draftSession) return;
+    const res = await fetch(`/api/wm/${leagueId}/draft/admin-pick`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessTokenRef.current}` },
+      body: JSON.stringify({
+        player_id:   playerId,
+        team_id:     adminPickSlot.teamId,
+        pick_number: adminPickSlot.pickNum,
+        round:       adminPickSlot.round,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast(err.error || "Admin-Pick fehlgeschlagen", "error");
+      return;
+    }
+    setAdminPickSlot(null);
+    setAdminSearch("");
+    await loadPicks(draftSession.id);
+    toast("Spieler zugewiesen ✓", "success");
+  }
+
   async function pauseDraft() {
     if (!draftSession || !isOwner) return;
+    // Block bot immediately before DB write to prevent in-flight picks from overwriting pause
+    botRunningRef.current = true;
+    if (botTimerRef.current) clearTimeout(botTimerRef.current);
+    if (pollRef.current) clearInterval(pollRef.current);
     await supabase.from("draft_sessions").update({ status: "paused" }).eq("id", draftSession.id);
     const updated = { ...draftSession, status: "paused" };
     setDraftSession(updated);
     draftSessionRef.current = updated;
-    if (botTimerRef.current) clearTimeout(botTimerRef.current);
   }
 
   async function resumeDraft() {
@@ -419,7 +574,48 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
     draftSessionRef.current = updated;
     botRunningRef.current = false;
     const freshPicks = await loadPicks(draftSession.id);
+    startPolling(draftSession.id);
     triggerBot(updated, freshPicks, teamsRef.current, userIdRef.current);
+  }
+
+  async function forcePickNow() {
+    const session = draftSessionRef.current;
+    if (!session || session.status !== "active") return;
+    const currentTeam = getTeamForPick(session, teamsRef.current);
+    if (!currentTeam) return;
+    botRunningRef.current = false;
+
+    const picked = new Set(draftPicksRef.current.map((p: any) => p.player_id));
+    const available = playersRef.current.filter(p => !picked.has(p.id));
+    if (available.length === 0) return;
+
+    const posLimits = settingsRef.current?.position_limits ?? {
+      GK: { min: 1, max: 2 }, DF: { min: 2, max: 5 },
+      MF: { min: 2, max: 5 }, FW: { min: 1, max: 3 },
+    };
+    const teamPicks = draftPicksRef.current.filter((p: any) => p.team_id === currentTeam.id);
+    const posCounts: Record<string, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
+    teamPicks.forEach((p: any) => {
+      const pos = p.players?.position;
+      if (pos && posCounts[pos] !== undefined) posCounts[pos]++;
+    });
+    const eligible = available.filter(p => {
+      const max = (posLimits as any)[p.position]?.max ?? 99;
+      return (posCounts[p.position] ?? 0) < max;
+    });
+    const best = (eligible.length > 0 ? eligible : available)[0];
+    const n = teamsRef.current.length;
+    const round = Math.floor(session.current_pick / n);
+
+    const res = await fetch(`/api/wm/${leagueId}/draft/pick`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessTokenRef.current}` },
+      body: JSON.stringify({ player_id: best.id, team_id: currentTeam.id, round, pick: session.current_pick }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast(err.error || "Force-Pick fehlgeschlagen", "error");
+    }
   }
 
   const currentTeam = draftSession ? getTeamForPick(draftSession, teams) : null;
@@ -523,7 +719,6 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           <div className="flex gap-3 mb-6">
             {([
               { id: "snake", label: "Snake Draft", desc: "Runde 2 von rechts, Runde 3 von links, …" },
-              { id: "linear", label: "Linear Draft", desc: "Gleiche Reihenfolge · Schlechtestes Team zuerst" },
             ] as const).map((t) => (
               <button key={t.id} onClick={() => setDraftType(t.id)}
                 className="flex-1 p-4 rounded-xl text-left transition-all"
@@ -584,6 +779,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
             </p>
           )}
         </div>
+        <BottomNav />
       </main>
     );
   }
@@ -594,31 +790,31 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const draftTypeLabel = draftSession.draft_type === "linear" ? "Linear" : "Snake";
 
   return (
-    <main className="flex flex-col overflow-hidden" style={{ background: "var(--bg-page)", height: "100dvh" }}>
+    <main className="flex flex-col overflow-hidden" style={{ background: "var(--bg-page)", height: "100dvh", maxWidth: "100vw" }}>
       {/* Header bar */}
-      <div className="flex justify-between items-center px-4 py-2.5 flex-shrink-0"
+      <div className="flex justify-between items-center px-2 md:px-4 py-2.5 flex-shrink-0 gap-1 min-w-0"
         style={{ borderBottom: "1px solid var(--color-border)" }}>
         <button onClick={() => window.location.href = `/wm/${leagueId}`}
           className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
           ← WM
         </button>
 
-        <div className="text-center">
+        <div className="text-center min-w-0 flex-1 mx-1">
           {draftSession.status === "finished" ? (
-            <p className="font-black text-sm" style={{ color: "var(--color-primary)" }}>🎉 Draft beendet!</p>
+            <p className="font-black text-sm truncate" style={{ color: "var(--color-primary)" }}>🎉 Draft beendet!</p>
           ) : draftSession.status === "paused" ? (
             <>
-              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest truncate" style={{ color: "var(--color-muted)" }}>
                 {draftTypeLabel} · R{currentRound}/{rounds} · Pick {draftSession.current_pick + 1}
               </p>
-              <p className="font-black text-xs mt-0.5" style={{ color: "var(--color-primary)" }}>⏸ Pausiert</p>
+              <p className="font-black text-xs mt-0.5 truncate" style={{ color: "var(--color-primary)" }}>⏸ Pausiert</p>
             </>
           ) : (
             <>
-              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
+              <p className="text-[8px] font-black uppercase tracking-widest truncate" style={{ color: "var(--color-muted)" }}>
                 {draftTypeLabel} · R{currentRound}/{rounds} · Pick {draftSession.current_pick + 1}
               </p>
-              <p className="font-black text-xs mt-0.5" style={{ color: isMyTurn ? "var(--color-primary)" : "var(--color-text)" }}>
+              <p className="font-black text-xs mt-0.5 truncate" style={{ color: isMyTurn ? "var(--color-primary)" : "var(--color-text)" }}>
                 {isMyTurn ? "🟢 Du bist dran!" : `${currentTeam?.name || "—"} pickt...`}
               </p>
             </>
@@ -632,11 +828,21 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
             </p>
           )}
           {isOwner && draftSession.status === "active" && (
-            <button onClick={pauseDraft}
-              className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
-              style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid var(--color-primary)", color: "var(--color-primary)" }}>
-              ⏸
-            </button>
+            <>
+              <button onClick={pauseDraft}
+                className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid var(--color-primary)", color: "var(--color-primary)" }}>
+                ⏸
+              </button>
+              {/* Force-Pick: picks best available for any team (bot or human) */}
+              <button
+                onClick={forcePickNow}
+                className="px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid var(--color-success)", color: "var(--color-success)" }}
+                title="Bot neu starten (wenn feststeckt)">
+                🤖
+              </button>
+            </>
           )}
           {isOwner && draftSession.status === "paused" && (
             <button onClick={resumeDraft}
@@ -653,13 +859,32 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
             </button>
           )}
           <UserBadge teamName={myTeam?.name} />
+          <span
+            className="text-sm flex-shrink-0"
+            style={{ color: isConnected ? "var(--color-success)" : "var(--color-error)" }}
+            title={isConnected ? "Verbunden" : "Verbindung wird wiederhergestellt..."}
+          >
+            {isConnected ? "⚡" : "⏳"}
+          </span>
         </div>
       </div>
 
+      {draftSession.status === "active" && (
+        <OnTheClock
+          currentTeamName={currentTeam?.name ?? null}
+          isMyTurn={isMyTurn}
+          timeLeft={timeLeft}
+          secondsPerPick={draftSession.seconds_per_pick ?? 0}
+          pickNumber={draftSession.current_pick}
+          totalPicks={draftSession.total_picks}
+          isConnected={isConnected}
+        />
+      )}
+
       {/* Body: board + player list */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left: Board / Kader */}
-        <div className="flex-1 overflow-auto p-3">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
+        {/* Top/Left: Board / Kader */}
+        <div className="h-[45vh] md:h-auto md:flex-1 min-w-0 overflow-auto p-3">
           <div className="flex gap-2 mb-3">
             <button onClick={() => setView("board")}
               className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all"
@@ -686,14 +911,14 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
 
           {/* BOARD VIEW */}
           {view === "board" && (
-            <div className="overflow-x-auto">
+            <div>
               <div className="flex gap-1 mb-1 min-w-max sticky top-0 pb-1 z-10" style={{ background: "var(--bg-page)" }}>
                 {(draftSession.draft_order || []).map((teamId: string) => {
                   const team = teams.find((t: any) => t.id === teamId);
                   const isMe = team?.user_id === user?.id;
                   return (
                     <div key={teamId}
-                      className="w-28 p-2 rounded-lg text-center text-[9px] font-black uppercase truncate"
+                      className="w-20 md:w-28 p-1.5 md:p-2 rounded-lg text-center text-[8px] md:text-[9px] font-black uppercase truncate"
                       style={{
                         background: isMe ? "var(--bg-elevated)" : "var(--bg-card)",
                         border: `1px solid ${isMe ? "var(--color-primary)" : "var(--color-border)"}`,
@@ -716,7 +941,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
 
                     return (
                       <div key={pickNum}
-                        className="w-28 h-16 rounded-lg p-1.5 transition-all"
+                        className="w-20 md:w-28 h-14 md:h-16 rounded-lg p-1 md:p-1.5 transition-all"
                         style={{
                           border: `1px solid ${isCurrent ? "var(--color-primary)" : pick ? (posColor ? posColor + "40" : "var(--color-border)") : isMe ? "var(--color-border)" : "var(--color-border)"}`,
                           background: isCurrent ? "var(--bg-elevated)" : pick ? (posColor ? posColor + "15" : "var(--bg-card)") : isMe ? "var(--bg-card)" : "var(--bg-page)",
@@ -744,6 +969,14 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
                             {isCurrent && (
                               <p className="text-[8px] font-black animate-pulse" style={{ color: "var(--color-primary)" }}>← jetzt</p>
                             )}
+                            {isOwner && !isCurrent && pickNum < draftSession.current_pick && (
+                              <button
+                                onClick={() => setAdminPickSlot({ pickNum, teamId, round: Math.floor(pickNum / (draftSession.draft_order?.length || 1)) })}
+                                className="text-[7px] font-black px-1 py-0.5 rounded transition-colors"
+                                style={{ background: "color-mix(in srgb, var(--color-primary) 15%, transparent)", color: "var(--color-primary)", border: "1px solid var(--color-primary)" }}>
+                                + Admin
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -751,6 +984,61 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
                   })}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* ADMIN PICK MODAL */}
+          {adminPickSlot && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ background: "rgba(0,0,0,0.75)" }}
+              onClick={() => { setAdminPickSlot(null); setAdminSearch(""); }}>
+              <div className="w-full max-w-sm rounded-2xl flex flex-col overflow-hidden"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-primary)", maxHeight: "80vh" }}
+                onClick={e => e.stopPropagation()}>
+                <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
+                      Admin Pick — Slot {adminPickSlot.pickNum + 1}
+                    </p>
+                    <button onClick={() => { setAdminPickSlot(null); setAdminSearch(""); }}
+                      className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>✕</button>
+                  </div>
+                  <p className="text-[8px] mb-2" style={{ color: "var(--color-muted)" }}>
+                    Team: {teams.find((t: any) => t.id === adminPickSlot.teamId)?.name}
+                  </p>
+                  <input autoFocus type="text" value={adminSearch} onChange={e => setAdminSearch(e.target.value)}
+                    placeholder="Spieler suchen..."
+                    className="w-full p-2 rounded-lg text-xs focus:outline-none"
+                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+                </div>
+                <div className="overflow-y-auto flex-1">
+                  {players
+                    .filter(p => !pickedIds.has(p.id))
+                    .filter(p => !adminSearch || p.name.toLowerCase().includes(adminSearch.toLowerCase()) || p.team_name.toLowerCase().includes(adminSearch.toLowerCase()))
+                    .slice(0, 80)
+                    .map(p => {
+                      const posColor = POS_COLOR[p.position];
+                      return (
+                        <div key={p.id}
+                          onClick={() => adminPick(p.id)}
+                          className="flex items-center gap-2 p-2 cursor-pointer transition-all"
+                          style={{ borderBottom: "1px solid var(--color-border)" }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = "transparent"}>
+                          <span className="text-[7px] font-black px-1 py-0.5 rounded-sm flex-shrink-0"
+                            style={{ background: posColor ? posColor + "25" : "var(--color-border)", color: posColor || "var(--color-muted)" }}>
+                            {p.position}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
+                            <p className="text-[8px]" style={{ color: "var(--color-muted)" }}>{p.team_name}</p>
+                          </div>
+                          <span className="text-xs font-black flex-shrink-0" style={{ color: "var(--color-primary)" }}>{p.fpts?.toFixed(0)}</span>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
             </div>
           )}
 
@@ -795,9 +1083,22 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           )}
         </div>
 
-        {/* Right: Player picker */}
-        <div className="w-64 flex flex-col flex-shrink-0" style={{ borderLeft: "1px solid var(--color-border)" }}>
+        {/* Bottom/Right: Player picker */}
+        <div className="flex-1 min-h-0 md:flex-none md:w-64 flex flex-col flex-shrink-0 border-t md:border-t-0 md:border-l"
+          style={{ borderColor: "var(--color-border)" }}>
           <div className="p-3 flex-shrink-0" style={{ borderBottom: "1px solid var(--color-border)" }}>
+            {!isConnected && (
+              <p
+                className="text-[9px] font-black text-center mb-2 py-1 px-2 rounded-lg"
+                style={{
+                  background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
+                  color: "var(--color-error)",
+                  border: "1px solid color-mix(in srgb, var(--color-error) 30%, transparent)",
+                }}
+              >
+                Verbindung wird wiederhergestellt…
+              </p>
+            )}
             <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-border)" }}>
               {availablePlayers.length} verfügbar · {players.length} WM-Spieler
             </p>
@@ -835,45 +1136,21 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {availablePlayers.slice(0, 150).map(p => {
-              const posColor = POS_COLOR[p.position];
-              const nation = nations.find((n: any) => n.name === p.team_name);
-              return (
-                <div key={p.id}
-                  onClick={() => isMyTurn && pickPlayer(p.id)}
-                  className="flex items-center gap-2 p-2 transition-all"
-                  style={{
-                    borderBottom: "1px solid var(--color-border)",
-                    opacity: isMyTurn ? 1 : 0.4,
-                    cursor: isMyTurn ? "pointer" : "not-allowed",
-                    background: "transparent",
-                  }}
-                  onMouseEnter={e => { if (isMyTurn) (e.currentTarget as HTMLElement).style.background = "var(--bg-elevated)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}>
-                  <PlayerCard player={p} posColor={posColor} size={32} nationFlagUrl={nation?.flag_url} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
-                    <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>
-                      {nation?.code || p.team_name}
-                      {nation?.group_letter && <span style={{ color: "var(--color-border)" }}> · Gr.{nation.group_letter}</span>}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{p.fpts?.toFixed(0)}</p>
-                    <span className="text-[7px] font-black px-1 rounded-sm"
-                      style={{
-                        background: posColor ? posColor + "20" : "var(--color-border)",
-                        color: posColor || "var(--color-muted)",
-                      }}>
-                      {p.position}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {availablePlayers.slice(0, 150).map((p) => (
+              <DraftPlayerRow
+                key={p.id}
+                player={p}
+                nation={nations.find((n: any) => n.name === p.team_name)}
+                posColor={POS_COLOR[p.position]}
+                isMyTurn={isMyTurn}
+                isConnected={isConnected}
+                onPick={pickPlayer}
+              />
+            ))}
           </div>
         </div>
       </div>
+      <PickAnnouncement pick={announcedPick} visible={announcementVisible} />
     </main>
   );
 }

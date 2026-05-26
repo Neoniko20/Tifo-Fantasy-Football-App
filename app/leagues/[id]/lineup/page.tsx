@@ -1,16 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { FORMATIONS, validateFormation } from "@/lib/wm-formations";
 import type { Position } from "@/lib/wm-types";
 import { BottomNav } from "@/app/components/BottomNav";
 import { PlayerCard } from "@/app/components/PlayerCard";
-import { PlayerPitchCard } from "@/app/components/PlayerPitchCard";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import tsdbClubs from "@/lib/tsdb-clubs.json";
 import { useToast } from "@/app/components/ToastProvider";
+import type { LineupPlayer, LineupIRSlot } from "@/app/types/lineup";
+import { LineupPitch } from "@/app/components/lineup/LineupPitch";
+import { BenchSection } from "@/app/components/lineup/BenchSection";
+import { IRSection } from "@/app/components/lineup/IRSection";
+import { TaxiSection } from "@/app/components/lineup/TaxiSection";
+import { MarketTab, type MarketPlayerInfo } from "@/app/components/lineup/MarketTab";
+import { MarketSwapSheet } from "@/app/components/lineup/MarketSwapSheet";
 
 const clubAsset = (teamName: string) => (tsdbClubs as Record<string, any>)[teamName] || null;
 
@@ -26,38 +32,17 @@ const LEAGUE_NAMES: Record<number, string> = {
   140: "La Liga", 135: "Serie A", 61: "Ligue 1",
 };
 
-type Player = {
-  id: number;
-  name: string;
-  photo_url: string;
-  position: string;
-  team_name: string;
-  api_team_id?: number;
-  fpts: number;
-  goals?: number;
-  assists?: number;
-  minutes?: number;
-  shots_on?: number;
-  key_passes?: number;
-  tackles?: number;
-  interceptions?: number;
-  yellow_cards?: number;
-  red_cards?: number;
-  saves?: number;
-};
-
-type IRSlotData = {
-  id: string;
-  player_id: number;
-  placed_at_gw: number;
-  min_return_gw: number;
-  player?: Player;
-};
+type Player = LineupPlayer;
+type IRSlotData = LineupIRSlot;
 
 type ModalData = {
-  player: Player;
-  slotType: "xi" | "bench" | "none";
-  slotIndex: number;
+  player:         Player;
+  slotType:       "xi" | "bench" | "none" | "market";
+  slotIndex:      number;
+  // Market context — only set when slotType === "market"
+  marketStatus?:  "available" | "mine" | "taken";
+  ownerTeamName?: string;
+  ownerTeamId?:   string;
 };
 
 export default function LigaLineupPage({ params }: { params: Promise<{ id: string }> }) {
@@ -84,7 +69,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [squadWarnings, setSquadWarnings] = useState<{ type: string; message: string }[]>([]);
   const [showFormationPicker, setShowFormationPicker] = useState(false);
   const [gwPoints, setGwPoints] = useState<Record<number, number>>({});
-  const [activeTab, setActiveTab] = useState<"lineup" | "squad" | "matches">("lineup");
+  const [activeTab, setActiveTab] = useState<"lineup" | "squad" | "market">("lineup");
   const [modalData, setModalData] = useState<ModalData | null>(null);
   const [squadSort, setSquadSort] = useState<"fpts" | "position" | "name" | "club">("fpts");
   const [dropping, setDropping] = useState<number | null>(null);
@@ -93,6 +78,18 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [playerBorn, setPlayerBorn] = useState<Map<number, string>>(new Map());
   const [gwMinutes, setGwMinutes] = useState<Record<number, number>>({}); // current GW minutes (live)
   const [originalXIIds, setOriginalXIIds] = useState<number[]>([]); // snapshot at load time
+  const [showSwapSheet,     setShowSwapSheet]     = useState(false);
+  const [marketRefreshKey,  setMarketRefreshKey]  = useState(0);
+  const [captainSheet, setCaptainSheet] = useState<{
+    player: Player;
+    slotType: "xi" | "bench";
+    slotIndex: number;
+  } | null>(null);
+  const [swapSelection, setSwapSelection] = useState<{
+    type: "xi" | "bench";
+    index: number;
+    player: Player;
+  } | null>(null);
   const { toast } = useToast();
 
   // Player card detail states
@@ -105,6 +102,10 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   const [injuredPlayerIds, setInjuredPlayerIds] = useState<Set<number | string>>(new Set());
   const [playerDetailLoading, setPlayerDetailLoading] = useState(false);
   const [playerTab, setPlayerTab] = useState<"summary" | "gamelog" | "history" | "news">("summary");
+
+  // Transfer listings
+  const [myListedIds,          setMyListedIds]          = useState<Set<number>>(new Set());
+  const [listingActionLoading, setListingActionLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -121,6 +122,12 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGW]);
+
+  // Load myListedIds once myTeam is known
+  useEffect(() => {
+    if (myTeam?.id) fetchMyListedIds();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myTeam?.id]);
 
   // Load player detail + TheSportsDB when modal opens
   useEffect(() => {
@@ -247,8 +254,8 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       }
     }
 
-    checkSquadWarnings(playersData, ls, taxiData);
-    await loadLineupWithPlayers(team.id, gw, playersData, ls);
+    const { xi: freshXI, bench: freshBench } = await loadLineupWithPlayers(team.id, gw, playersData, ls);
+    checkSquadWarnings(playersData, ls, taxiData, freshXI, freshBench);
     await loadIRSlots(team.id, playersData);
     await loadGWPoints(team.id, gw);
     setLoading(false);
@@ -263,7 +270,10 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     return age;
   }
 
-  function checkSquadWarnings(players: Player[], settings: any, taxi?: Player[]) {
+  function checkSquadWarnings(
+    players: Player[], settings: any, taxi?: Player[],
+    freshXI?: (Player | null)[], freshBench?: Player[],
+  ) {
     const warnings: { type: string; message: string }[] = [];
     const squadSize = settings?.squad_size || 15;
     const benchSize = settings?.bench_size || 4;
@@ -306,6 +316,23 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
         });
       }
     }
+
+    // XI incomplete: null slots exist while squad has players
+    if (freshXI && players.length > 0 && freshXI.some(p => !p)) {
+      warnings.push({
+        type: "xi_incomplete",
+        message: "Aufstellung unvollständig – bitte freien Startplatz besetzen.",
+      });
+    }
+
+    // Bench overflow
+    if (freshBench && freshBench.length > benchSize) {
+      warnings.push({
+        type: "bench_full",
+        message: "Bank zu voll – bitte Kader anpassen.",
+      });
+    }
+
     setSquadWarnings(warnings);
   }
 
@@ -366,6 +393,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     checkSquadWarnings(updated, ligaSettings, updatedTaxi);
     setModalData(null);
     setDropping(null);
+    setMarketRefreshKey(k => k + 1);
   }
 
   async function placeOnIR(player: Player) {
@@ -444,7 +472,9 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     await loadLineupWithPlayers(myTeam.id, gw, draftPicks);
   }
 
-  async function loadLineupWithPlayers(teamId: string, gw: number, players: Player[], settings?: any) {
+  async function loadLineupWithPlayers(
+    teamId: string, gw: number, players: Player[], settings?: any,
+  ): Promise<{ xi: (Player | null)[]; bench: Player[] }> {
     const { data: lineup } = await supabase
       .from("liga_lineups").select("*")
       .eq("team_id", teamId).eq("gameweek", gw).maybeSingle();
@@ -453,15 +483,19 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       setFormation(lineup.formation);
       setCaptainId(lineup.captain_id);
       setViceCaptainId(lineup.vice_captain_id);
-      const xi = (lineup.starting_xi as number[]).map(
+      const xiMapped = (lineup.starting_xi as number[]).map(
         (id: number) => players.find(p => p.id === id) || null
       );
+      // Pad to 11 slots — never wipe a partially-valid lineup
+      const xi: (Player | null)[] = Array(11).fill(null);
+      xiMapped.forEach((p, i) => { if (i < 11) xi[i] = p; });
       const benchArr = (lineup.bench as number[])
         .map((id: number) => players.find(p => p.id === id))
         .filter(Boolean) as Player[];
-      setStartingXI(xi.length === 11 ? xi : Array(11).fill(null));
+      setStartingXI(xi);
       setBench(benchArr);
       setOriginalXIIds(lineup.starting_xi as number[]);
+      return { xi, bench: benchArr };
     } else {
       if (players.length > 0) {
         const config = FORMATIONS[formation];
@@ -482,11 +516,13 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
         setBench(benchArr);
         setCaptainId(captain?.id || null);
         setViceCaptainId(viceCap?.id || null);
+        return { xi: newXI, bench: benchArr };
       } else {
         setStartingXI(Array(11).fill(null));
         setBench([]);
         setCaptainId(null);
         setViceCaptainId(null);
+        return { xi: Array(11).fill(null), bench: [] };
       }
     }
   }
@@ -503,7 +539,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
 
     if (selectedSlot.type === "xi") {
       const targetSlot = config.layout[selectedSlot.index];
-      if (targetSlot && targetSlot.position !== player.position) {
+      if (targetSlot && normalizePos(targetSlot.position) !== normalizePos(player.position)) {
         toast(`Slot benötigt ${targetSlot.position}, Spieler ist ${player.position}`, "error");
         return;
       }
@@ -559,6 +595,28 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       setBench(newBench);
     }
     setSelectedSlot(null);
+  }
+
+  function executeDirectSwap(
+    fromType: "xi" | "bench", fromIndex: number,
+    toType: "xi" | "bench", toIndex: number,
+  ) {
+    const newXI    = [...startingXI];
+    const newBench = [...bench];
+    if (fromType === "xi" && toType === "bench") {
+      const a = newXI[fromIndex];
+      const b = newBench[toIndex];
+      newXI[fromIndex] = b ?? null;
+      if (a) newBench[toIndex] = a; else newBench.splice(toIndex, 1);
+    } else if (fromType === "bench" && toType === "xi") {
+      const a = newBench[fromIndex];
+      const b = newXI[toIndex];
+      newXI[toIndex] = a;
+      if (b) newBench[fromIndex] = b; else newBench.splice(fromIndex, 1);
+    }
+    setStartingXI(newXI);
+    setBench(newBench);
+    setSwapSelection(null);
   }
 
   function changeFormation(f: string) {
@@ -648,6 +706,78 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
     setTimeout(() => setSaved(false), 2000);
   }
 
+  // ── Transfer listing helpers ─────────────────────────────────────────
+
+  async function fetchMyListedIds() {
+    if (!myTeam?.id) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = session?.access_token
+        ? { Authorization: `Bearer ${session.access_token}` }
+        : {};
+      const res  = await fetch(`/api/leagues/${leagueId}/transfer-listings`, { headers });
+      const json = await res.json();
+      if (!json.ok) return;
+      setMyListedIds(new Set(
+        (json.listings as { team_id: string; player_id: number }[])
+          .filter(l => l.team_id === myTeam.id)
+          .map(l => l.player_id),
+      ));
+    } catch {
+      // silently fail — table might not exist yet
+    }
+  }
+
+  async function handleListingToggle(playerId: number) {
+    if (!myTeam?.id || listingActionLoading) return;
+    setListingActionLoading(true);
+    const isListed = myListedIds.has(playerId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      };
+      await fetch(`/api/leagues/${leagueId}/transfer-listings`, {
+        method: isListed ? "PATCH" : "POST",
+        headers,
+        body: JSON.stringify({ playerId }),
+      });
+      toast(isListed ? "Von Transferliste entfernt" : "Auf Transferliste gesetzt", "info");
+      await fetchMyListedIds();
+      setMarketRefreshKey(k => k + 1);
+    } catch {
+      toast("Fehler – bitte nochmal versuchen", "error");
+    } finally {
+      setListingActionLoading(false);
+    }
+  }
+
+  // ── Market player click → open existing profile modal ───────────────
+  // Must be defined BEFORE the early loading return (Rules of Hooks)
+  const handleMarketPlayerClick = useCallback((
+    mpi:            MarketPlayerInfo,
+    status:         "available" | "mine" | "taken",
+    ownerTeamName?: string,
+    ownerTeamId?:   string,
+  ) => {
+    setModalData({
+      player: {
+        id:        mpi.id,
+        name:      mpi.name,
+        photo_url: mpi.photo_url,
+        position:  mpi.position,   // raw DB: GK|DF|MF|FW — modal expects this format
+        team_name: mpi.team_name ?? undefined,
+        fpts:      mpi.fpts ?? undefined,
+      } as Player,
+      slotType:      "market",
+      slotIndex:     -1,
+      marketStatus:  status,
+      ownerTeamName,
+      ownerTeamId,
+    });
+  }, []);
+
   if (loading) return (
     <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
       <Spinner text="Lade Aufstellung..." />
@@ -702,9 +832,67 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
         }))
     : [];
 
+  // ── Tap-to-swap helpers ────────────────────────────────────────────
+  function isPlayerSwappable(player: Player): boolean {
+    if (isLocked) return false;
+    if (canLiveSwap && (gwMinutes[player.id] ?? -1) > 0) return false;
+    return true;
+  }
+
+  // Normalise DB position codes (TW/AB/ST) and config codes (GK/DF/FW) to a common set
+  function normalizePos(pos: string): string {
+    const p = (pos ?? "").toUpperCase();
+    if (p === "GK" || p === "TW" || p === "G") return "GK";
+    if (p === "DF" || p === "AB" || p === "D") return "DF";
+    if (p === "FW" || p === "ST" || p === "F" || p === "LW" || p === "RW" || p === "CF" || p === "SS") return "FW";
+    return "MF";
+  }
+
+  const validXITargets    = new Set<number>();
+  const validBenchTargets = new Set<number>();
+  if (swapSelection && config) {
+    if (swapSelection.type === "bench") {
+      config.layout.forEach((slot, i) => {
+        // Include both occupied AND empty slots with matching position
+        if (normalizePos(slot.position) === normalizePos(swapSelection.player.position)) {
+          validXITargets.add(i);
+        }
+      });
+    } else {
+      const slotPos = config.layout[swapSelection.index]?.position;
+      if (slotPos) {
+        bench.forEach((p, i) => {
+          if (normalizePos(p.position) === normalizePos(slotPos)) validBenchTargets.add(i);
+        });
+      }
+    }
+  }
+
+  // When an empty XI slot is selected, highlight eligible bench players
+  const emptySlotBenchTargets = new Set<number>();
+  const isEmptySlotSelected = selectedSlot?.type === "xi" && !startingXI[selectedSlot.index];
+  if (isEmptySlotSelected && config) {
+    const neededPos = config.layout[selectedSlot!.index]?.position;
+    if (neededPos) {
+      bench.forEach((p, i) => {
+        if (normalizePos(p.position) === normalizePos(neededPos)) emptySlotBenchTargets.add(i);
+      });
+    }
+  }
+
+  const swapIsActive          = swapSelection !== null;
+  const swapSelectedXISlot    = swapSelection?.type === "xi"    ? swapSelection.index : null;
+  const swapSelectedBenchSlot = swapSelection?.type === "bench" ? swapSelection.index : null;
+
+  // For BenchSection: activate highlighting either in swap mode or empty-slot mode
+  const benchHighlightActive  = swapIsActive || isEmptySlotSelected;
+  const benchValidTargets     = swapIsActive ? validBenchTargets : emptySlotBenchTargets;
+  const benchSwapSelectedSlot = swapIsActive ? swapSelectedBenchSlot : null;
+
+  const captainMultiplier = (ligaSettings?.scoring_rules as any)?.captain_multiplier ?? 2;
   const xiPoints = startingXI.filter(Boolean).reduce((s, p) => {
     const base = p!.fpts || 0;
-    return s + (p!.id === captainId ? base * 2 : base);
+    return s + (p!.id === captainId ? base * captainMultiplier : base);
   }, 0);
 
   const benchSize = ligaSettings?.bench_size || 4;
@@ -726,7 +914,11 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center px-3 pb-28" style={{ background: "var(--bg-page)", paddingTop: 16 }}>
+    <main
+      className="flex min-h-screen flex-col items-center px-3 pb-28"
+      style={{ background: "var(--bg-page)", paddingTop: 16 }}
+      onClick={() => { if (swapIsActive) setSwapSelection(null); }}
+    >
 
       {/* ── App Header ── */}
       <div className="w-full max-w-md pt-3 pb-1">
@@ -817,12 +1009,12 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       {/* ── Tab bar — underline ── */}
       <div className="flex w-full max-w-md mb-2" style={{ borderBottom: "1px solid var(--color-border)" }}>
         {([
-          { id: "lineup",  label: "Aufstellung" },
-          { id: "squad",   label: "Kader" },
-          { id: "matches", label: "Spieltag" },
+          { id: "lineup", label: "Aufstellung" },
+          { id: "squad",  label: "Kader" },
+          { id: "market", label: "Markt" },
         ] as const).map(tab => (
           <button key={tab.id}
-            onClick={() => { setActiveTab(tab.id); setSelectedSlot(null); setSelectingIR(false); setSelectingTaxi(false); setShowFormationPicker(false); }}
+            onClick={() => { setActiveTab(tab.id); setSelectedSlot(null); setSwapSelection(null); setSelectingIR(false); setSelectingTaxi(false); setShowFormationPicker(false); }}
             className="flex-1 pb-2 pt-1 text-[9px] font-black uppercase tracking-widest transition-all"
             style={{
               color: activeTab === tab.id ? "var(--color-primary)" : "var(--color-muted)",
@@ -890,368 +1082,172 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
             );
           })()}
 
-          {/* Spielfeld — capped at 480px, full-width on mobile */}
-          <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4 relative"
-            style={{
-              background: "linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 8%, var(--bg-page)) 0%, color-mix(in srgb, #1a2e1a 60%, var(--bg-page)) 100%)",
-              border: "1px solid color-mix(in srgb, var(--color-primary) 22%, transparent)",
-              minHeight: 480,
-            }}>
-            {/* Pitch lines */}
-            <div aria-hidden className="pointer-events-none absolute inset-0">
-              {/* Center line */}
-              <div className="absolute left-0 right-0 top-1/2 h-px"
-                style={{ background: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
-              {/* Center circle */}
-              <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border"
-                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
-              {/* Center spot */}
-              <div className="absolute left-1/2 top-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full"
-                style={{ background: "color-mix(in srgb, var(--color-primary) 40%, transparent)" }} />
-              {/* Top penalty box */}
-              <div className="absolute left-[18%] right-[18%] top-0 h-[90px] border border-t-0"
-                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
-              {/* Top goal area */}
-              <div className="absolute left-[34%] right-[34%] top-0 h-[34px] border border-t-0"
-                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
-              {/* Top penalty spot */}
-              <div className="absolute left-1/2 top-[60px] h-1 w-1 -translate-x-1/2 rounded-full"
-                style={{ background: "color-mix(in srgb, var(--color-primary) 40%, transparent)" }} />
-              {/* Bottom penalty box */}
-              <div className="absolute left-[18%] right-[18%] bottom-0 h-[90px] border border-b-0"
-                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
-              {/* Bottom goal area */}
-              <div className="absolute left-[34%] right-[34%] bottom-0 h-[34px] border border-b-0"
-                style={{ borderColor: "color-mix(in srgb, var(--color-primary) 22%, transparent)" }} />
-              {/* Bottom penalty spot */}
-              <div className="absolute left-1/2 bottom-[60px] h-1 w-1 -translate-x-1/2 rounded-full"
-                style={{ background: "color-mix(in srgb, var(--color-primary) 40%, transparent)" }} />
+          {/* Swap hint strip */}
+          {swapIsActive && (
+            <div
+              className="w-full max-w-md mb-2 rounded-lg px-3 py-1.5 flex items-center justify-between"
+              style={{
+                background: "color-mix(in srgb, rgba(244,196,48,1) 8%, var(--bg-page))",
+                border: "1px solid rgba(244,196,48,0.28)",
+                position: "relative", zIndex: 20,
+              }}
+            >
+              <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "rgba(244,196,48,0.9)" }}>
+                ⇄ {swapSelection!.player.name.split(" ").pop()} — gültiges Ziel wählen
+              </p>
+              <button
+                onClick={() => setSwapSelection(null)}
+                className="text-[8px] font-black px-2 py-0.5 rounded"
+                style={{ background: "rgba(244,196,48,0.12)", color: "rgba(244,196,48,0.7)" }}
+              >
+                ✕
+              </button>
             </div>
+          )}
 
-            {/* Rows — justify-between keeps GK inside bottom penalty area */}
-            <div className="relative z-10 flex flex-col justify-between p-3" style={{ minHeight: 480 }}>
-              {rows.map(({ row, slots }) => (
-                <div key={row} className="flex justify-center gap-2">
-                  {slots.map(({ position, slotIndex }) => {
-                    const player = startingXI[slotIndex];
-                    const isSelected = selectedSlot?.type === "xi" && selectedSlot.index === slotIndex;
-                    const isCap = player?.id === captainId;
-                    const isVC = player?.id === viceCaptainId;
-                    const playerInjured = player ? injuredPlayerIds.has(player.id) : false;
-                    const lockedForSwap = !!player && canLiveSwap && (gwMinutes[player.id] ?? -1) > 0;
-                    const status = isLocked || lockedForSwap
-                      ? "locked"
-                      : playerInjured
-                        ? "injured"
-                        : isCap
-                          ? "active"
-                          : "default";
-                    const liveMin = player && canLiveSwap && gwMinutes[player.id] !== undefined
-                      ? gwMinutes[player.id]
-                      : undefined;
+          {/* Spielfeld + Bank — stopPropagation verhindert tap-outside-cancel beim Tippen auf Karten */}
+          <div onClick={(e) => e.stopPropagation()}>
 
-                    return (
-                      <div key={slotIndex}
-                        onClick={() => {
-                          if (isLocked) return;
-                          if (player) {
-                            setSelectedSlot(null);
-                            setModalData({ player, slotType: "xi", slotIndex });
-                          } else {
-                            setSelectedSlot(isSelected ? null : { type: "xi", index: slotIndex });
-                          }
-                        }}
-                        style={{ cursor: isLocked ? "default" : "pointer" }}>
-                        {player ? (
-                          <PlayerPitchCard
-                            variant="compact"
-                            position={position}
-                            name={player.name}
-                            imageUrl={player.photo_url}
-                            points={gwPoints[player.id] ?? player.fpts}
-                            isCaptain={isCap}
-                            isViceCaptain={isVC}
-                            liveMinutes={liveMin}
-                            status={status}
-                          />
-                        ) : (
-                          <PlayerPitchCard
-                            variant="compact"
-                            position={position}
-                            isEmpty
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
+          {/* Spielfeld */}
+          <LineupPitch
+            rows={rows}
+            startingXI={startingXI}
+            captainId={captainId}
+            viceCaptainId={viceCaptainId}
+            isLocked={isLocked}
+            canLiveSwap={canLiveSwap}
+            gwPoints={gwPoints}
+            gwMinutes={gwMinutes}
+            injuredPlayerIds={injuredPlayerIds}
+            swapSelectedSlot={swapSelectedXISlot}
+            validTargetSlots={validXITargets}
+            isSwapActive={swapIsActive}
+            selectedSlotIndex={selectedSlot?.type === "xi" ? selectedSlot.index : null}
+            onSlotClick={(slotIndex, player) => {
+              if (swapSelection) {
+                // Same XI slot tapped → deselect
+                if (swapSelection.type === "xi" && swapSelection.index === slotIndex) {
+                  setSwapSelection(null);
+                  return;
+                }
+                // Bench player selected, tapped valid XI target
+                if (swapSelection.type === "bench" && validXITargets.has(slotIndex)) {
+                  if (player) {
+                    // Normal swap: bench ↔ occupied XI slot
+                    executeDirectSwap("bench", swapSelection.index, "xi", slotIndex);
+                  } else {
+                    // Empty XI slot: move bench player directly into it
+                    const newXI    = [...startingXI];
+                    const newBench = [...bench];
+                    const fromBench = newBench.findIndex(p => p.id === swapSelection.player.id);
+                    if (fromBench !== -1) newBench.splice(fromBench, 1);
+                    newXI[slotIndex] = swapSelection.player;
+                    setStartingXI(newXI);
+                    setBench(newBench);
+                  }
+                  setSwapSelection(null);
+                  return;
+                }
+                // Tapped another swappable XI player → change selection
+                if (player && isPlayerSwappable(player)) {
+                  setSwapSelection({ type: "xi", index: slotIndex, player });
+                  return;
+                }
+                setSwapSelection(null);
+                return;
+              }
+
+              if (player) {
+                setCaptainSheet({ player, slotType: "xi", slotIndex });
+              } else {
+                if (isLocked) return;
+                const isSelected = selectedSlot?.type === "xi" && selectedSlot.index === slotIndex;
+                setSelectedSlot(isSelected ? null : { type: "xi", index: slotIndex });
+              }
+            }}
+          />
 
           {/* Bank */}
-          {(() => {
-            const displayCount = Math.max(bench.length, benchSize);
-            return (
-              <div className="w-full max-w-md mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-                    Bank · {bench.filter(Boolean).length}/{benchSize}
-                  </p>
-                  {bench.length > benchSize && (
-                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                      style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", color: "var(--color-error)", border: "1px solid var(--color-error)40" }}>
-                      +{bench.length - benchSize} überschuss
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {Array.from({ length: displayCount }).map((_, i) => {
-                    const player = bench[i];
-                    const isSelected = selectedSlot?.type === "bench" && selectedSlot.index === i;
-                    const isOverflow = i >= benchSize;
-                    const posColor = player ? (POS_COLOR[player.position] || "var(--color-text)") : "var(--color-border)";
-                    return (
-                      <div key={i}
-                        onClick={() => {
-                          if (isLocked) return;
-                          if (player) {
-                            setSelectedSlot(null);
-                            setModalData({ player, slotType: "bench", slotIndex: i });
-                          } else {
-                            setSelectedSlot(isSelected ? null : { type: "bench", index: i });
-                          }
-                        }}
-                        className="flex flex-col items-center p-2 rounded-xl transition-all"
-                        style={{
-                          cursor: isLocked ? "default" : "pointer",
-                          width: "calc(25% - 6px)", minWidth: 64,
-                          background: isOverflow ? "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))" : isSelected ? "var(--bg-elevated)" : "var(--bg-card)",
-                          border: `1px solid ${isOverflow ? "var(--color-error)40" : isSelected ? "var(--color-primary)" : "var(--color-border)"}`,
-                        }}>
-                        <PlayerCircle
-                          player={player} size={36} posColor={isOverflow ? "var(--color-error)" : posColor}
-                          selected={isSelected} posLabel={String(i + 1)}
-                        />
-                        {isOverflow && player && (
-                          <span className="text-[6px] font-black mt-0.5" style={{ color: "var(--color-error)" }}>!</span>
-                        )}
-                        <p className="text-[7px] font-black text-center mt-0.5 truncate w-full leading-tight"
-                          style={{ color: isOverflow ? "var(--color-error)" : player ? "var(--color-text)" : "var(--color-border)" }}>
-                          {player ? player.name.split(" ").pop() : "—"}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
+          <BenchSection
+            bench={bench}
+            benchSize={benchSize}
+            isLocked={isLocked}
+            selectedSlot={selectedSlot}
+            gwPoints={gwPoints}
+            injuredPlayerIds={injuredPlayerIds}
+            captainId={captainId}
+            viceCaptainId={viceCaptainId}
+            swapSelectedBench={benchSwapSelectedSlot}
+            validTargetBench={benchValidTargets}
+            isSwapActive={benchHighlightActive}
+            onSlotClick={(index, player) => {
+              if (swapSelection) {
+                // Same bench slot tapped → deselect
+                if (swapSelection.type === "bench" && swapSelection.index === index) {
+                  setSwapSelection(null);
+                  return;
+                }
+                // XI player selected, tapped valid bench target → swap
+                if (swapSelection.type === "xi" && validBenchTargets.has(index) && player) {
+                  executeDirectSwap("xi", swapSelection.index, "bench", index);
+                  return;
+                }
+                // Tapped another swappable bench player → change selection
+                if (player && isPlayerSwappable(player)) {
+                  setSwapSelection({ type: "bench", index, player });
+                  return;
+                }
+                setSwapSelection(null);
+                return;
+              }
+
+              if (player) {
+                // If an XI slot is already selected (selector panel mode), assign directly
+                if (selectedSlot?.type === "xi") {
+                  assignPlayer(player);
+                  return;
+                }
+                setCaptainSheet({ player, slotType: "bench", slotIndex: index });
+              } else {
+                if (isLocked) return;
+                const isSelected = selectedSlot?.type === "bench" && selectedSlot.index === index;
+                setSelectedSlot(isSelected ? null : { type: "bench", index });
+              }
+            }}
+          />
+
+          </div>{/* end stopPropagation wrapper */}
 
           {/* IR-Spots */}
           {(ligaSettings?.ir_spots || 0) > 0 && (
-            <div className="w-full max-w-md mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                    style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid var(--color-error)", color: "var(--color-error)" }}>IR</span>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-                    Injured Reserve · min. {ligaSettings.ir_min_gameweeks || 4} GWs
-                  </p>
-                </div>
-                {irSlots.length < ligaSettings.ir_spots && (
-                  <button
-                    onClick={() => { setSelectingIR(v => !v); setSelectedSlot(null); }}
-                    className="text-[8px] font-black px-2 py-1 rounded-lg transition-all"
-                    style={{
-                      background: selectingIR ? "var(--color-error)" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
-                      color: selectingIR ? "var(--bg-page)" : "var(--color-error)",
-                      border: "1px solid var(--color-error)",
-                    }}>
-                    {selectingIR ? "Abbrechen" : "+ Spieler"}
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {irSlots.map((slot) => {
-                  const canReturn   = activeGW >= slot.min_return_gw;
-                  const gwsLeft     = Math.max(0, slot.min_return_gw - activeGW);
-                  return (
-                    <div key={slot.id} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                      style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: `1px solid ${canReturn ? "var(--color-error)40" : "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))"}` }}>
-                      {slot.player?.photo_url ? (
-                        <img src={slot.player.photo_url} className="w-9 h-9 rounded-full object-cover"
-                          style={{ border: `2px solid ${canReturn ? "var(--color-error)60" : "var(--color-error)20"}` }} alt="" />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                          style={{ border: "2px solid color-mix(in srgb, var(--color-error) 20%, var(--bg-page))", background: "var(--bg-page)" }}>
-                          <span className="text-[10px] font-black" style={{ color: "var(--color-error)" }}>IR</span>
-                        </div>
-                      )}
-                      <p className="text-[7px] font-black text-center mt-1 truncate w-full leading-tight"
-                        style={{ color: "var(--color-text)" }}>
-                        {slot.player?.name.split(" ").pop() || "—"}
-                      </p>
-                      <p className="text-[7px] font-black text-center"
-                        style={{ color: canReturn ? "var(--color-error)" : "var(--color-muted)" }}>
-                        {canReturn ? "✓ Bereit" : `noch ${gwsLeft} GW${gwsLeft !== 1 ? "s" : ""}`}
-                      </p>
-                      <button onClick={() => returnFromIR(slot)}
-                        className="text-[7px] font-black mt-1 px-1.5 py-0.5 rounded transition-all"
-                        style={{
-                          background: canReturn ? "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" : "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))",
-                          color: canReturn ? "var(--color-error)" : "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))",
-                          border: `1px solid ${canReturn ? "var(--color-error)" : "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))"}`,
-                          cursor: canReturn ? "pointer" : "not-allowed",
-                        }}>
-                        Zurück
-                      </button>
-                    </div>
-                  );
-                })}
-                {Array.from({ length: ligaSettings.ir_spots - irSlots.length }).map((_, i) => (
-                  <div key={`empty-${i}`} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" }}>
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ border: "2px solid color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", background: "var(--bg-page)" }}>
-                      <span className="text-[10px] font-black" style={{ color: "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>IR</span>
-                    </div>
-                    <p className="text-[7px] font-black text-center mt-1" style={{ color: "color-mix(in srgb, var(--color-error) 20%, var(--bg-page))" }}>Leer</p>
-                  </div>
-                ))}
-              </div>
-              {selectingIR && (
-                <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
-                  <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-error)" }}>
-                    Spieler auf IR setzen (mind. {ligaSettings.ir_min_gameweeks || 4} GWs gesperrt)
-                  </p>
-                  {draftPicks.filter(p => !irSlots.find(s => s.player_id === p.id)).map(p => (
-                    <div key={p.id} onClick={() => placeOnIR(p)}
-                      className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                      style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 15%, var(--bg-page))" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-error)"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))"}>
-                      <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
-                        style={{ border: `1px solid ${POS_COLOR[p.position]}40` }} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
-                        <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>{p.position} · {p.team_name}</p>
-                      </div>
-                      <span className="text-[8px] font-black" style={{ color: "var(--color-error)" }}>+ IR</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <IRSection
+              irSlots={irSlots}
+              irSpotsTotal={ligaSettings.ir_spots}
+              irMinGameweeks={ligaSettings.ir_min_gameweeks || 4}
+              activeGW={activeGW}
+              selectingIR={selectingIR}
+              draftPicks={draftPicks}
+              onToggleSelecting={() => { setSelectingIR(v => !v); setSelectedSlot(null); }}
+              onPlaceOnIR={placeOnIR}
+              onReturnFromIR={returnFromIR}
+            />
           )}
 
           {/* Taxi Squad */}
           {(ligaSettings?.taxi_spots || 0) > 0 && (
-            <div className="w-full max-w-md mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-text)", color: "var(--color-text)" }}>U21</span>
-                  <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>
-                    Taxi Squad · {taxiSquad.length}/{ligaSettings.taxi_spots}
-                  </p>
-                </div>
-                {taxiSquad.length < ligaSettings.taxi_spots && (
-                  <button
-                    onClick={() => { setSelectingTaxi(v => !v); setSelectedSlot(null); setSelectingIR(false); }}
-                    className="text-[8px] font-black px-2 py-1 rounded-lg transition-all"
-                    style={{
-                      background: selectingTaxi ? "var(--color-text)" : "var(--bg-elevated)",
-                      color: selectingTaxi ? "var(--bg-page)" : "var(--color-text)",
-                      border: "1px solid var(--color-text)",
-                    }}>
-                    {selectingTaxi ? "Abbrechen" : "+ Spieler"}
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {taxiSquad.map((player) => (
-                  <div key={player.id} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border-subtle)" }}>
-                    {player.photo_url ? (
-                      <img src={player.photo_url} className="w-9 h-9 rounded-full object-cover"
-                        style={{ border: "2px solid var(--color-text)40" }} alt="" />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                        style={{ border: "2px solid var(--color-border-subtle)", background: "var(--bg-page)" }}>
-                        <span className="text-[8px] font-black" style={{ color: "var(--color-text)" }}>
-                          {player.position}
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-[7px] font-black text-center mt-1 truncate w-full leading-tight"
-                      style={{ color: "var(--color-text)" }}>
-                      {player.name.split(" ").pop() || "—"}
-                    </p>
-                    <p className="text-[7px] text-center" style={{ color: "var(--color-muted)" }}>
-                      {playerBorn.get(player.id) ? `${calcAge(playerBorn.get(player.id)!)}J · ` : ""}{player.fpts?.toFixed(0)} pts
-                    </p>
-                    <button onClick={() => promoteFromTaxi(player)}
-                      className="text-[7px] font-black mt-1 px-1.5 py-0.5 rounded transition-all"
-                      style={{
-                        background: "var(--color-border)",
-                        color: "var(--color-primary)",
-                        border: "1px solid var(--color-border-subtle)",
-                      }}>
-                      ↑ Befördern
-                    </button>
-                  </div>
-                ))}
-                {Array.from({ length: Math.max(0, ligaSettings.taxi_spots - taxiSquad.length) }).map((_, i) => (
-                  <div key={`empty-taxi-${i}`} className="flex-1 min-w-[100px] flex flex-col items-center p-2 rounded-xl"
-                    style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)" }}>
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center"
-                      style={{ border: "2px solid var(--color-border)", background: "var(--bg-page)" }}>
-                      <span className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>U21</span>
-                    </div>
-                    <p className="text-[7px] font-black text-center mt-1" style={{ color: "var(--color-muted)" }}>Leer</p>
-                  </div>
-                ))}
-              </div>
-              {selectingTaxi && (() => {
-                const ageLimit = ligaSettings?.taxi_age_limit ?? 21;
-                const taxiCandidates = draftPicks.filter(p => !irPlayerIds.has(p.id)).map(p => {
-                  const born = playerBorn.get(p.id);
-                  const age = born ? calcAge(born) : null;
-                  return { ...p, age };
-                }).filter(p => p.age === null || p.age <= ageLimit);
-                return (
-                  <div className="mt-3 space-y-1 max-h-48 overflow-y-auto">
-                    <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
-                      Spieler auf Taxi Squad setzen — max. U{ageLimit} (kann nicht aufgestellt werden)
-                    </p>
-                    {taxiCandidates.length === 0 && (
-                      <p className="text-[8px] text-center py-3" style={{ color: "var(--color-muted)" }}>
-                        Keine U{ageLimit}-Spieler im Kader verfügbar
-                      </p>
-                    )}
-                    {taxiCandidates.map(p => (
-                      <div key={p.id} onClick={() => moveToTaxi(p)}
-                        className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                        style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)" }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-text)"}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)"}>
-                        <img src={p.photo_url} className="w-7 h-7 rounded-full object-cover" alt=""
-                          style={{ border: `1px solid ${POS_COLOR[p.position]}40` }} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-black truncate" style={{ color: "var(--color-text)" }}>{p.name}</p>
-                          <p className="text-[7px]" style={{ color: "var(--color-muted)" }}>{p.position} · {p.team_name}</p>
-                        </div>
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-primary)" }}>
-                          {p.age !== null ? `${p.age}J` : `U${ageLimit}`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
+            <TaxiSection
+              taxiSquad={taxiSquad}
+              taxiSpotsTotal={ligaSettings.taxi_spots}
+              taxiAgeLimit={ligaSettings.taxi_age_limit ?? 21}
+              selectingTaxi={selectingTaxi}
+              draftPicks={draftPicks}
+              irPlayerIds={irPlayerIds}
+              playerBorn={playerBorn}
+              calcAge={calcAge}
+              onToggleSelecting={() => { setSelectingTaxi(v => !v); setSelectedSlot(null); setSelectingIR(false); }}
+              onPromoteFromTaxi={promoteFromTaxi}
+              onMoveToTaxi={moveToTaxi}
+            />
           )}
 
           {/* Spieler-Auswahl Panel (wenn Slot selektiert) */}
@@ -1261,7 +1257,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                 const neededPos = selectedSlot.type === "xi"
                   ? config?.layout[selectedSlot.index]?.position
                   : null;
-                const count = selectorCandidates.filter(p => !neededPos || p.position === neededPos).length;
+                const count = selectorCandidates.filter(p => !neededPos || normalizePos(p.position) === normalizePos(neededPos)).length;
                 return (
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -1290,7 +1286,7 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     ? config?.layout[selectedSlot.index]?.position
                     : null;
                   const filtered = selectorCandidates.filter(p =>
-                    !neededPos || p.position === neededPos
+                    !neededPos || normalizePos(p.position) === normalizePos(neededPos)
                   );
                   if (filtered.length === 0) return (
                     <EmptyState title={`Keine ${neededPos || ""}-Spieler verfügbar`} className="py-4" />
@@ -1485,77 +1481,15 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
       )}
 
       {/* ════════════════════════════════
-          TAB: SPIELTAG
+          TAB: MARKT
       ════════════════════════════════ */}
-      {activeTab === "matches" && (
-        <div className="w-full max-w-md space-y-2">
-          {gameweeks.length === 0 ? (
-            <div className="rounded-xl p-4 text-center" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-              <p className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
-                Noch keine Spieltage angelegt
-              </p>
-            </div>
-          ) : (
-            gameweeks.map((gw: any) => {
-              const isActive  = gw.status === "active";
-              const isPast    = gw.status === "finished";
-              const isSelected = activeGW === gw.gameweek;
-              const activeLeagues: number[] = gw.active_leagues  || [];
-              const doubleLeagues: number[] = gw.double_gw_leagues || [];
-
-              return (
-                <div key={gw.gameweek}
-                  onClick={() => setActiveGW(gw.gameweek)}
-                  className="rounded-xl p-3 cursor-pointer transition-all"
-                  style={{
-                    background: isActive ? "var(--bg-elevated)" : "var(--bg-card)",
-                    border: `1px solid ${isActive ? "var(--color-primary)" : isSelected ? "var(--color-border-subtle)" : "var(--color-border)"}`,
-                  }}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black" style={{ color: isActive ? "var(--color-primary)" : "var(--color-text)" }}>
-                        Spieltag {gw.gameweek}
-                      </span>
-                      {isActive && (
-                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>AKTIV</span>
-                      )}
-                      {isPast && (
-                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-full"
-                          style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", color: "var(--color-success)" }}>✓ Abgeschlossen</span>
-                      )}
-                    </div>
-                    {isSelected && (
-                      <span className="text-[7px] font-black px-1.5 py-0.5 rounded"
-                        style={{ background: "var(--color-border)", color: "var(--color-primary)" }}>● Ausgewählt</span>
-                    )}
-                  </div>
-
-                  {activeLeagues.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-1">
-                      {activeLeagues.map((lid: number) => (
-                        <span key={lid}
-                          className="text-[7px] font-black px-1.5 py-0.5 rounded"
-                          style={{
-                            background: doubleLeagues.includes(lid) ? "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))" : "var(--bg-page)",
-                            color: doubleLeagues.includes(lid) ? "var(--color-primary)" : "var(--color-muted)",
-                            border: `1px solid ${doubleLeagues.includes(lid) ? "var(--color-primary)40" : "var(--color-border)"}`,
-                          }}>
-                          {LEAGUE_NAMES[lid] || `Liga ${lid}`}
-                          {doubleLeagues.includes(lid) && " ×2"}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {gw.notes && (
-                    <p className="text-[8px] mt-1" style={{ color: "var(--color-muted)" }}>{gw.notes}</p>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
+      {activeTab === "market" && (
+        <MarketTab
+          leagueId={leagueId}
+          myTeamId={myTeam?.id ?? null}
+          refreshKey={marketRefreshKey}
+          onPlayerClick={handleMarketPlayerClick}
+        />
       )}
 
       {/* ════════════════════════════════
@@ -1569,116 +1503,239 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
         const gwPts    = gwPoints[p.id];
         const club     = clubAsset(p.team_name);
         const c1       = club?.colour1 || null;
-        const heroBg   = c1
-          ? `linear-gradient(160deg, ${c1}22 0%, ${posColor}12 50%, transparent 80%)`
-          : `linear-gradient(160deg, ${posColor}18 0%, transparent 60%)`;
         const photoSrc  = tsdbPlayer?.cutout || tsdbPlayer?.render || p.photo_url || "/player-placeholder.png";
         const isCutout  = !!(tsdbPlayer?.cutout || tsdbPlayer?.render);
         const seasonPts = playerGameLog.reduce((s, g) => s + (g.points || 0), 0);
         const avgPts    = playerGameLog.length > 0 ? seasonPts / playerGameLog.length : 0;
         const formatD   = (d: string) => new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" });
+        const GOLD      = "rgba(244,196,48,";
 
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center"
-            style={{ background: "rgba(0,0,0,0.85)" }}
+            style={{ background: "rgba(0,0,0,0.88)" }}
             onClick={() => setModalData(null)}>
-            <div className="w-full max-w-md rounded-t-3xl flex flex-col"
-              style={{ background: "var(--bg-page)", maxHeight: "90vh" }}
+            <div className="w-full max-w-md rounded-t-3xl flex flex-col overflow-hidden"
+              style={{ background: "#090c09", maxHeight: "92vh" }}
               onClick={e => e.stopPropagation()}>
 
-              {/* Drag handle */}
-              <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
-                <div className="w-10 h-1 rounded-full" style={{ background: "var(--color-border)" }} />
-              </div>
+              {/* ── HERO ─────────────────────────────────────────── */}
+              <div className="relative flex-shrink-0" style={{ height: 260, overflow: "hidden" }}>
 
-              {/* Hero */}
-              <div className="relative flex gap-4 px-5 pt-2 pb-3 flex-shrink-0" style={{ background: heroBg }}>
-                {club?.fanart1 && (
-                  <div className="absolute inset-0 overflow-hidden opacity-5 pointer-events-none">
-                    <img src={club.fanart1} alt="" className="w-full h-full object-cover" />
+                {/* L1: near-black base */}
+                <div className="absolute inset-0" style={{ background: "#0b0f0c" }} />
+
+                {/* L2: fan texture — grayscale, stadium contrast, slightly off-center */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  backgroundImage: "url('/brand/fan-bg.png')",
+                  backgroundSize: "cover",
+                  backgroundPosition: "57% 33%",
+                  filter: "grayscale(1) contrast(1.3) brightness(0.85)",
+                  opacity: 0.64,
+                }} />
+
+                {/* L3: color — wide soft wash, asymmetric, club hue tints crowd */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: c1
+                    ? `radial-gradient(ellipse 90% 74% at 68% 50%, ${c1} 0%, transparent 100%)`
+                    : `radial-gradient(ellipse 90% 74% at 68% 50%, ${posColor} 0%, transparent 100%)`,
+                  opacity: 0.38,
+                  mixBlendMode: "color" as const,
+                }} />
+
+                {/* L4: primary spotlight — tight off-axis upper-right floodlight */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: c1
+                    ? `radial-gradient(ellipse 28% 46% at 76% -7%, ${c1} 0%, transparent 100%)`
+                    : `radial-gradient(ellipse 28% 46% at 76% -7%, ${posColor} 0%, transparent 100%)`,
+                  opacity: 0.34,
+                  mixBlendMode: "screen" as const,
+                }} />
+
+                {/* L4b: secondary light spill — left-of-center, breaks single-source symmetry */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: "radial-gradient(ellipse 48% 32% at 28% 12%, rgba(255,255,255,0.05) 0%, transparent 100%)",
+                  mixBlendMode: "screen" as const,
+                }} />
+
+                {/* L5: haze — asymmetric smoke-light diffusion */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: "radial-gradient(ellipse 66% 44% at 55% 24%, rgba(255,255,255,0.07) 0%, transparent 100%)",
+                  mixBlendMode: "screen" as const,
+                }} />
+
+                {/* L6: dark scrim — bottom-heavy for text */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  background: "linear-gradient(to bottom, rgba(0,0,0,0.16) 0%, rgba(0,0,0,0.10) 32%, rgba(0,0,0,0.76) 70%, rgba(0,0,0,0.97) 100%)"
+                }} />
+
+                {/* L7: grain */}
+                <div className="absolute inset-0 pointer-events-none" style={{
+                  backgroundImage: "url('/noise.svg')",
+                  opacity: 0.07,
+                  mixBlendMode: "overlay" as const,
+                }} />
+
+                {/* Player portrait — size and scrims depend on image type */}
+                <div className="absolute bottom-0 right-4 z-10"
+                  style={{ width: isCutout ? 168 : 148, height: isCutout ? 228 : 204 }}>
+                  <img
+                    src={photoSrc}
+                    alt={p.name}
+                    className="w-full h-full"
+                    style={{
+                      objectFit: isCutout ? "contain" : "cover",
+                      objectPosition: isCutout ? "bottom center" : "center top",
+                      filter: [
+                        "saturate(0.72) contrast(1.10) brightness(0.88)",
+                        // rim light: softer club-colored edge glow + depth anchor
+                        c1
+                          ? `drop-shadow(0 0 22px ${c1}38) drop-shadow(0 12px 24px rgba(0,0,0,0.80))`
+                          : "drop-shadow(0 12px 24px rgba(0,0,0,0.80))",
+                      ].join(" "),
+                    }}
+                  />
+                  {/* Bottom scrim */}
+                  <div className="pointer-events-none absolute inset-0" style={{
+                    background: isCutout
+                      ? "linear-gradient(to top, rgba(8,12,8,0.82) 0%, rgba(8,12,8,0.18) 22%, transparent 42%)"
+                      : "linear-gradient(to top, rgba(8,12,8,0.94) 0%, rgba(8,12,8,0.60) 30%, rgba(8,12,8,0.20) 55%, transparent 70%)"
+                  }} />
+                  {/* Extra side scrims for regular photos — suppress white edges */}
+                  {!isCutout && (
+                    <div className="pointer-events-none absolute inset-0" style={{
+                      background: `
+                        linear-gradient(to right,  rgba(8,12,8,0.72) 0%, transparent 28%),
+                        linear-gradient(to left,   rgba(8,12,8,0.52) 0%, transparent 22%),
+                        linear-gradient(to bottom, rgba(8,12,8,0.58) 0%, transparent 26%)
+                      `
+                    }} />
+                  )}
+                  {/* Club color influence — very soft, integrates player into scene */}
+                  {c1 && (
+                    <div className="pointer-events-none absolute inset-0" style={{
+                      background: `radial-gradient(ellipse 100% 60% at 70% 0%, ${c1} 0%, transparent 70%)`,
+                      opacity: 0.11,
+                      mixBlendMode: "soft-light" as const,
+                    }} />
+                  )}
+                  {/* Grain on portrait */}
+                  <div className="pointer-events-none absolute inset-0" style={{
+                    backgroundImage: "url('/noise.svg')",
+                    opacity: 0.055,
+                    mixBlendMode: "overlay" as const,
+                  }} />
+                </div>
+
+                {/* Drag handle */}
+                <div className="absolute top-3 left-0 right-0 flex justify-center z-30 pointer-events-none">
+                  <div className="w-8 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.16)" }} />
+                </div>
+
+                {/* Close */}
+                <button onClick={() => setModalData(null)}
+                  className="absolute top-4 right-4 w-7 h-7 flex items-center justify-center rounded-full z-30"
+                  style={{ background: "rgba(0,0,0,0.52)", color: "rgba(255,255,255,0.45)", fontSize: 11 }}>✕</button>
+
+                {/* Cap / VC */}
+                {(isCap || isVC) && (
+                  <div className="absolute top-4 left-4 z-30">
+                    <span className="w-7 h-7 rounded-full text-[10px] font-black flex items-center justify-center"
+                      style={isCap
+                        ? { background: `${GOLD}0.92)`, color: "#050301" }
+                        : { background: "rgba(0,0,0,0.65)", color: `${GOLD}1)`, border: `1px solid ${GOLD}0.55)` }
+                      }>
+                      {isCap ? "C" : "V"}
+                    </span>
                   </div>
                 )}
-                <div className="relative flex-shrink-0" style={{ width: 88, height: 88 }}>
-                  <img src={photoSrc} alt={p.name}
-                    className={`w-full h-full object-contain ${isCutout ? "" : "rounded-2xl"}`}
-                    style={isCutout ? { filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.6))" } : { border: `2px solid ${posColor}60` }}
-                  />
-                  {/* Cap / VC badge */}
-                  {isCap && (
-                    <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center z-10"
-                      style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>C</span>
-                  )}
-                  {isVC && !isCap && (
-                    <span className="absolute -top-1 -right-1 w-6 h-6 rounded-full text-[9px] font-black flex items-center justify-center z-10"
-                      style={{ background: "var(--color-muted)", color: "var(--color-primary)" }}>V</span>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0 pt-1">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    {club?.badge && (
-                      <img src={club.badge} alt={p.team_name} className="w-4 h-4 object-contain flex-shrink-0" />
-                    )}
-                    <p className="text-[8px] font-black uppercase tracking-widest truncate" style={{ color: c1 || "var(--color-muted)" }}>
+
+                {/* Text — left column, bottom-anchored, clear of portrait */}
+                <div className="absolute bottom-0 left-0 z-20 px-5 pb-6" style={{ right: 176 }}>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    {club?.badge && <img src={club.badge} alt="" className="w-4 h-4 object-contain flex-shrink-0 opacity-70" />}
+                    <span className="text-[8px] font-black uppercase tracking-widest truncate"
+                      style={{ color: c1 ? `${c1}bb` : "rgba(255,255,255,0.35)" }}>
                       {p.team_name}
-                    </p>
-                  </div>
-                  <p className="text-xl font-black leading-tight" style={{ color: "var(--color-text)" }}>{p.name}</p>
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span className="text-[8px] font-black px-2 py-0.5 rounded"
-                      style={{ background: posColor, color: "var(--bg-page)" }}>{p.position}</span>
-                    <span className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
-                      {p.fpts?.toFixed(1)}
-                      <span className="text-[8px] ml-1" style={{ color: "var(--color-muted)" }}>FPTS</span>
                     </span>
+                  </div>
+                  <p className="font-black leading-tight mb-3"
+                    style={{ fontSize: 26, color: "#fff", textShadow: "0 2px 18px rgba(0,0,0,0.96)", letterSpacing: "-0.02em" }}>
+                    {p.name}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[8px] font-black px-2 py-0.5 rounded"
+                      style={{ background: posColor, color: "#050301" }}>{p.position}</span>
                     {gwPts !== undefined && (
-                      <span className="text-[8px] font-black px-1.5 py-0.5 rounded"
-                        style={{ background: "color-mix(in srgb, var(--color-success) 12%, var(--bg-page))", color: "var(--color-success)", border: "1px solid var(--color-success)30" }}>
-                        GW{activeGW > 1 ? activeGW - 1 : activeGW}: {gwPts}pts
+                      <span className="text-[8px] font-black px-2 py-0.5 rounded"
+                        style={{ background: `${GOLD}0.10)`, color: `${GOLD}0.88)`, border: `1px solid ${GOLD}0.24)` }}>
+                        GW{activeGW > 1 ? activeGW - 1 : activeGW}: {gwPts} Pts
                       </span>
                     )}
-                    {club?.kit && (
-                      <img src={club.kit} alt="kit" className="h-5 object-contain opacity-70" />
-                    )}
                   </div>
                 </div>
-                <button onClick={() => setModalData(null)}
-                  className="absolute top-3 right-4 w-7 h-7 flex items-center justify-center rounded-full z-10"
-                  style={{ background: "var(--bg-elevated)", color: "var(--color-muted)" }}>✕</button>
+
+                {/* Bottom transition fade */}
+                <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none z-20" style={{
+                  background: "linear-gradient(to top, #090c09 0%, transparent 100%)"
+                }} />
               </div>
 
-              {/* Action buttons */}
-              <div className="flex flex-wrap gap-2 px-5 pb-3 pt-2 flex-shrink-0"
-                style={{ borderBottom: "1px solid var(--bg-elevated)" }}>
+              {/* ── HERO STAT ────────────────────────────────────── */}
+              <div className="flex items-end justify-between px-5 py-4 flex-shrink-0"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-widest mb-1"
+                    style={{ color: "rgba(255,255,255,0.25)" }}>Saison-Punkte</p>
+                  <p className="font-black leading-none"
+                    style={{ fontSize: 40, color: posColor, letterSpacing: "-0.02em" }}>{p.fpts?.toFixed(1)}</p>
+                </div>
+                <div className="flex gap-5 pb-1">
+                  <div className="text-right">
+                    <p className="text-[7px] font-black uppercase tracking-widest mb-0.5"
+                      style={{ color: "rgba(255,255,255,0.22)" }}>Ø / GW</p>
+                    <p className="text-xl font-black" style={{ color: "rgba(255,255,255,0.62)" }}>{avgPts.toFixed(1)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[7px] font-black uppercase tracking-widest mb-0.5"
+                      style={{ color: "rgba(255,255,255,0.22)" }}>Spiele</p>
+                    <p className="text-xl font-black" style={{ color: "rgba(255,255,255,0.62)" }}>{playerGameLog.length}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── ACTION BUTTONS ───────────────────────────────── */}
+              <div className="flex flex-wrap gap-2 px-5 pb-3 pt-3 flex-shrink-0"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                 {modalData.slotType === "xi" && (
                   <>
                     <button onClick={() => { toggleCaptain(p.id); setModalData(null); }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
                       style={{
-                        background: isCap ? "var(--color-primary)" : "var(--bg-elevated)",
-                        color: isCap ? "var(--bg-page)" : "var(--color-primary)",
-                        border: `1px solid ${isCap ? "var(--color-primary)" : "var(--color-primary)40"}`,
+                        background: isCap ? `${GOLD}0.90)` : "rgba(255,255,255,0.06)",
+                        color: isCap ? "#050301" : "rgba(255,255,255,0.40)",
+                        border: `1px solid ${isCap ? `${GOLD}0.28)` : "rgba(255,255,255,0.09)"}`,
                       }}>
                       {isCap ? "★ Kein Kapitän" : "★ Kapitän"}
                     </button>
                     <button onClick={() => { toggleVC(p.id); setModalData(null); }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
                       style={{
-                        background: isVC ? "var(--color-muted)" : "var(--bg-card)",
-                        color: isVC ? "var(--color-primary)" : "var(--color-muted)",
-                        border: `1px solid ${isVC ? "var(--color-muted)" : "var(--color-border)"}`,
+                        background: isVC ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)",
+                        color: isVC ? `${GOLD}0.88)` : "rgba(255,255,255,0.30)",
+                        border: `1px solid ${isVC ? `${GOLD}0.28)` : "rgba(255,255,255,0.08)"}`,
                       }}>
                       {isVC ? "V Kein Vize" : "V Vize-Kap."}
                     </button>
                   </>
                 )}
-                {modalData.slotType !== "none" && (
+                {modalData.slotType !== "none" && modalData.slotType !== "market" && (
                   <>
                     <button onClick={() => {
                       setModalData(null);
                       setSelectedSlot({ type: modalData.slotType as "xi" | "bench", index: modalData.slotIndex });
                     }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
-                      style={{ background: "var(--bg-card)", color: "var(--color-info)", border: "1px solid var(--color-info)40" }}>
+                      style={{ background: "rgba(255,255,255,0.06)", color: "var(--color-info)", border: "1px solid rgba(255,255,255,0.07)" }}>
                       ⇄ Tauschen
                     </button>
                     <button onClick={() => {
@@ -1686,108 +1743,207 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                       setModalData(null);
                     }}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
-                      style={{ background: "var(--bg-card)", color: "var(--color-text)", border: "1px solid var(--color-border-subtle)" }}>
+                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.07)" }}>
                       ← Herausnehmen
                     </button>
                   </>
                 )}
-                {/* Taxi Squad actions */}
-                {(ligaSettings?.taxi_spots || 0) > 0 && (
+                {modalData.slotType !== "market" && (ligaSettings?.taxi_spots || 0) > 0 && (
                   taxiPlayerIds.has(p.id) ? (
                     <button onClick={() => promoteFromTaxi(p)}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all"
-                      style={{ background: "var(--bg-elevated)", color: "var(--color-text)", border: "1px solid var(--color-text)40" }}>
+                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.07)" }}>
                       ↑ Aus Taxi befördern
                     </button>
                   ) : (
                     <button onClick={() => moveToTaxi(p)}
                       disabled={taxiSquad.length >= (ligaSettings?.taxi_spots || 0)}
                       className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-40"
-                      style={{ background: "var(--bg-elevated)", color: "var(--color-text)", border: "1px solid var(--color-text)40" }}>
+                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.07)" }}>
                       → Taxi Squad
                     </button>
                   )
                 )}
-                <button onClick={() => dropPlayer(p.id)} disabled={dropping === p.id}
-                  className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-50"
-                  style={{ background: "color-mix(in srgb, var(--color-error) 10%, var(--bg-page))", color: "var(--color-error)", border: "1px solid var(--color-error)40" }}>
-                  {dropping === p.id ? "..." : "✕ Aus Kader"}
-                </button>
+                {modalData.slotType !== "market" && (
+                  <button onClick={() => dropPlayer(p.id)} disabled={dropping === p.id}
+                    className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-50"
+                    style={{ background: "rgba(220,50,50,0.09)", color: "var(--color-error)", border: "1px solid rgba(220,50,50,0.18)" }}>
+                    {dropping === p.id ? "..." : "✕ Aus Kader"}
+                  </button>
+                )}
+                {/* Transfer listing — all own players (xi/bench/none) */}
+                {modalData.slotType !== "market" && (
+                  <button
+                    onClick={() => handleListingToggle(p.id)}
+                    disabled={listingActionLoading}
+                    className="px-3 py-1.5 rounded-xl text-[9px] font-black transition-all disabled:opacity-50"
+                    style={{
+                      background: myListedIds.has(p.id) ? "rgba(220,50,50,0.09)"    : "rgba(48,196,164,0.08)",
+                      color:      myListedIds.has(p.id) ? "var(--color-error)"       : "rgba(48,196,164,0.85)",
+                      border:     `1px solid ${myListedIds.has(p.id) ? "rgba(220,50,50,0.18)" : "rgba(48,196,164,0.22)"}`,
+                    }}>
+                    {listingActionLoading ? "…" : myListedIds.has(p.id) ? "↓ Von Transferliste" : "↑ Transferliste"}
+                  </button>
+                )}
               </div>
 
-              {/* Tabs */}
-              <div className="flex border-b flex-shrink-0" style={{ borderColor: "var(--bg-elevated)" }}>
+              {/* ── MARKET ACTION ZONE ────────────────────────── */}
+              {modalData.slotType === "market" && (
+                <div className="px-5 pb-4 pt-3 flex flex-col gap-2 flex-shrink-0"
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+
+                  {/* Owner info for taken players */}
+                  {modalData.marketStatus === "taken" && modalData.ownerTeamName && (
+                    <p className="text-[8px] font-black uppercase tracking-widest text-center"
+                      style={{ color: "rgba(255,255,255,0.30)" }}>
+                      Besitzer: {modalData.ownerTeamName}
+                    </p>
+                  )}
+
+                  {/* available → Hinzufügen + Waiver */}
+                  {modalData.marketStatus === "available" && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowSwapSheet(true)}
+                        className="flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                        style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
+                        + Hinzufügen
+                      </button>
+                      <button disabled
+                        className="py-2.5 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+                        style={{ background: "var(--bg-elevated)", color: "var(--color-muted)", border: "1px solid var(--color-border)" }}>
+                        Waiver
+                      </button>
+                    </div>
+                  )}
+
+                  {/* mine → Transferliste + Aus Kader */}
+                  {modalData.marketStatus === "mine" && (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleListingToggle(p.id)}
+                        disabled={listingActionLoading}
+                        className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                        style={{
+                          background: myListedIds.has(p.id) ? "rgba(220,50,50,0.08)"    : "rgba(48,196,164,0.10)",
+                          color:      myListedIds.has(p.id) ? "var(--color-error)"       : "rgba(48,196,164,0.90)",
+                          border:     `1px solid ${myListedIds.has(p.id) ? "rgba(220,50,50,0.20)" : "rgba(48,196,164,0.28)"}`,
+                        }}>
+                        {listingActionLoading ? "…" : myListedIds.has(p.id) ? "↓ Von Transferliste entfernen" : "↑ Auf Transferliste setzen"}
+                      </button>
+                      <button
+                        onClick={() => dropPlayer(p.id)}
+                        disabled={dropping === p.id}
+                        className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                        style={{ background: "rgba(220,50,50,0.08)", color: "var(--color-error)", border: "1px solid rgba(220,50,50,0.20)" }}>
+                        {dropping === p.id ? "..." : "✕ Aus Kader"}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* taken → Trade anbieten */}
+                  {modalData.marketStatus === "taken" && modalData.ownerTeamId && (
+                    <button
+                      onClick={() => {
+                        window.location.href = `/leagues/${leagueId}/trades?receiverTeamId=${modalData.ownerTeamId}&requestPlayerId=${modalData.player.id}`;
+                      }}
+                      className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                      style={{ background: "var(--color-primary)", color: "var(--bg-page)", border: "1px solid var(--color-primary)" }}>
+                      ⇄ Trade anbieten
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* ── TABS ─────────────────────────────────────────── */}
+              <div className="flex flex-shrink-0 px-5"
+                style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
                 {(["summary", "gamelog", "history", "news"] as const).map(t => (
                   <button key={t} onClick={() => setPlayerTab(t)}
-                    className="flex-1 py-2.5 text-[8px] font-black uppercase tracking-widest transition-all"
+                    className="flex-1 py-3 text-[8px] font-black uppercase tracking-widest transition-all"
                     style={{
-                      color: playerTab === t ? posColor : "var(--color-border)",
-                      borderBottom: playerTab === t ? `2px solid ${posColor}` : "2px solid transparent",
+                      color: playerTab === t ? `${GOLD}1)` : "rgba(255,255,255,0.22)",
+                      borderBottom: playerTab === t ? `2px solid ${GOLD}0.78)` : "2px solid transparent",
                     }}>
                     {t === "summary" ? "Übersicht" : t === "gamelog" ? "Log" : t === "history" ? "Historie" : "News"}
                   </button>
                 ))}
               </div>
 
-              {/* Tab content */}
-              <div className="overflow-y-auto flex-1 pb-6">
+              {/* ── TAB CONTENT ──────────────────────────────────── */}
+              <div className="overflow-y-auto flex-1 pb-8">
                 {playerDetailLoading ? (
                   <Spinner text="Lade..." />
                 ) : (
                   <>
                     {playerTab === "summary" && (
-                      <div className="p-4 space-y-3">
-                        <div className="grid grid-cols-3 gap-2">
+                      <div className="px-5 pt-5 space-y-3">
+                        {/* Key numbers */}
+                        <div className="flex gap-3">
+                          <div className="flex-1 rounded-2xl p-4"
+                            style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${posColor}28` }}>
+                            <p className="text-[7px] font-black uppercase tracking-widest mb-1.5"
+                              style={{ color: "rgba(255,255,255,0.25)" }}>Tore</p>
+                            <p className="text-3xl font-black leading-none"
+                              style={{ color: posColor }}>{playerGameLog.reduce((s,g)=>s+(g.goals||0),0)}</p>
+                          </div>
+                          <div className="flex-1 rounded-2xl p-4"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <p className="text-[7px] font-black uppercase tracking-widest mb-1.5"
+                              style={{ color: "rgba(255,255,255,0.25)" }}>Assists</p>
+                            <p className="text-3xl font-black leading-none"
+                              style={{ color: "rgba(255,255,255,0.68)" }}>{playerGameLog.reduce((s,g)=>s+(g.assists||0),0)}</p>
+                          </div>
+                          <div className="flex-1 rounded-2xl p-4"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                            <p className="text-[7px] font-black uppercase tracking-widest mb-1.5"
+                              style={{ color: "rgba(255,255,255,0.25)" }}>Minuten</p>
+                            <p className="text-2xl font-black leading-none"
+                              style={{ color: "rgba(255,255,255,0.68)" }}>{playerGameLog.reduce((s,g)=>s+(g.minutes||0),0)}</p>
+                          </div>
+                        </div>
+
+                        {/* Secondary stats list */}
+                        <div className="rounded-2xl overflow-hidden"
+                          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
                           {[
-                            { label: "Saison-Pts", value: seasonPts.toFixed(1), hi: true },
-                            { label: "Ø / GW", value: avgPts.toFixed(1) },
-                            { label: "Einsätze", value: playerGameLog.length },
-                            { label: "Tore", value: playerGameLog.reduce((s, g) => s + (g.goals || 0), 0) },
-                            { label: "Assists", value: playerGameLog.reduce((s, g) => s + (g.assists || 0), 0) },
-                            { label: "Minuten", value: playerGameLog.reduce((s, g) => s + (g.minutes || 0), 0) },
-                          ].map(({ label, value, hi }) => (
-                            <div key={label} className="p-3 rounded-xl text-center"
-                              style={{ background: "var(--bg-card)", border: `1px solid ${hi ? posColor + "40" : "var(--color-border)"}` }}>
-                              <p className="text-lg font-black" style={{ color: hi ? posColor : "var(--color-text)" }}>{value}</p>
-                              <p className="text-[7px] font-black uppercase tracking-widest mt-0.5" style={{ color: "var(--color-border)" }}>{label}</p>
+                            ["Schüsse aufs Tor", playerGameLog.reduce((s,g)=>s+(g.shots_on||0),0)],
+                            ["Key Passes", playerGameLog.reduce((s,g)=>s+(g.key_passes||0),0)],
+                            ["Tackles", playerGameLog.reduce((s,g)=>s+(g.tackles||0),0)],
+                            ["Abfangen", playerGameLog.reduce((s,g)=>s+(g.interceptions||0),0)],
+                            ...(p.position === "GK" ? [["Paraden", playerGameLog.reduce((s,g)=>s+(g.saves||0),0)]] : []),
+                            ["Clean Sheets", playerGameLog.filter(g=>g.clean_sheet).length],
+                          ].map(([label, val], i, arr) => (
+                            <div key={String(label)}
+                              className="flex items-center justify-between px-4 py-2.5"
+                              style={{ borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                              <span className="text-[9px] font-black uppercase tracking-wide"
+                                style={{ color: "rgba(255,255,255,0.32)" }}>{label}</span>
+                              <span className="text-sm font-black"
+                                style={{ color: "rgba(255,255,255,0.72)" }}>{val}</span>
                             </div>
                           ))}
                         </div>
-                        <div className="rounded-xl p-3" style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                          <p className="text-[8px] font-black uppercase tracking-widest mb-3" style={{ color: "var(--color-border)" }}>Saison-Statistiken</p>
-                          <div className="grid grid-cols-2 gap-y-2">
-                            {[
-                              ["Schüsse aufs Tor", playerGameLog.reduce((s,g)=>s+(g.shots_on||0),0)],
-                              ["Key Passes", playerGameLog.reduce((s,g)=>s+(g.key_passes||0),0)],
-                              ["Tackles", playerGameLog.reduce((s,g)=>s+(g.tackles||0),0)],
-                              ["Abfangen", playerGameLog.reduce((s,g)=>s+(g.interceptions||0),0)],
-                              ["Gelbe Karten", playerGameLog.reduce((s,g)=>s+(g.yellow_cards||0),0)],
-                              ["Rote Karten", playerGameLog.reduce((s,g)=>s+(g.red_cards||0),0)],
-                              ...(p.position === "GK" ? [["Paraden", playerGameLog.reduce((s,g)=>s+(g.saves||0),0)]] : []),
-                              ["Clean Sheets", playerGameLog.filter(g=>g.clean_sheet).length],
-                            ].map(([label, val]) => (
-                              <div key={String(label)} className="flex items-center justify-between">
-                                <span className="text-[9px]" style={{ color: "var(--color-muted)" }}>{label}</span>
-                                <span className="text-sm font-black" style={{ color: "var(--color-text)" }}>{val}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        {/* Cards highlight */}
+
+                        {/* Cards */}
                         {((p.yellow_cards || 0) > 0 || (p.red_cards || 0) > 0) && (
                           <div className="flex gap-2">
                             {(p.yellow_cards || 0) > 0 && (
-                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                                style={{ background: "color-mix(in srgb, var(--color-primary) 15%, var(--bg-page))", border: "1px solid var(--color-primary)40" }}>
-                                <div className="w-3 h-4 rounded-sm" style={{ background: "var(--color-primary)" }} />
-                                <span className="text-[9px] font-black" style={{ color: "var(--color-primary)" }}>{p.yellow_cards}× Gelb</span>
+                              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                                style={{ background: `${GOLD}0.08)`, border: `1px solid ${GOLD}0.18)` }}>
+                                <div className="w-3 h-4 rounded-sm" style={{ background: `${GOLD}0.82)` }} />
+                                <span className="text-[9px] font-black" style={{ color: `${GOLD}0.82)` }}>
+                                  {p.yellow_cards}× Gelb
+                                </span>
                               </div>
                             )}
                             {(p.red_cards || 0) > 0 && (
-                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg"
-                                style={{ background: "color-mix(in srgb, var(--color-error) 15%, var(--bg-page))", border: "1px solid var(--color-error)40" }}>
-                                <div className="w-3 h-4 rounded-sm" style={{ background: "var(--color-error)" }} />
-                                <span className="text-[9px] font-black" style={{ color: "var(--color-error)" }}>{p.red_cards}× Rot</span>
+                              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
+                                style={{ background: "rgba(220,50,50,0.08)", border: "1px solid rgba(220,50,50,0.18)" }}>
+                                <div className="w-3 h-4 rounded-sm" style={{ background: "rgba(220,50,50,0.82)" }} />
+                                <span className="text-[9px] font-black" style={{ color: "var(--color-error)" }}>
+                                  {p.red_cards}× Rot
+                                </span>
                               </div>
                             )}
                           </div>
@@ -1796,22 +1952,26 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     )}
 
                     {playerTab === "gamelog" && (
-                      <div className="p-4 space-y-2">
+                      <div className="px-5 pt-4 space-y-2">
                         {playerGameLog.length === 0 ? (
                           <EmptyState icon="📊" title="Noch keine Spieltag-Daten" />
                         ) : playerGameLog.map(g => (
-                          <div key={g.id} className="rounded-xl overflow-hidden"
-                            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                            <div className="px-3 py-1.5 flex items-center justify-between"
-                              style={{ borderBottom: "1px solid var(--bg-elevated)" }}>
-                              <span className="text-[9px] font-black" style={{ color: posColor }}>GW{g.gameweek}</span>
-                              <span className="text-sm font-black" style={{ color: posColor }}>{g.points?.toFixed(1) || "0.0"} Pts</span>
+                          <div key={g.id} className="rounded-2xl overflow-hidden"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                            <div className="px-4 py-2 flex items-center justify-between"
+                              style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                              <span className="text-[9px] font-black uppercase tracking-widest"
+                                style={{ color: "rgba(255,255,255,0.32)" }}>GW{g.gameweek}</span>
+                              <span className="text-base font-black"
+                                style={{ color: posColor }}>{g.points?.toFixed(1) || "0.0"} Pts</span>
                             </div>
-                            <div className="grid grid-cols-5 gap-1 px-3 py-2">
-                              {[["TOR", g.goals||0],["ASS",g.assists||0],["MIN",g.minutes||0],["CS",g.clean_sheet?"✓":"—"],["KP",g.key_passes||0]].map(([l,v])=>(
+                            <div className="grid grid-cols-5 gap-1 px-4 py-2.5">
+                              {[["TOR",g.goals||0],["ASS",g.assists||0],["MIN",g.minutes||0],["CS",g.clean_sheet?"✓":"—"],["KP",g.key_passes||0]].map(([l,v])=>(
                                 <div key={String(l)} className="text-center">
-                                  <p className="text-[7px] uppercase" style={{ color: "var(--color-border)" }}>{l}</p>
-                                  <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{v}</p>
+                                  <p className="text-[7px] uppercase mb-0.5"
+                                    style={{ color: "rgba(255,255,255,0.22)" }}>{l}</p>
+                                  <p className="text-xs font-black"
+                                    style={{ color: "rgba(255,255,255,0.68)" }}>{v}</p>
                                 </div>
                               ))}
                             </div>
@@ -1821,24 +1981,30 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     )}
 
                     {playerTab === "history" && (
-                      <div className="p-4">
+                      <div className="px-5 pt-4">
                         {playerHistory.length === 0 ? (
                           <EmptyState icon="📋" title="Keine Historie vorhanden" />
                         ) : (
                           <div className="relative pl-5">
-                            <div className="absolute left-2 top-2 bottom-2 w-px" style={{ background: "var(--color-border)" }} />
+                            <div className="absolute left-2 top-2 bottom-2 w-px"
+                              style={{ background: "rgba(255,255,255,0.06)" }} />
                             {playerHistory.map((h, i) => {
                               const hColor = { draft: "var(--color-primary)", transfer_in: "var(--color-success)", transfer_out: "var(--color-error)", trade: "var(--color-info)" }[h.type as string] || "var(--color-text)";
                               const hIcon = { draft: "🏈", transfer_in: "▲", transfer_out: "▼", trade: "⇄" }[h.type as string] || "·";
                               return (
                                 <div key={i} className="relative mb-3">
-                                  <div className="absolute -left-3 top-3 w-2.5 h-2.5 rounded-full" style={{ background: hColor }} />
-                                  <div className="p-3 rounded-xl ml-2" style={{ background: "var(--bg-card)", border: `1px solid ${hColor}25` }}>
+                                  <div className="absolute -left-3 top-3 w-2.5 h-2.5 rounded-full"
+                                    style={{ background: hColor }} />
+                                  <div className="p-3 rounded-xl ml-2"
+                                    style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${hColor}20` }}>
                                     <div className="flex items-center justify-between mb-0.5">
-                                      <span className="text-[9px] font-black uppercase" style={{ color: hColor }}>{hIcon} {h.detail}</span>
-                                      <span className="text-[7px]" style={{ color: "var(--color-border)" }}>{formatD(h.date)}</span>
+                                      <span className="text-[9px] font-black uppercase"
+                                        style={{ color: hColor }}>{hIcon} {h.detail}</span>
+                                      <span className="text-[7px]"
+                                        style={{ color: "rgba(255,255,255,0.22)" }}>{formatD(h.date)}</span>
                                     </div>
-                                    <p className="text-xs font-black" style={{ color: "var(--color-text)" }}>{h.team}</p>
+                                    <p className="text-xs font-black"
+                                      style={{ color: "rgba(255,255,255,0.58)" }}>{h.team}</p>
                                   </div>
                                 </div>
                               );
@@ -1849,18 +2015,20 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                     )}
 
                     {playerTab === "news" && (
-                      <div className="p-4 space-y-2">
+                      <div className="px-5 pt-4 space-y-2">
                         {playerNewsLoading ? (
                           <Spinner text="Lade News..." />
                         ) : playerNews.length === 0 ? (
                           <EmptyState icon="📰" title="Keine News gefunden" />
                         ) : playerNews.slice(0, 5).map((n: any, i: number) => (
                           <a key={i} href={n.link || "#"} target="_blank" rel="noopener noreferrer"
-                            className="block p-3 rounded-xl transition-opacity hover:opacity-80"
-                            style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                            <p className="text-xs font-black leading-snug" style={{ color: "var(--color-text)" }}>{n.title}</p>
+                            className="block p-4 rounded-2xl transition-opacity hover:opacity-80"
+                            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                            <p className="text-xs font-black leading-snug"
+                              style={{ color: "rgba(255,255,255,0.75)" }}>{n.title}</p>
                             {n.pubDate && (
-                              <p className="text-[7px] font-black uppercase mt-1" style={{ color: "var(--color-border-subtle)" }}>
+                              <p className="text-[7px] font-black uppercase mt-1.5"
+                                style={{ color: "rgba(255,255,255,0.22)" }}>
                                 {new Date(n.pubDate).toLocaleDateString("de-DE", { day: "2-digit", month: "short" })}
                               </p>
                             )}
@@ -1871,12 +2039,185 @@ export default function LigaLineupPage({ params }: { params: Promise<{ id: strin
                   </>
                 )}
               </div>
+
             </div>
           </div>
         );
       })()}
 
       <BottomNav />
+
+      {/* ── Captain / VC Action Sheet ─────────────────────────── */}
+      {captainSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(0,0,0,0.62)" }}
+          onClick={() => setCaptainSheet(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-2xl px-5 pt-5 pb-10"
+            style={{
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--color-border)",
+              borderBottom: "none",
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header — player identity */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                {captainSheet.player.photo_url ? (
+                  <img
+                    src={captainSheet.player.photo_url}
+                    className="w-11 h-11 rounded-full object-cover flex-shrink-0"
+                    style={{ border: "1px solid var(--color-border)" }}
+                    alt=""
+                  />
+                ) : (
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}
+                  >
+                    <span className="text-xs font-black" style={{ color: "var(--color-muted)" }}>
+                      {captainSheet.player.position}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <p className="font-black text-sm leading-tight" style={{ color: "var(--color-text)" }}>
+                    {captainSheet.player.name}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[9px] font-black uppercase" style={{ color: "var(--color-muted)" }}>
+                      {captainSheet.player.position}
+                    </span>
+                    {captainSheet.player.team_name && (
+                      <span className="text-[9px]" style={{ color: "var(--color-muted)" }}>
+                        · {captainSheet.player.team_name}
+                      </span>
+                    )}
+                    {captainId === captainSheet.player.id && (
+                      <span
+                        className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                        style={{ background: "rgba(244,196,48,0.15)", color: "rgba(244,196,48,1)", border: "1px solid rgba(244,196,48,0.35)" }}
+                      >
+                        C
+                      </span>
+                    )}
+                    {viceCaptainId === captainSheet.player.id && (
+                      <span
+                        className="text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                        style={{ background: "rgba(0,0,0,0.55)", color: "rgba(244,196,48,1)", border: "1px solid rgba(244,196,48,0.40)" }}
+                      >
+                        VC
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setCaptainSheet(null)}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] flex-shrink-0"
+                style={{ background: "var(--bg-page)", color: "var(--color-muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* C / VC buttons — hidden when lineup is locked */}
+            {!isLocked && (
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <button
+                  onClick={() => {
+                    const wasCap = captainId === captainSheet.player.id;
+                    toggleCaptain(captainSheet.player.id);
+                    toast(wasCap ? "Captain entfernt" : "Captain gesetzt", "info");
+                    setCaptainSheet(null);
+                  }}
+                  className="py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all"
+                  style={
+                    captainId === captainSheet.player.id
+                      ? { background: "rgba(244,196,48,0.18)", color: "rgba(244,196,48,1)", border: "1px solid rgba(244,196,48,0.45)" }
+                      : { background: "var(--bg-page)", color: "rgba(255,255,255,0.40)", border: "1px solid var(--color-border)" }
+                  }
+                >
+                  {captainId === captainSheet.player.id ? "✕ Captain" : "★ Captain"}
+                </button>
+                <button
+                  onClick={() => {
+                    const wasVC = viceCaptainId === captainSheet.player.id;
+                    toggleVC(captainSheet.player.id);
+                    toast(wasVC ? "Vice-Captain entfernt" : "Vice-Captain gesetzt", "info");
+                    setCaptainSheet(null);
+                  }}
+                  className="py-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all"
+                  style={
+                    viceCaptainId === captainSheet.player.id
+                      ? { background: "rgba(244,196,48,0.08)", color: "rgba(244,196,48,0.90)", border: "1px solid rgba(244,196,48,0.40)" }
+                      : { background: "var(--bg-page)", color: "var(--color-muted)", border: "1px solid var(--color-border)" }
+                  }
+                >
+                  {viceCaptainId === captainSheet.player.id ? "✕ Vice" : "Vice-Captain"}
+                </button>
+              </div>
+            )}
+
+            {/* Swap — only when not locked and player is swappable */}
+            {isPlayerSwappable(captainSheet.player) && (
+              <button
+                onClick={() => {
+                  const { player, slotType, slotIndex } = captainSheet;
+                  setSelectedSlot(null);
+                  setSwapSelection({ type: slotType, index: slotIndex, player });
+                  setCaptainSheet(null);
+                }}
+                className="w-full py-3 rounded-xl text-[11px] font-black uppercase tracking-wider mb-2"
+                style={{ background: "var(--bg-page)", color: "var(--color-muted)", border: "1px solid var(--color-border)" }}
+              >
+                ⇄ Tauschen
+              </button>
+            )}
+
+            {/* Profile */}
+            <button
+              onClick={() => {
+                setModalData({ player: captainSheet.player, slotType: captainSheet.slotType, slotIndex: captainSheet.slotIndex });
+                setCaptainSheet(null);
+              }}
+              className="w-full py-3 rounded-xl text-[11px] font-black uppercase tracking-wider"
+              style={{ background: "var(--bg-page)", color: "var(--color-muted)", border: "1px solid var(--color-border)" }}
+            >
+              Spielerprofil
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Market Swap Sheet ──────────────────────────────────── */}
+      {showSwapSheet && modalData?.slotType === "market" && modalData.marketStatus === "available" && myTeam && (
+        <MarketSwapSheet
+          player={modalData.player as MarketPlayerInfo}
+          myTeam={{ id: myTeam.id, name: myTeam.name }}
+          draftPicks={draftPicks}
+          startingXI={startingXI}
+          bench={bench}
+          irSlots={irSlots}
+          taxiSquad={taxiSquad}
+          ligaSettings={ligaSettings}
+          leagueId={leagueId}
+          activeGW={activeGW}
+          onSuccess={(wasStarter) => {
+            setShowSwapSheet(false);
+            setModalData(null);
+            setMarketRefreshKey(k => k + 1);
+            if (wasStarter) {
+              toast("Aufstellung unvollständig – bitte freien Startplatz besetzen.", "info");
+            }
+            if (myTeam?.user_id) loadAll(myTeam.user_id);
+          }}
+          onClose={() => setShowSwapSheet(false)}
+        />
+      )}
     </main>
   );
 }

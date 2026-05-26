@@ -34,6 +34,8 @@ export default function LeaguesPage() {
   const [scoringType, setScoringType] = useState<"standard" | "h2h">("h2h");
   const [leagueMode, setLeagueMode] = useState<"liga" | "wm">("liga");
   const [joinCode, setJoinCode] = useState("");
+  const [joinTeamName, setJoinTeamName] = useState("");
+  const [createTeamName, setCreateTeamName] = useState("");
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
@@ -79,25 +81,30 @@ export default function LeaguesPage() {
     setLoading(false);
   }
 
-  async function createLeagueFromOnboarding(name: string, mode: "liga" | "wm", scoring: "h2h" | "standard") {
+  async function createLeagueFromOnboarding(name: string, mode: "liga" | "wm", scoring: "h2h" | "standard", teamName: string = "Mein Team") {
     setNewLeagueName(name);
     setLeagueMode(mode);
     setScoringType(scoring);
-    await createLeagueWithParams(name, mode, scoring);
+    await createLeagueWithParams(name, mode, scoring, teamName);
   }
 
-  async function joinLeagueFromOnboarding(code: string) {
+  async function joinLeagueFromOnboarding(code: string, teamName: string) {
     setJoinCode(code);
-    await joinLeagueWithCode(code);
+    await joinLeagueWithCode(code, teamName);
   }
 
   async function createLeague() {
     if (!newLeagueName.trim()) return;
+    const tname = createTeamName.trim();
+    if (tname.length < 2 || tname.length > 24) {
+      toast("Teamname: 2–24 Zeichen erforderlich.", "error");
+      return;
+    }
     setSaving(true);
-    await createLeagueWithParams(newLeagueName, leagueMode, scoringType);
+    await createLeagueWithParams(newLeagueName, leagueMode, scoringType, tname);
   }
 
-  async function createLeagueWithParams(name: string, mode: "liga" | "wm", scoring: "h2h" | "standard") {
+  async function createLeagueWithParams(name: string, mode: "liga" | "wm", scoring: "h2h" | "standard", teamName?: string) {
     if (!name.trim()) return;
     setSaving(true);
 
@@ -128,7 +135,7 @@ export default function LeaguesPage() {
     await supabase.from("teams").insert({
       user_id: user.id,
       league_id: league.id,
-      name: "Mein Team",
+      name: teamName || "Mein Team",
     });
 
     // WM: Turnier-Settings anlegen
@@ -167,6 +174,7 @@ export default function LeaguesPage() {
 
     toast(`Liga erstellt! Code: ${league.invite_code}`, "success");
     setNewLeagueName("");
+    setCreateTeamName("");
     loadLeagues(user.id);
     setSaving(false);
     setView("overview");
@@ -174,54 +182,86 @@ export default function LeaguesPage() {
 
   async function joinLeague() {
     if (!joinCode.trim()) return;
-    await joinLeagueWithCode(joinCode.trim());
+    const tname = joinTeamName.trim();
+    if (tname.length < 2 || tname.length > 24) {
+      toast("Teamname: 2–24 Zeichen erforderlich.", "error");
+      return;
+    }
+    await joinLeagueWithCode(joinCode.trim(), tname);
   }
 
-  async function joinLeagueWithCode(code: string) {
+  async function joinLeagueWithCode(code: string, teamName: string = "Mein Team") {
     setSaving(true);
+    const normalizedCode = code.trim().toUpperCase();
+    const finalTeamName = teamName.trim().slice(0, 24);
 
     const { data: league } = await supabase
       .from("leagues")
       .select("*")
-      .eq("invite_code", code.trim().toLowerCase())
-      .single();
+      .ilike("invite_code", normalizedCode)
+      .maybeSingle();
 
     if (!league) {
-      toast("Liga nicht gefunden. Code prüfen!", "error");
+      toast("Code nicht gefunden. Groß-/Kleinschreibung prüfen!", "error");
       setSaving(false);
       return;
     }
 
-    const { data: existingTeams } = await supabase
-      .from("teams").select("id").eq("league_id", league.id);
-
-    if ((existingTeams?.length || 0) >= league.max_teams) {
-      toast("Liga ist bereits voll!", "error");
-      setSaving(false);
-      return;
-    }
-
+    // Already member → direkt weiterleiten
     const { data: alreadyIn } = await supabase
       .from("teams").select("id")
       .eq("league_id", league.id).eq("user_id", user.id).maybeSingle();
 
     if (alreadyIn) {
-      toast("Du bist bereits in dieser Liga!", "error");
+      toast("Du bist bereits Mitglied dieser Liga.", "info");
+      setSaving(false);
+      window.location.href = league.mode === "wm" ? `/wm/${league.id}` : `/leagues/${league.id}`;
+      return;
+    }
+
+    // Liga voll?
+    const { data: existingTeams } = await supabase
+      .from("teams").select("id, name").eq("league_id", league.id);
+
+    if ((existingTeams?.length || 0) >= league.max_teams) {
+      toast("Liga ist voll!", "error");
       setSaving(false);
       return;
     }
 
-    await supabase.from("teams").insert({
+    // Teamname-Duplikat innerhalb der Liga?
+    const isDuplicate = (existingTeams || []).some(
+      (t: any) => t.name.trim().toLowerCase() === finalTeamName.toLowerCase()
+    );
+    if (isDuplicate) {
+      toast("Dieser Teamname ist in dieser Liga bereits vergeben.", "error");
+      setSaving(false);
+      return;
+    }
+
+    // Team anlegen
+    const { error: teamError } = await supabase.from("teams").insert({
       user_id: user.id,
       league_id: league.id,
-      name: "Mein Team",
+      name: finalTeamName,
     });
+
+    if (teamError) {
+      toast(
+        league.mode === "wm"
+          ? "WM-Liga konnte nicht beigetreten werden: " + teamError.message
+          : "Fehler beim Beitreten: " + teamError.message,
+        "error",
+      );
+      setSaving(false);
+      return;
+    }
 
     toast(`Beigetreten: ${league.name}!`, "success");
     setJoinCode("");
-    loadLeagues(user.id);
+    setJoinTeamName("");
     setSaving(false);
-    setView("overview");
+    window.location.href = league.mode === "wm" ? `/wm/${league.id}` : `/leagues/${league.id}`;
   }
 
   function copyCode(code: string) {
@@ -314,7 +354,7 @@ export default function LeaguesPage() {
                   </div>
                 )}
 
-                <button onClick={() => window.location.href = `/leagues/${league.id}`}
+                <button onClick={() => window.location.href = league.mode === "wm" ? `/wm/${league.id}` : `/leagues/${league.id}`}
                   className="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
                   style={{ background: "var(--color-border)", color: "var(--color-text)" }}>
                   Liga öffnen →
@@ -337,6 +377,16 @@ export default function LeaguesPage() {
               <input type="text" value={newLeagueName} onChange={(e) => setNewLeagueName(e.target.value)}
                 className={inputCls} placeholder="z.B. WM 2026 Friends Liga"
                 style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+            </div>
+
+            {/* Mein Teamname */}
+            <div className="mb-4">
+              <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Mein Teamname</label>
+              <input type="text" value={createTeamName} onChange={(e) => setCreateTeamName(e.target.value)}
+                maxLength={24}
+                className={inputCls} placeholder="z.B. Nikos Ultras"
+                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+              <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>2–24 Zeichen</p>
             </div>
 
             {/* Liga-Typ: Liga vs WM */}
@@ -394,7 +444,7 @@ export default function LeaguesPage() {
               </div>
             </div>
 
-            <button onClick={createLeague} disabled={saving || !newLeagueName.trim()}
+            <button onClick={createLeague} disabled={saving || !newLeagueName.trim() || createTeamName.trim().length < 2}
               className="w-full py-3 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
               style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
               {saving ? "Erstelle..." : `${leagueMode === "wm" ? "WM-Liga" : "Liga"} erstellen`}
@@ -561,7 +611,7 @@ export default function LeaguesPage() {
           <h2 className="font-black text-base mb-1" style={{ color: "var(--color-text)" }}>Liga beitreten</h2>
           <p className="text-xs mb-5" style={{ color: "var(--color-muted)" }}>Gib den Invite-Code deines Liga-Erstellers ein.</p>
 
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Invite-Code</label>
             <input type="text" value={joinCode} onChange={(e) => setJoinCode(e.target.value)}
               className={`${inputCls} font-mono tracking-widest uppercase`}
@@ -569,7 +619,17 @@ export default function LeaguesPage() {
               style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
           </div>
 
-          <button onClick={joinLeague} disabled={saving || !joinCode.trim()}
+          <div className="mb-6">
+            <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--color-muted)" }}>Teamname</label>
+            <input type="text" value={joinTeamName} onChange={(e) => setJoinTeamName(e.target.value)}
+              maxLength={24}
+              className={inputCls}
+              placeholder="z.B. Nikos Ultras"
+              style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)", color: "var(--color-text)" }} />
+            <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>2–24 Zeichen</p>
+          </div>
+
+          <button onClick={joinLeague} disabled={saving || !joinCode.trim() || joinTeamName.trim().length < 2}
             className="w-full py-3 rounded-xl text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
             style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>
             {saving ? "Suche Liga..." : "Beitreten"}

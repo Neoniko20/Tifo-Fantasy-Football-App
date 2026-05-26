@@ -64,6 +64,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   const [initializing, setInitializing] = useState(false);
   const [processingWaivers, setProcessingWaivers] = useState(false);
   const [scoringRules, setScoringRules] = useState<ScoringRules>(DEFAULT_SCORING_RULES);
+  const [vcEnabled, setVcEnabled]       = useState<boolean>(true);
+  const [viceMode,  setViceMode]        = useState<"backup" | "bonus">("backup");
   const [scoringSaved, setScoringSaved] = useState(false);
   const [squadSize, setSquadSize] = useState(15);
   const [benchSize, setBenchSize] = useState(4);
@@ -110,6 +112,12 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       .from("leagues").select("*").eq("id", leagueId).single();
     setLeague(leagueData);
 
+    // WM-Ligen haben eigene Admin-Seite → niemals auf /leagues/[id]/admin
+    if (leagueData?.mode === "wm") {
+      window.location.replace(`/wm/${leagueId}/admin`);
+      return;
+    }
+
     if (leagueData?.owner_id !== userId) {
       setIsOwner(false);
       setLoading(false);
@@ -137,6 +145,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
       if (ls.position_limits) setPosLimits(ls.position_limits);
       if (ls.allowed_formations) setAllowedFormations(ls.allowed_formations);
       setScoringRules(mergeRules(ls.scoring_rules));
+      setVcEnabled((ls.scoring_rules as any)?.vice_captain_enabled ?? true);
+      setViceMode((ls.scoring_rules as any)?.vice_mode ?? "backup");
       if (ls.lineup_lock_mode) setLineupLockMode(ls.lineup_lock_mode);
       setDynastyMode(ls.dynasty_mode || false);
       setDynastyRookieRounds(ls.dynasty_rookie_rounds || 5);
@@ -446,7 +456,15 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
   async function saveScoringRules() {
     setSaving(true);
     await supabase.from("liga_settings")
-      .upsert({ league_id: leagueId, scoring_rules: scoringRules, updated_at: new Date().toISOString() }, { onConflict: "league_id" });
+      .upsert({
+        league_id: leagueId,
+        scoring_rules: {
+          ...scoringRules,
+          vice_captain_enabled: vcEnabled,
+          vice_mode: viceMode,
+        },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "league_id" });
     setScoringSaved(true);
     setTimeout(() => setScoringSaved(false), 3000);
     setSaving(false);
@@ -454,6 +472,8 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
 
   async function resetScoringRules() {
     setScoringRules(DEFAULT_SCORING_RULES);
+    setVcEnabled(true);
+    setViceMode("backup");
   }
 
   async function processWaivers() {
@@ -1305,6 +1325,108 @@ export default function LigaAdminPage({ params }: { params: Promise<{ id: string
                 </div>
               </div>
             ))}
+
+            {/* Vize-Kapitän — custom UI (nicht im RULE_GROUPS-Renderer) */}
+            <div>
+              <p className="text-[8px] font-black uppercase tracking-widest mb-2" style={{ color: "#f5a623aa" }}>
+                Vize-Kapitän
+              </p>
+
+              {/* Toggle: aktiv/inaktiv */}
+              <div className="flex items-center justify-between p-3 rounded-lg"
+                style={{ background: "var(--bg-page)", border: "1px solid var(--color-border)" }}>
+                <div>
+                  <p className="text-[10px] font-black" style={{ color: "var(--color-text)" }}>Vize-Kapitän aktivieren und Modus wählen.</p>
+                </div>
+                <button
+                  onClick={() => setVcEnabled(v => !v)}
+                  className="flex-shrink-0 ml-4 w-10 h-5 rounded-full relative transition-all"
+                  style={{ background: vcEnabled ? "#f5a623" : "var(--color-border)" }}
+                >
+                  <span
+                    className="absolute top-0.5 h-4 w-4 rounded-full transition-all"
+                    style={{ background: "#fff", left: vcEnabled ? "calc(100% - 18px)" : "2px" }}
+                  />
+                </button>
+              </div>
+
+              {/* Modus-Auswahl — nur wenn VC aktiv */}
+              {vcEnabled && (
+                <div className="mt-2 space-y-1.5">
+                  {([
+                    {
+                      id: "backup" as const,
+                      label: "Ersatz-Modus",
+                      desc: "Vize übernimmt die Captain-Rolle, wenn der Captain nicht spielt (0 Minuten)",
+                    },
+                    {
+                      id: "bonus" as const,
+                      label: "Bonus-Modus",
+                      desc: "Vize erhält immer einen eigenen Multiplikator",
+                    },
+                  ]).map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => {
+                        setViceMode(opt.id);
+                        if (opt.id === "bonus" && scoringRules.vice_captain_multiplier === 1) {
+                          setScoringRules(prev => ({ ...prev, vice_captain_multiplier: 1.5 }));
+                        }
+                      }}
+                      className="w-full flex items-start gap-2.5 p-2.5 rounded-xl text-left transition-all"
+                      style={{
+                        background: viceMode === opt.id ? "var(--bg-elevated)" : "var(--bg-page)",
+                        border: `1px solid ${viceMode === opt.id ? "#f5a623" : "var(--color-border)"}`,
+                      }}
+                    >
+                      <span
+                        className="flex-shrink-0 mt-0.5 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center"
+                        style={{ borderColor: viceMode === opt.id ? "#f5a623" : "var(--color-border)" }}
+                      >
+                        {viceMode === opt.id && (
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#f5a623" }} />
+                        )}
+                      </span>
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest"
+                          style={{ color: viceMode === opt.id ? "#f5a623" : "var(--color-dim)" }}>
+                          {opt.label}
+                        </p>
+                        <p className="text-[8px] mt-0.5 leading-relaxed" style={{ color: "var(--color-muted)" }}>
+                          {opt.desc}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+
+                  {/* Multiplikator-Input — nur im Bonus-Modus */}
+                  {viceMode === "bonus" && (
+                    <div className="pt-1">
+                      <p className="text-[7px] font-black uppercase mb-1" style={{ color: "var(--color-muted)" }}>
+                        VC Multiplikator
+                      </p>
+                      <input
+                        type="number"
+                        step={0.5}
+                        min={0.5}
+                        max={4}
+                        value={scoringRules.vice_captain_multiplier}
+                        onChange={e => setScoringRules(prev => ({
+                          ...prev,
+                          vice_captain_multiplier: parseFloat(e.target.value) || 1,
+                        }))}
+                        className="w-28 p-2 rounded-lg text-xs font-black text-center focus:outline-none"
+                        style={{
+                          background: "var(--bg-page)",
+                          border: `1px solid ${scoringRules.vice_captain_multiplier !== 1 ? "#f5a62388" : "var(--color-border)"}`,
+                          color: scoringRules.vice_captain_multiplier !== 1 ? "#f5a623" : "var(--color-text)",
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <button onClick={saveScoringRules} disabled={saving}
               className="w-full py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
