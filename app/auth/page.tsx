@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { TifoLogo } from "@/app/components/TifoLogo";
+import { TifoHeroLogo } from "@/app/components/brand/TifoHeroLogo";
 
 export default function AuthPage() {
   const [email, setEmail] = useState("");
@@ -41,7 +41,7 @@ export default function AuthPage() {
       <div className="relative w-full max-w-sm">
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <TifoLogo mode="wordmark" size={100} />
+          <TifoHeroLogo />
         </div>
 
         {/* Card */}

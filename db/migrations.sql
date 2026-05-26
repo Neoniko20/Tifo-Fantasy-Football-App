@@ -89,7 +89,16 @@ CREATE POLICY "Trade participant update liga_trades"
     OR receiver_team_id IN (SELECT id FROM teams WHERE user_id = auth.uid())
   );
 
--- 6. liga_gameweeks: Ligen-Felder für Spieltag-Kalender
+-- 6. wm_gameweeks: deadline + updated_at
+--    deadline  = Zeitpunkt bis zu dem Lineups eingereicht werden können
+--    updated_at = Änderungs-Timestamp für Admin-Edits
+ALTER TABLE wm_gameweeks
+  ADD COLUMN IF NOT EXISTS deadline   TIMESTAMPTZ;
+
+ALTER TABLE wm_gameweeks
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now();
+
+-- 7. liga_gameweeks: Ligen-Felder für Spieltag-Kalender
 ALTER TABLE liga_gameweeks
   ADD COLUMN IF NOT EXISTS active_leagues    JSONB DEFAULT '["bundesliga","premier","seriea","ligue1","laliga"]';
 ALTER TABLE liga_gameweeks

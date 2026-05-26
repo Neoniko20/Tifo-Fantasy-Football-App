@@ -121,53 +121,23 @@ function HomeInner() {
 
   async function cachePlayersFromApi() {
     setCaching(true);
-    const headers = { "x-apisports-key": process.env.NEXT_PUBLIC_FOOTBALL_API_KEY || "" };
-    const endpoints = ["topscorers", "topassists", "topredcards", "topyellowcards"];
-    const leagueIds = [78, 39, 140, 135, 61];
-    for (const leagueId of leagueIds) {
-      for (const endpoint of endpoints) {
-        setCachingStatus(`Lade ${endpoint} · Liga ${leagueId}...`);
-        try {
-          const res = await fetch(
-            `https://v3.football.api-sports.io/players/${endpoint}?league=${leagueId}&season=2023`,
-            { headers }
-          );
-          const data = await res.json();
-          const players = data.response || [];
-          for (const item of players) {
-            const stats = Array.isArray(item.statistics) ? item.statistics[0] : item.statistics;
-            const goals = stats?.goals?.total || 0;
-            const assists = stats?.goals?.assists || 0;
-            const minutes = stats?.games?.minutes || 0;
-            const shotsOn = stats?.shots?.on || 0;
-            const keyPasses = stats?.passes?.key || 0;
-            const passAccuracy = stats?.passes?.accuracy || 0;
-            const tackles = stats?.tackles?.total || 0;
-            const interceptions = stats?.tackles?.interceptions || 0;
-            const yellow = stats?.cards?.yellow || 0;
-            const red = stats?.cards?.red || 0;
-            const saves = stats?.goals?.saves || 0;
-            const dribbles = stats?.dribbles?.attempts || 0;
-            const position = normalizePosition(stats?.games?.position || "");
-            let fpts = goals * 4 + assists * 3 + shotsOn * 0.5 + keyPasses * 0.8;
-            fpts += tackles * 0.6 + interceptions * 0.6 + dribbles * 0.2;
-            fpts -= yellow * 1 + red * 3;
-            if (minutes >= 60) fpts += 1; else if (minutes > 0) fpts += 0.4;
-            await supabase.from("players").upsert({
-              id: item.player.id, name: item.player.name, position,
-              nationality: item.player.nationality, photo_url: item.player.photo,
-              team_name: stats?.team?.name || "", api_league_id: leagueId,
-              api_team_id: stats?.team?.id || 0, goals, assists, minutes,
-              shots_on: shotsOn, key_passes: keyPasses, pass_accuracy: passAccuracy,
-              tackles, interceptions, yellow_cards: yellow, red_cards: red,
-              saves, dribbles, fpts: Math.round(fpts * 10) / 10,
-            }, { onConflict: "id" });
-          }
-        } catch (e) { console.error(`Fehler ${endpoint} Liga ${leagueId}:`, e); }
-      }
+    setCachingStatus("Importiere Spieler vom Server...");
+    try {
+      // API-Football wird server-seitig aufgerufen — kein Key im Browser
+      const res = await fetch("/api/import-players", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ league: "all", maxCalls: 20 }),
+      });
+      if (!res.ok) throw new Error(`Import fehlgeschlagen (${res.status})`);
+      const result = await res.json();
+      setCachingStatus(result.message || "Import abgeschlossen.");
+    } catch (e) {
+      console.error("Player import error:", e);
+    } finally {
+      setCaching(false);
+      setCachingStatus("");
     }
-    setCaching(false);
-    setCachingStatus("");
     await loadFromSupabase();
   }
 
