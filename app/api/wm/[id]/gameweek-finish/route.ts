@@ -134,17 +134,26 @@ export async function POST(
     );
   }
 
-  // ── 8. Set wm_gameweeks.status → 'finished' ──────────────────────
+  // ── 8. Set wm_gameweeks.status → 'finished' (atomic, race-safe) ──
+  // Using .neq("status", "finished") as an optimistic lock:
+  // if two concurrent calls reach here, exactly one will update 1 row;
+  // the other updates 0 rows → detected as already_finished, no double message.
   if (gwRow?.id) {
-    const { error: gwError } = await supabase
+    const { data: updated, error: gwError } = await supabase
       .from("wm_gameweeks")
       .update({ status: "finished" })
-      .eq("id", gwRow.id);
+      .eq("id", gwRow.id)
+      .neq("status", "finished")
+      .select("id");
     if (gwError) {
       return NextResponse.json(
         { error: "Spieltag-Status Update fehlgeschlagen: " + gwError.message },
         { status: 500 },
       );
+    }
+    if (!updated?.length) {
+      // Another concurrent call already set status → no-op for this call
+      return NextResponse.json({ ok: true, already_finished: true });
     }
   }
 
