@@ -325,6 +325,8 @@ async function handlePlayerStatUpdate(
     clean_sheet:    p.clean_sheet ?? false,
   };
 
+  const succeededTeamIds: string[] = [];
+
   for (const entry of squadEntries) {
     // Check if player is captain this GW for this team
     const { data: lineup } = await supabase
@@ -363,6 +365,39 @@ async function handlePlayerStatUpdate(
       warnings.push(`upsert failed for team ${entry.team_id}: ${error.message}`);
     } else {
       applied.push(`wm_gameweek_points:${entry.team_id}:${p.player_id}`);
+      succeededTeamIds.push(entry.team_id);
+    }
+  }
+
+  // ── total_points live rebuild ─────────────────────────────────────────────
+  // For every team whose GW-points upsert succeeded, recompute teams.total_points
+  // by summing ALL wm_gameweek_points rows for that team (across all GWs).
+  // SUM-based rebuild (not increment) → idempotent, safe under concurrent writes.
+  // Failure here is non-fatal: GW-points are already written; recovery via rebuild-points API.
+  for (const teamId of succeededTeamIds) {
+    const { data: allPts, error: sumError } = await supabase
+      .from("wm_gameweek_points")
+      .select("points")
+      .eq("team_id", teamId);
+
+    if (sumError) {
+      warnings.push(`total_points sum failed for team ${teamId}: ${sumError.message}`);
+      continue;
+    }
+
+    const newTotal = Math.round(
+      (allPts ?? []).reduce((s, r) => s + (r.points ?? 0), 0) * 10,
+    ) / 10;
+
+    const { error: updateError } = await supabase
+      .from("teams")
+      .update({ total_points: newTotal })
+      .eq("id", teamId);
+
+    if (updateError) {
+      warnings.push(`total_points update failed for team ${teamId}: ${updateError.message}`);
+    } else {
+      applied.push(`teams.total_points:${teamId}:${newTotal}`);
     }
   }
 

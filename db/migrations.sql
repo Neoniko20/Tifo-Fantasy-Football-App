@@ -105,3 +105,29 @@ ALTER TABLE liga_gameweeks
   ADD COLUMN IF NOT EXISTS double_gw_leagues JSONB DEFAULT '[]';
 ALTER TABLE liga_gameweeks
   ADD COLUMN IF NOT EXISTS notes             TEXT;
+
+-- E1: wm_gw_rank_snapshots — Rang-Snapshot aller Teams bei GW-Start
+-- Basis für rank_delta im Live Center.
+-- UPSERT via ON CONFLICT (league_id, gameweek, team_id) → idempotent.
+CREATE TABLE IF NOT EXISTS public.wm_gw_rank_snapshots (
+  id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  league_id     uuid NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+  gameweek      integer NOT NULL,
+  team_id       uuid NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  rank          integer NOT NULL,
+  total_points  numeric(8,1) NOT NULL DEFAULT 0,
+  created_at    timestamptz DEFAULT now(),
+  UNIQUE (league_id, gameweek, team_id)
+);
+
+ALTER TABLE public.wm_gw_rank_snapshots ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "league members can read gw rank snapshots"
+  ON public.wm_gw_rank_snapshots FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM league_members lm
+      WHERE lm.league_id = wm_gw_rank_snapshots.league_id
+        AND lm.user_id = auth.uid()
+    )
+  );

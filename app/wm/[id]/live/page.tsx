@@ -67,7 +67,10 @@ export default function LiveCenterPage({ params }: { params: Promise<{ id: strin
     setMessages((messagesRes.data ?? []) as LeagueMessage[]);
 
     if (gw && teamsRes.data) {
-      await loadLeaderboard(gw.gameweek, leagueId, teamsRes.data, myTeam?.id ?? null);
+      await loadLeaderboard(
+        gw.gameweek, leagueId, teamsRes.data, myTeam?.id ?? null,
+        (fixtureRes.data ?? []) as WMFixture[], tid
+      );
       if (myTeam?.id) {
         await loadMyPlayers(myTeam.id, gw.gameweek, tid, (fixtureRes.data ?? []) as WMFixture[], (nationsRes.data ?? []) as WMNation[]);
       }
@@ -77,31 +80,81 @@ export default function LiveCenterPage({ params }: { params: Promise<{ id: strin
   }, [leagueId]);
 
   async function loadLeaderboard(
-    gw: number, lid: string, teams: any[], myTId: string | null
+    gw: number, lid: string, teams: any[], myTId: string | null,
+    fixturesData: WMFixture[], tid: string
   ) {
     const teamIds = teams.map((t: any) => t.id);
     if (!teamIds.length) return;
-    const { data: pts } = await supabase
-      .from("wm_gameweek_points").select("team_id, points").in("team_id", teamIds).eq("gameweek", gw);
+
+    const [ptsRes, teamsRes, snapshotsRes, allLineupsRes] = await Promise.all([
+      supabase.from("wm_gameweek_points").select("team_id, points").in("team_id", teamIds).eq("gameweek", gw),
+      supabase.from("teams").select("id, name, total_points").in("id", teamIds),
+      supabase.from("wm_gw_rank_snapshots").select("team_id, rank").eq("league_id", lid).eq("gameweek", gw),
+      supabase.from("team_lineups").select("team_id, starting_xi").in("team_id", teamIds).eq("gameweek", gw),
+    ]);
+
+    const allPlayerIds = [
+      ...new Set(
+        (allLineupsRes.data ?? []).flatMap((l: any) => (l.starting_xi as number[]) ?? [])
+      ),
+    ];
+
+    let playerNationMap: Record<number, string> = {};
+    if (allPlayerIds.length > 0) {
+      const { data: nationMappings } = await supabase
+        .from("wm_player_nations")
+        .select("player_id, nation_id")
+        .eq("tournament_id", tid)
+        .in("player_id", allPlayerIds);
+      for (const nm of (nationMappings ?? [])) playerNationMap[nm.player_id] = nm.nation_id;
+    }
 
     const totals: Record<string, number> = {};
-    for (const row of (pts ?? [])) {
+    for (const row of (ptsRes.data ?? [])) {
       totals[row.team_id] = (totals[row.team_id] ?? 0) + (row.points ?? 0);
     }
-    const { data: teamsWithTotal } = await supabase
-      .from("teams").select("id, name, total_points").in("id", teamIds);
 
-    const rows: LiveTeamRow[] = (teamsWithTotal ?? []).map((t: any) => ({
+    const snapshotMap: Record<string, number> = {};
+    for (const s of (snapshotsRes.data ?? [])) snapshotMap[s.team_id] = s.rank;
+
+    const lineupMap: Record<string, number[]> = {};
+    for (const l of (allLineupsRes.data ?? [])) lineupMap[l.team_id] = (l.starting_xi as number[]) ?? [];
+
+    const liveNations = new Set(
+      fixturesData
+        .filter((f) => f.status === "live")
+        .flatMap((f) => [f.home_nation_id, f.away_nation_id])
+    );
+
+    const unsortedRows = (teamsRes.data ?? []).map((t: any) => ({
       team_id:               t.id,
       team_name:             t.name,
       gw_points:             Math.round((totals[t.id] ?? 0) * 10) / 10,
       total_points:          t.total_points ?? 0,
-      rank_delta:            0,
-      players_playing:       0,
-      players_total:         11,
       is_my_team:            t.id === myTId,
       has_nation_eliminated: false,
+      players_total:         (lineupMap[t.id] ?? []).length || 11,
     }));
+
+    const sorted = [...unsortedRows].sort((a, b) =>
+      b.gw_points !== a.gw_points
+        ? b.gw_points - a.gw_points
+        : b.total_points - a.total_points
+    );
+
+    const rows: LiveTeamRow[] = sorted.map((row, idx) => {
+      const currentRank  = idx + 1;
+      const snapshotRank = snapshotMap[row.team_id] ?? currentRank;
+      const delta        = snapshotRank - currentRank;
+      const xi           = lineupMap[row.team_id] ?? [];
+      const playing      = xi.filter((pid) => liveNations.has(playerNationMap[pid])).length;
+      return {
+        ...row,
+        rank_delta:      delta,
+        players_playing: playing,
+        players_total:   xi.length || 11,
+      };
+    });
     setLeaderboard(rows);
   }
 
@@ -188,6 +241,10 @@ export default function LiveCenterPage({ params }: { params: Promise<{ id: strin
         (payload) => {
           setMessages(prev => [payload.new as LeagueMessage, ...prev].slice(0, 50));
         }
+      )
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "wm_gameweeks", filter: `tournament_id=eq.${tournamentId}` },
+        () => { if (user) loadAll(user.id); }
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setRealtimeStatus("connected");
