@@ -17,6 +17,7 @@ export interface WMTournament {
   start_date: string;
   end_date: string;
   status: WMStatus;
+  is_test_tournament: boolean;
 }
 
 export interface WMNation {
