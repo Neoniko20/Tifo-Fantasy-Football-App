@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { PlayerCardTransfer } from "@/app/components/players/PlayerCardTransfer";
 import { normalizeTransferPlayer } from "@/lib/players/normalizePlayer";
 import { Spinner } from "@/app/components/ui/Spinner";
+import { isTestTournament } from "@/lib/wm-player-pool";
 
 // ── Exported types ────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export function MarketTab({ leagueId, myTeamId, refreshKey, onPlayerClick }: Mar
   const mineSet   = useRef(new Set<number>());
   const ownerMap  = useRef(new Map<number, string>());
   const teamNames = useRef(new Map<string, string>());
-  const wmMode    = useRef<{ nationNames: string[]; hasTestPlayers: boolean } | null>(null);
+  const wmMode    = useRef<{ nationNames: string[]; isTestTournament: boolean } | null>(null);
 
   // ── One-time: load taken IDs + team names ─────────────────
   useEffect(() => {
@@ -173,14 +174,14 @@ export function MarketTab({ leagueId, myTeamId, refreshKey, onPlayerClick }: Mar
         .maybeSingle();
 
       if (wmSettings?.tournament_id) {
-        const [nationsRes, testCheckRes] = await Promise.all([
+        const [nationsRes, testFlag] = await Promise.all([
           supabase.from("wm_nations").select("name").eq("tournament_id", wmSettings.tournament_id),
-          supabase.from("players").select("id").gte("id", 90001).lte("id", 90120).limit(1),
+          isTestTournament(supabase, wmSettings.tournament_id),
         ]);
         const nationNames = (nationsRes.data ?? []).map((n: any) => n.name as string);
         wmMode.current = {
           nationNames,
-          hasTestPlayers: (testCheckRes.data?.length ?? 0) > 0,
+          isTestTournament: testFlag,
         };
 
         // Ownership aus wm_squad_players (ergänzt squad_players, falls Backfill fehlt)
@@ -286,14 +287,11 @@ export function MarketTab({ leagueId, myTeamId, refreshKey, onPlayerClick }: Mar
     if (q.length >= 2) query = query.ilike("name", `%${q}%`);
     if (pos !== "Alle")  query = query.eq("position", POS_TO_DB[pos]);
 
-    // WM-Filter: nur Spieler passender Nationen, im Testbetrieb nur IDs 90001–90200
+    // WM-Filter: nur Spieler passender Nationen, gefiltert nach Tournament-Typ.
+    // is_test_player=true für Test-Turniere, false für echte Turniere.
     if (wmMode.current) {
-      const { nationNames, hasTestPlayers } = wmMode.current;
-      if (hasTestPlayers) {
-        query = query.gte("id", 90001).lte("id", 90200).in("team_name", nationNames);
-      } else {
-        query = query.in("team_name", nationNames);
-      }
+      const { nationNames, isTestTournament: testFlag } = wmMode.current;
+      query = query.eq("is_test_player", testFlag).in("team_name", nationNames);
     }
 
     if (mode === "available") {
