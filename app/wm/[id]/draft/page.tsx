@@ -10,6 +10,7 @@ import { BottomNav } from "@/app/components/BottomNav";
 import { OnTheClock } from "@/app/components/wm/draft/OnTheClock";
 import { PickAnnouncement, type AnnouncedPick } from "@/app/components/wm/draft/PickAnnouncement";
 import { DraftPlayerRow } from "@/app/components/wm/draft/DraftPlayerRow";
+import { isTestTournament } from "@/lib/wm-player-pool";
 
 const TIMER_OPTIONS = [
   { label: "60 Sek", value: 60 },
@@ -230,22 +231,17 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
       return;
     }
 
-    // 2. Prüfen ob Testspieler (IDs 90001–90120) existieren.
-    // Wenn ja, nur diese laden — verhindert dass Club-Spieler mit nationalem
-    // team_name (z.B. Salah/Egypt, Palmer/England) im Draft-Pool auftauchen.
-    const { data: testCheck } = await supabase
-      .from("players")
-      .select("id")
-      .gte("id", 90001)
-      .lte("id", 90120)
-      .limit(1);
+    // 2. Player-Pool nach Tournament-Typ filtern.
+    // Test-Tournament → is_test_player=true, Real-Tournament → is_test_player=false.
+    // Keine ID-Range-Filter. Schutz läuft über is_test_player Flag.
+    const testFlag = await isTestTournament(supabase, settingsData!.tournament_id);
 
-    let query = supabase.from("players").select("*").order("fpts", { ascending: false });
-    if (testCheck && testCheck.length > 0) {
-      query = query.gte("id", 90001).lte("id", 90200).in("team_name", nationNames);
-    } else {
-      query = query.in("team_name", nationNames);
-    }
+    let query = supabase
+      .from("players")
+      .select("*")
+      .eq("is_test_player", testFlag)
+      .in("team_name", nationNames)
+      .order("fpts", { ascending: false });
 
     const { data } = await query;
     if (data) {
