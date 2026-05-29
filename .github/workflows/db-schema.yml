@@ -1,0 +1,32 @@
+name: DB Schema Check
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - 'db/**/*.sql'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'db/**/*.sql'
+
+jobs:
+  db-schema:
+    name: SQL Lint (informational)
+    runs-on: ubuntu-latest
+    # Non-blocking: existing SQL files have pre-existing violations.
+    # Baseline tracked in docs/db-schema-lint-baseline.md.
+    # Re-enable blocking once baseline is resolved.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sqlfluff
+        run: pip install sqlfluff
+
+      - name: Lint SQL (postgres, no layout rules)
+        run: python -m sqlfluff lint db/ --dialect postgres --exclude-rules layout

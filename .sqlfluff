@@ -1,0 +1,9 @@
+[sqlfluff]
+dialect = postgres
+# Exclude pure style/layout rules — existing codebase predates this linter.
+# Only structural and reference rules are active.
+# Re-enable layout rules incrementally as part of docs/lint-cleanup-plan.md.
+exclude_rules = layout
+
+[sqlfluff:rules:layout.long_lines]
+ignore_comment_lines = true
