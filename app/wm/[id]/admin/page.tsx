@@ -666,12 +666,51 @@ export default function WMAdminPage({ params }: { params: Promise<{ id: string }
   }
 
   // ── GW status ────────────────────────────────────────────────
+  // active   → POST /api/wm/[id]/gameweek-start  (writes rank snapshot, sets status)
+  // finished → POST /api/wm/[id]/gameweek-finish (rebuilds total_points, system message)
+  // upcoming → direct DB update (admin recovery only)
   async function updateGameweekStatus(gwNum: number, status: "upcoming" | "active" | "finished") {
     const gw = gameweeks.find(g => g.gameweek === gwNum);
     if (!gw) return;
-    await supabase.from("wm_gameweeks").update({ status }).eq("id", gw.id);
+
+    if (status === "active") {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { toast("Nicht eingeloggt — Session abgelaufen", "error"); return; }
+        const res = await fetch(`/api/wm/${leagueId}/gameweek-start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+          body: JSON.stringify({ gameweek: gwNum }),
+        });
+        const data = await res.json();
+        if (!res.ok) { toast("Fehler: " + (data.error || res.statusText), "error"); return; }
+        toast(`GW ${gwNum} gestartet — Snapshot geschrieben`, "success");
+      } catch (e: any) { toast("Fehler: " + e.message, "error"); return; }
+
+    } else if (status === "finished") {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { toast("Nicht eingeloggt — Session abgelaufen", "error"); return; }
+        const res = await fetch(`/api/wm/${leagueId}/gameweek-finish`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+          body: JSON.stringify({ gameweek: gwNum }),
+        });
+        const data = await res.json();
+        if (!res.ok) { toast("Fehler: " + (data.error || res.statusText), "error"); return; }
+        toast(`GW ${gwNum} abgeschlossen`, "success");
+      } catch (e: any) { toast("Fehler: " + e.message, "error"); return; }
+
+    } else {
+      // upcoming: direktes Supabase Update — nur für Admin-Recovery
+      const { error } = await supabase.from("wm_gameweeks").update({ status }).eq("id", gw.id);
+      if (error) { toast("Fehler: " + error.message, "error"); return; }
+      toast(`GW ${gwNum} → upcoming gesetzt`, "info");
+    }
+
     setGameweeks(prev => prev.map(g => g.gameweek === gwNum ? { ...g, status } : g));
 
+    // Push notification (fire-and-forget, non-blocking)
     if (status === "active" || status === "finished") {
       const event = status === "active" ? "gw_started" : "gw_finished";
       const title = status === "active" ? `▶ WM GW ${gwNum} gestartet` : `■ WM GW ${gwNum} beendet`;
