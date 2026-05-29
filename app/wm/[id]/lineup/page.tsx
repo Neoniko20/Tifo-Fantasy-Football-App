@@ -223,10 +223,8 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       if (!mapped?.eliminated_after_gameweek) return false;
       return gameweek > mapped.eliminated_after_gameweek;
     }
-    // TODO remove fallback after real WM player import
-    const nation = nations.find(n => n.name === player.team_name);
-    if (!nation?.eliminated_after_gameweek) return false;
-    return gameweek > nation.eliminated_after_gameweek;
+    // No team_name fallback: all players have wm_player_nations entries after M-03a.
+    return false;
   }
 
   async function saveLineup() {
