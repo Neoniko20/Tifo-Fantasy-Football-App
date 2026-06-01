@@ -1,6 +1,7 @@
 /**
  * F0-Task 2 — Mini-Turnier E2E QA Script
- * Run: node --env-file=.env.local scripts/qa-f0-e2e-tournament.mjs
+ * Run: node scripts/qa-f0-e2e-tournament.mjs
+ *   (loads .env.local automatically; or: node --env-file=.env.local scripts/qa-f0-e2e-tournament.mjs)
  *
  * Vollständiger WM-Core-Loop: GW1 + GW2 mit Lineups, Fixtures,
  * Simulator, Auto-Subs, Waiver, Rank-Delta.
@@ -11,6 +12,9 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+
+// ── Env: load .env.local automatically if present (Node 20.12+ built-in) ─────
+try { process.loadEnvFile(new URL("../../.env.local", import.meta.url)); } catch { /* CI or already set */ }
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const SUPA_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL;

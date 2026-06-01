@@ -1,6 +1,7 @@
 /**
  * E1 WM Live Scoring — End-to-End QA Script
- * Run: node --env-file=.env.local scripts/qa-e1-live-scoring.mjs
+ * Run: node scripts/qa-e1-live-scoring.mjs
+ *   (loads .env.local automatically; or: node --env-file=.env.local scripts/qa-e1-live-scoring.mjs)
  *
  * Uses service role client to simulate all API route operations.
  * Tests all 7 blocks from the QA spec.
@@ -11,6 +12,9 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+
+// ── Env: load .env.local automatically if present (Node 20.12+ built-in) ─────
+try { process.loadEnvFile(new URL("../../.env.local", import.meta.url)); } catch { /* CI or already set */ }
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const SUPA_URL    = process.env.NEXT_PUBLIC_SUPABASE_URL;
