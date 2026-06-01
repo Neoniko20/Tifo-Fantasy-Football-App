@@ -1,16 +1,24 @@
 /**
  * F0-Task 3 — Chaos / Recovery / Failure-State Testing
- * Run: node scripts/qa-f0-chaos.mjs
+ * Run: node --env-file=.env.local scripts/qa-f0-chaos.mjs
  *
  * Tests: Idempotency, Reentrancy, Partial Failures, Double-Finish, Race Conditions.
  * Blocks 1/3/8 (Realtime + Browser) → Manual section at the end.
+ *
+ * Requires in .env.local:
+ *   NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co
+ *   SUPABASE_SERVICE_ROLE_KEY=<service role key — never commit this value>
  */
 
 import { createClient } from "@supabase/supabase-js";
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const SUPA_URL  = "https://pzgeuuyqzjqilwulbxoe.supabase.co";
-const SK        = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6Z2V1dXlxempxaWx3dWxieG9lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDU0MzI2NiwiZXhwIjoyMDkwMTE5MjY2fQ.agx3xeZ2AHePqWu4mQdbwSJ-a-gBh67CJQKJlAAdqNM";
+const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SK       = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPA_URL) { console.error("❌ Missing NEXT_PUBLIC_SUPABASE_URL — add to .env.local"); process.exit(1); }
+if (!SK)       { console.error("❌ Missing SUPABASE_SERVICE_ROLE_KEY — add to .env.local"); process.exit(1); }
+
 const LEAGUE_ID = "46f66d03-9270-4cee-b6b5-99f2f48ee61c";
 const TID       = "a3e45ea3-71e7-4a00-aa16-fa54ef0eeee7";
 

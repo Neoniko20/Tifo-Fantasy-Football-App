@@ -5,11 +5,27 @@ Test 2: Mid-GW Refresh Storm
 Test 3: Mobile Stress (iPhone 12, 390×844)
 
 Run: python scripts/qa-browser-chaos.py
+
+Requires in .env.local:
+  NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co
+  SUPABASE_SERVICE_ROLE_KEY=<service role key — never commit this value>
 """
+import os
+import sys
 import time
 import json
 import subprocess
 from playwright.sync_api import sync_playwright, Page, ConsoleMessage
+
+SUPA_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
+SUPA_SK  = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+if not SUPA_URL:
+    print("❌ Missing NEXT_PUBLIC_SUPABASE_URL — add to .env.local and source it first")
+    sys.exit(1)
+if not SUPA_SK:
+    print("❌ Missing SUPABASE_SERVICE_ROLE_KEY — add to .env.local and source it first")
+    sys.exit(1)
 
 BASE = "http://localhost:3000"
 LEAGUE_ID = "46f66d03-9270-4cee-b6b5-99f2f48ee61c"
@@ -57,11 +73,10 @@ def trigger_stat_update(delta_pts: float = 5.0):
     """Trigger a DB stat update via node script to simulate live scoring."""
     cmd = f"""cd /Users/nikoko/my-fantasy-app && node -e "
 const {{ createClient }} = require('@supabase/supabase-js');
-const sb = createClient(
-  'https://pzgeuuyqzjqilwulbxoe.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6Z2V1dXlxempxaWx3dWxieG9lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDU0MzI2NiwiZXhwIjoyMDkwMTE5MjY2fQ.agx3xeZ2AHePqWu4mQdbwSJ-a-gBh67CJQKJlAAdqNM',
-  {{ auth: {{ persistSession: false }} }}
-);
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!url || !key) {{ console.error('Missing Supabase env vars'); process.exit(1); }}
+const sb = createClient(url, key, {{ auth: {{ persistSession: false }} }});
 async function upd() {{
   const {{ data: teams }} = await sb.from('teams').select('id,name,total_points').eq('league_id','46f66d03-9270-4cee-b6b5-99f2f48ee61c').order('total_points', {{ ascending: true }});
   const t = teams[0];
@@ -71,7 +86,8 @@ async function upd() {{
 }}
 upd().catch(e => console.error(e.message));
 " 2>&1"""
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+    env = {**os.environ, "NEXT_PUBLIC_SUPABASE_URL": SUPA_URL, "SUPABASE_SERVICE_ROLE_KEY": SUPA_SK}
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15, env=env)
     out = (result.stdout + result.stderr).strip()
     note(f"DB trigger: {out}")
     return out
