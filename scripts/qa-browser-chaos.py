@@ -5,6 +5,7 @@ Test 2: Mid-GW Refresh Storm
 Test 3: Mobile Stress (iPhone 12, 390×844)
 
 Run: python scripts/qa-browser-chaos.py
+    (loads .env.local automatically)
 
 Requires in .env.local:
   NEXT_PUBLIC_SUPABASE_URL=https://...supabase.co
@@ -15,7 +16,16 @@ import sys
 import time
 import json
 import subprocess
+from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, ConsoleMessage
+
+# Load .env.local automatically if present (silently skip in CI where vars are already set)
+try:
+    from dotenv import load_dotenv
+    _env_file = Path(__file__).resolve().parents[1] / ".env.local"
+    load_dotenv(_env_file, override=False)  # override=False: existing env vars take precedence
+except ImportError:
+    pass  # python-dotenv not available; rely on env vars being set externally
 
 SUPA_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
 SUPA_SK  = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")

@@ -1,6 +1,7 @@
 /**
  * F0-Task 3 — Chaos / Recovery / Failure-State Testing
- * Run: node --env-file=.env.local scripts/qa-f0-chaos.mjs
+ * Run: node scripts/qa-f0-chaos.mjs
+ *   (loads .env.local automatically; or: node --env-file=.env.local scripts/qa-f0-chaos.mjs)
  *
  * Tests: Idempotency, Reentrancy, Partial Failures, Double-Finish, Race Conditions.
  * Blocks 1/3/8 (Realtime + Browser) → Manual section at the end.
@@ -11,6 +12,9 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+
+// ── Env: load .env.local automatically if present (Node 20.12+ built-in) ─────
+try { process.loadEnvFile(new URL("../../.env.local", import.meta.url)); } catch { /* CI or already set */ }
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
