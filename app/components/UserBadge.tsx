@@ -2,22 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuthUser } from "@/lib/auth-context";
 
 export function UserBadge({ teamName }: { teamName?: string }) {
-  const [user, setUser] = useState<any>(null);
+  const { user } = useAuthUser(); // reads from AuthProvider — no extra getUser() call
   const [personalTeamName, setPersonalTeamName] = useState("");
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      setUser(data.user);
-      if (!teamName) {
-        const { data: team } = await supabase
-          .from("teams").select("name").eq("user_id", data.user.id).is("league_id", null).maybeSingle();
-        if (team) setPersonalTeamName(team.name);
-      }
-    });
-  }, [teamName]);
+    if (!user || teamName) return;
+    supabase
+      .from("teams").select("name").eq("user_id", user.id).is("league_id", null).maybeSingle()
+      .then(({ data: team }) => { if (team) setPersonalTeamName(team.name); });
+  }, [user, teamName]);
 
   if (!user) return null;
 
