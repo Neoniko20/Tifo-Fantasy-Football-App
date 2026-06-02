@@ -313,7 +313,7 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
 
         {/* ── Live Center Banner ────────────────────────────────────── */}
         {currentGW?.status === "active" && (
-          <Link href={`/wm/${leagueId}/live`}
+          <Link href={`/wm/${leagueId}/live-center`}
             className="flex items-center gap-2 px-4 py-3 rounded-xl mb-3"
             style={{
               background: "color-mix(in srgb, var(--color-primary) 12%, var(--bg-card))",
@@ -579,7 +579,7 @@ export default function WMLeaguePage({ params }: { params: Promise<{ id: string 
                     Spielplan →
                   </button>
                   <button
-                    onClick={() => { if (currentGW) window.location.href = `/wm/${leagueId}/live`; }}
+                    onClick={() => { if (currentGW) window.location.href = `/wm/${leagueId}/live-center`; }}
                     disabled={!currentGW}
                     className="col-span-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center flex items-center justify-center gap-2 disabled:opacity-40 transition-all active:scale-[0.97]"
                     style={currentGW?.status === "active" ? {

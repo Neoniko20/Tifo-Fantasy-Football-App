@@ -190,7 +190,7 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
 
           {/* Live Center Banner */}
           {currentGW?.status === "active" ? (
-            <Link href={`/wm/${leagueId}/live`}
+            <Link href={`/wm/${leagueId}/live-center`}
               className="w-full max-w-md flex items-center gap-3 px-4 py-3 rounded-2xl mb-4"
               style={{
                 background: "color-mix(in srgb, var(--color-primary) 12%, var(--bg-card))",
@@ -206,7 +206,7 @@ export default function MatchdayPage({ params }: { params: Promise<{ id: string 
             </Link>
           ) : (
             <div className="w-full max-w-md flex justify-end mb-2">
-              <Link href={`/wm/${leagueId}/live`}
+              <Link href={`/wm/${leagueId}/live-center`}
                 className="text-[9px] font-black uppercase tracking-widest"
                 style={{ color: "var(--color-muted)" }}>
                 Live Center →

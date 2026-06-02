@@ -7,6 +7,7 @@ import { ToastProvider } from "@/app/components/ToastProvider";
 import { ThemeProvider } from "@/app/components/ThemeProvider";
 import { AutoTheme } from "@/app/components/AutoTheme";
 import ServiceWorkerRegistrar from "@/app/components/ServiceWorkerRegistrar";
+import { AuthProvider } from "@/lib/auth-context";
 
 const unbounded = Unbounded({
   subsets: ["latin"],
@@ -65,13 +66,15 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <ThemeProvider>
           <AutoTheme />
-          <ToastProvider>
-            <NotificationsProvider>
-              {children}
-              <InstallPrompt />
-              <ServiceWorkerRegistrar />
-            </NotificationsProvider>
-          </ToastProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <NotificationsProvider>
+                {children}
+                <InstallPrompt />
+                <ServiceWorkerRegistrar />
+              </NotificationsProvider>
+            </ToastProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

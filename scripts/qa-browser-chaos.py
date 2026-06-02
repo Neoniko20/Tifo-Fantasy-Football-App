@@ -39,7 +39,7 @@ if not SUPA_SK:
 
 BASE = "http://localhost:3000"
 LEAGUE_ID = "46f66d03-9270-4cee-b6b5-99f2f48ee61c"
-LIVE_CENTER = f"{BASE}/wm/{LEAGUE_ID}/live"
+LIVE_CENTER = f"{BASE}/wm/{LEAGUE_ID}/live-center"
 MATCHDAY    = f"{BASE}/wm/{LEAGUE_ID}/matchday"
 ADMIN       = f"{BASE}/wm/{LEAGUE_ID}/admin"
 HUB         = f"{BASE}/wm/{LEAGUE_ID}"

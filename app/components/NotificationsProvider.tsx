@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuthUser } from "@/lib/auth-context";
 import type { NotificationRow } from "@/lib/notifications";
 import { markAsRead as dbMarkAsRead, markAllAsRead as dbMarkAllAsRead } from "@/lib/notifications";
 
@@ -28,18 +29,10 @@ export function useNotifications() {
 }
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
-  const [userId, setUserId]               = useState<string | null>(null);
+  const { user }                          = useAuthUser(); // reads from AuthProvider — no extra getUser() call
+  const userId                            = user?.id ?? null;
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading]             = useState(true);
-
-  // 1. Resolve current user
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
 
   // 2. Initial fetch
   const refresh = useCallback(async () => {
