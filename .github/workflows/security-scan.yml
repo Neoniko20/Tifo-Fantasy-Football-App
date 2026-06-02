@@ -1,0 +1,90 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'   # Montag 03:00 UTC
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - 'lib/**'
+      - 'app/**'
+
+jobs:
+  security-scan:
+    name: Dependency + Secret Pattern Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Dependency audit ───────────────────────────────────────────────────
+      # Informational/non-blocking until known baseline vulnerabilities are
+      # resolved. See docs/security-scan-baseline.md for details.
+      - name: npm audit (high+) — informational
+        run: npm audit --audit-level=high
+        continue-on-error: true   # remove once baseline vulns are resolved
+
+      # ── Secret pattern scan ────────────────────────────────────────────────
+      # Scans source files for hardcoded credential patterns.
+      # This step IS blocking — secrets must never be committed.
+      - name: Secret pattern scan — eyJ (JWT tokens)
+        run: |
+          echo "Scanning scripts/ for hardcoded JWT tokens (eyJ...)..."
+          if grep -Rn "eyJ" scripts/ --include="*.mjs" --include="*.js" --include="*.ts" --include="*.py" 2>/dev/null; then
+            echo "❌ Hardcoded JWT token found in scripts/ — remove immediately"
+            exit 1
+          fi
+          echo "✅ No hardcoded JWT tokens found"
+
+      - name: Secret pattern scan — sb_secret_ keys
+        run: |
+          echo "Scanning for Supabase secret key patterns (sb_secret_)..."
+          if grep -Rn "sb_secret_" scripts/ app/ lib/ --include="*.mjs" --include="*.js" --include="*.ts" --include="*.tsx" --include="*.py" 2>/dev/null; then
+            echo "❌ Hardcoded sb_secret_ key found — remove immediately"
+            exit 1
+          fi
+          echo "✅ No sb_secret_ keys found"
+
+      - name: Secret pattern scan — service_role string literals
+        run: |
+          echo "Scanning for hardcoded service_role strings..."
+          # Only flag quoted string literals (e.g. "service_role"), not env var names like SUPABASE_SERVICE_ROLE_KEY
+          if grep -Rn '"service_role"' scripts/ app/ lib/ --include="*.mjs" --include="*.js" --include="*.ts" --include="*.tsx" --include="*.py" 2>/dev/null; then
+            echo "❌ Hardcoded service_role string literal found — remove immediately"
+            exit 1
+          fi
+          echo "✅ No service_role string literals found"
+
+      - name: Secret pattern scan — Supabase project URLs in scripts
+        run: |
+          echo "Scanning scripts/ for hardcoded Supabase project URLs..."
+          # Match https://<project-ref>.supabase.co as a string literal (not env var refs)
+          if grep -Rn '"https://.*\.supabase\.co"' scripts/ --include="*.mjs" --include="*.js" --include="*.ts" --include="*.py" 2>/dev/null; then
+            echo "❌ Hardcoded Supabase project URL found in scripts/ — use process.env instead"
+            exit 1
+          fi
+          echo "✅ No hardcoded Supabase project URLs in scripts/"
+
+      # ── Summary ────────────────────────────────────────────────────────────
+      - name: Security scan summary
+        if: always()
+        run: |
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Security Scan complete."
+          echo "  • npm audit:         informational (see baseline docs)"
+          echo "  • Secret patterns:   blocking"
+          echo "  • Baseline doc:      docs/security-scan-baseline.md"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
