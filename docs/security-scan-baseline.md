@@ -81,6 +81,12 @@ npm run typecheck && npm test
 The blocking secret-pattern checks (eyJ JWT tokens, sb_secret_ keys, service_role literals,
 hardcoded Supabase URLs) were **all clean** as of 2026-06-02 following PRs #11 and #12.
 
+### anon key migration (2026-06-02)
+
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` migrated from legacy `eyJ…` anon JWT to new `sb_publishable_…`
+format across all environments (local, GitHub Secrets, Vercel). No code changes required.
+See `docs/supabase-key-migration.md` for full details and legacy key deactivation checklist.
+
 See `.github/workflows/security-scan.yml` for the scan configuration.
 
 ---
