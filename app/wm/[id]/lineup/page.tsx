@@ -7,6 +7,8 @@ import { validateFormation } from "@/lib/wm-formations";
 import type { Position } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
 import { PlayerCard } from "@/app/components/PlayerCard";
+import { BottomNav } from "@/app/components/BottomNav";
+import { Spinner } from "@/app/components/ui/Spinner";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)",
@@ -44,13 +46,14 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const [gameweekId, setGameweekId] = useState<string | null>(null);
   const [nations, setNations] = useState<Array<{ name: string; eliminated_after_gameweek?: number | null }>>([]);
   const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null } | null>>({});
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) { window.location.href = "/auth"; return; }
       setUser(data.user);
-      loadAll(data.user.id);
+      loadAll(data.user.id).finally(() => setIsLoading(false));
     });
   }, []);
 
@@ -296,6 +299,32 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
         }))
     : [];
 
+  if (isLoading) return (
+    <main className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-page)" }}>
+      <Spinner text="Lade Aufstellung…" />
+    </main>
+  );
+
+  if (!isLoading && draftPicks.length === 0) return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-6" style={{ background: "var(--bg-page)" }}>
+      <p className="text-4xl">📋</p>
+      <p className="text-base font-black text-center" style={{ color: "var(--color-primary)" }}>
+        Noch kein Kader
+      </p>
+      <p className="text-xs text-center max-w-xs" style={{ color: "var(--color-muted)" }}>
+        Dein WM-Kader wird nach dem Draft hier angezeigt. Erst draften, dann aufstellen.
+      </p>
+      <button
+        onClick={() => window.location.href = `/wm/${leagueId}/draft`}
+        className="mt-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest"
+        style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}
+      >
+        Zum Draft →
+      </button>
+      <BottomNav />
+    </main>
+  );
+
   return (
     <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
@@ -524,6 +553,8 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
           </p>
         </div>
       )}
+
+      <BottomNav />
     </main>
   );
 }

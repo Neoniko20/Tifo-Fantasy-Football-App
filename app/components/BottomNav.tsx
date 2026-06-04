@@ -4,18 +4,10 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useNotifications } from "./NotificationsProvider";
 import { TifoUILogo } from "@/app/components/brand/TifoUILogo";
+import { extractLeagueInfo, computeNavHrefs } from "@/lib/nav-utils";
 
 const STORAGE_KEY    = "tifo_last_league_id";
 const STORAGE_WM_KEY = "tifo_last_league_is_wm";
-
-/** Returns the league ID from either /leagues/[id]/... or /wm/[id]/... paths */
-function extractLeagueInfo(pathname: string): { id: string; isWm: boolean } | null {
-  const wmMatch = pathname.match(/\/wm\/([^/]+)/);
-  if (wmMatch) return { id: wmMatch[1], isWm: true };
-  const lgMatch = pathname.match(/\/leagues\/([^/]+)/);
-  if (lgMatch) return { id: lgMatch[1], isWm: false };
-  return null;
-}
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -89,14 +81,12 @@ export function BottomNav() {
     }
   }, [pathname]);
 
-  // Resolve the best leagueId + isWm: current URL wins, then stored, then null/false
-  const urlInfo  = extractLeagueInfo(pathname);
-  const leagueId = urlInfo?.id  ?? storedLeagueId;
-  const isWm     = urlInfo?.isWm ?? storedIsWm;
-
-  const myTeamHref   = !leagueId ? "/my-team" : isWm ? `/wm/${leagueId}/lineup`   : `/leagues/${leagueId}/lineup`;
-  const matchdayHref = !leagueId ? "/scores"   : isWm ? `/wm/${leagueId}/matchday` : `/leagues/${leagueId}/matchday`;
-  const leaguesHref  = !leagueId ? "/leagues"  : isWm ? `/wm/${leagueId}`          : `/leagues/${leagueId}`;
+  // Resolve hrefs: URL always wins over stored state — no flicker on first render
+  const { myTeamHref, matchdayHref, leaguesHref } = computeNavHrefs(
+    pathname,
+    storedLeagueId,
+    storedIsWm,
+  );
 
   // Active tab detection
   const activeTab =
