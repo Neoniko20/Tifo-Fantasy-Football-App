@@ -391,11 +391,11 @@ async function ingestPlayers(
   console.log("\n── Step 3: Players (paginated) ───────────────────────────");
 
   let page = 1;
-  let totalPages = 1;
   let totalUpserted = 0;
+  let totalPages = 1;
   const allPlayerRows: any[] = [];
 
-  while (page <= totalPages) {
+  while (true) {
     const cacheFile = `players-page-${page}.json`;
     const label = `players page ${page}`;
 
@@ -405,10 +405,11 @@ async function ingestPlayers(
       label,
     );
 
-    totalPages = json.paging?.total ?? totalPages;
+    const currentPage = json.paging?.current ?? page;
+    totalPages = json.paging?.total ?? 1;
 
     const entries: any[] = json.response || [];
-    console.log(`  [${page}/${totalPages}] ${entries.length} players on this page`);
+    console.log(`  [${currentPage}/${totalPages}] ${entries.length} players on this page`);
 
     for (const entry of entries) {
       const player   = entry.player;
@@ -455,6 +456,11 @@ async function ingestPlayers(
         yellow_cards:  (stats.cards?.yellow || 0) + (stats.cards?.yellowred || 0),
         red_cards:     (stats.cards?.red    || 0) + (stats.cards?.yellowred || 0),
       });
+    }
+
+    // Break when current page >= total pages
+    if (currentPage >= totalPages) {
+      break;
     }
 
     page++;
