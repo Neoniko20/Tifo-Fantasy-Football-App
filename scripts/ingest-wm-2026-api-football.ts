@@ -54,7 +54,8 @@ function loadDotEnv(): void {
     const eqIdx = trimmed.indexOf("=");
     if (eqIdx < 0) continue;
     const key = trimmed.slice(0, eqIdx).trim();
-    const val = trimmed.slice(eqIdx + 1).trim();
+    // Strip surrounding quotes from value
+    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
     if (key && val && !process.env[key]) {
       process.env[key] = val;
     }
@@ -99,7 +100,7 @@ function mapRound(round: string): RoundMapping | null {
     return { stage: "group", gameweek: gw };
   }
 
-  // Round of 32 (WC 2026 has 32-team KO round)
+  // Round of 32 (WC 2026 group stage phase: 48 teams, 8 groups of 6)
   if (r.includes("round of 32") || r.includes("round of 48")) {
     return { stage: "round_of_32", gameweek: 4 };
   }
@@ -115,9 +116,9 @@ function mapRound(round: string): RoundMapping | null {
   if (r.includes("semi")) {
     return { stage: "semi", gameweek: 7 };
   }
-  // 3rd place
+  // 3rd-place playoff: same gameweek as final (GW7), distinct stage
   if (r.includes("3rd") || r.includes("third")) {
-    return { stage: "semi", gameweek: 7 };
+    return { stage: "final", gameweek: 7 };
   }
   // Final
   if (r.includes("final") && !r.includes("semi") && !r.includes("quarter")) {
@@ -171,6 +172,7 @@ async function afootFetch(
   endpointPath: string,
   cacheFile: string,
   label: string,
+  retryCount: number = 0,
 ): Promise<any> {
   // Check cache first
   const cached = readCache(cacheFile);
@@ -195,13 +197,16 @@ async function afootFetch(
     },
   });
 
-  // Rate limit hit — wait and retry once
+  // Rate limit hit — wait and retry up to 3 times
   if (res.status === 429) {
+    if (retryCount >= 3) {
+      throw new Error(`api-football ${endpointPath} → HTTP 429 (max retries exceeded)`);
+    }
     const retryAfter = parseInt(res.headers.get("retry-after") || "60", 10);
-    console.warn(`  Rate limited on ${endpointPath}, retrying after ${retryAfter}s`);
+    console.warn(`  Rate limited on ${endpointPath}, retrying after ${retryAfter}s (attempt ${retryCount + 1}/3)`);
     await delay(retryAfter * 1000);
     lastAfootCall = 0;
-    return afootFetch(endpointPath, cacheFile, label);
+    return afootFetch(endpointPath, cacheFile, label, retryCount + 1);
   }
 
   if (!res.ok) {
@@ -242,6 +247,8 @@ async function ingestTeams(
 
   const teams: any[] = json.response || [];
   console.log(`  Found ${teams.length} teams from API`);
+
+  if (teams.length === 0) throw new Error("API returned 0 teams for WC 2026 — aborting. Data may not be available yet.");
 
   // api_team_id → wm_nations.id
   const teamIdToNationId = new Map<number, string>();
@@ -367,6 +374,7 @@ async function ingestFixtures(
   // Upsert in batches of 50 to avoid payload limits
   const BATCH = 50;
   let upserted = 0;
+  let hadError = false;
   for (let i = 0; i < rows.length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH);
     const { error } = await supabase
@@ -375,12 +383,15 @@ async function ingestFixtures(
     if (error) {
       // Fall back to composite key upsert for rows without api_fixture_id
       console.warn(`  Batch upsert error (api_fixture_id conflict): ${error.message}`);
+      hadError = true;
     } else {
       upserted += batch.length;
     }
   }
 
-  console.log(`  Upserted ${upserted} fixtures (${rows.length - upserted} errors, ${fixtures.length - rows.length} unmapped).`);
+  if (hadError) throw new Error("One or more batch writes failed — check logs above");
+
+  console.log(`  Upserted ${upserted} fixtures (${fixtures.length - rows.length} unmapped).`);
 }
 
 // ── Step 3: Fetch and upsert players (paginated) ───────────────────────────
@@ -446,7 +457,7 @@ async function ingestPlayers(
         assists:       stats.goals?.assists          || 0,
         saves:         stats.goals?.saves            || 0,
         minutes:       stats.games?.minutes          || 0,
-        appearances:   stats.games?.appearences      || 0,
+        appearances:   stats.games?.appearences      || 0,  // API-Football typo: "appearences" — matches API field name
         shots_on:      stats.shots?.on               || 0,
         key_passes:    stats.passes?.key             || 0,
         pass_accuracy: Math.round(parseFloat(stats.passes?.accuracy || "0") || 0),
@@ -484,6 +495,7 @@ async function ingestPlayers(
 
   // Upsert players in batches of 100
   const BATCH = 100;
+  let hadError = false;
   for (let i = 0; i < allPlayerRows.length; i += BATCH) {
     const batch = allPlayerRows.slice(i, i + BATCH);
     const { error } = await supabase
@@ -491,10 +503,13 @@ async function ingestPlayers(
       .upsert(batch, { onConflict: "id" });
     if (error) {
       console.error(`  Player upsert error (batch ${i / BATCH + 1}): ${error.message}`);
+      hadError = true;
     } else {
       totalUpserted += batch.length;
     }
   }
+
+  if (hadError) throw new Error("One or more batch writes failed — check logs above");
 
   console.log(`  Upserted ${totalUpserted} players (pages 1-${totalPages}).`);
 }
