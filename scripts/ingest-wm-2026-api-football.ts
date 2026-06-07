@@ -100,7 +100,7 @@ function mapRound(round: string): RoundMapping | null {
     return { stage: "group", gameweek: gw };
   }
 
-  // Round of 32 (WC 2026 group stage phase: 48 teams, 8 groups of 6)
+  // Round of 32 (WC 2026: 48 teams, 12 groups of 4 → new knockout round)
   if (r.includes("round of 32") || r.includes("round of 48")) {
     return { stage: "round_of_32", gameweek: 4 };
   }
