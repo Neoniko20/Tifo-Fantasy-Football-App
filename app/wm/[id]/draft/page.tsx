@@ -69,6 +69,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const [isConnected, setIsConnected] = useState(true);
   const [announcedPick, setAnnouncedPick] = useState<AnnouncedPick | null>(null);
   const [announcementVisible, setAnnouncementVisible] = useState(false);
+  const [isRealTournament, setIsRealTournament] = useState(false);
   const { toast } = useToast();
 
   const channelRef = useRef<any>(null);
@@ -235,6 +236,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
     // Test-Tournament → is_test_player=true, Real-Tournament → is_test_player=false.
     // Keine ID-Range-Filter. Schutz läuft über is_test_player Flag.
     const testFlag = await isTestTournament(supabase, settingsData!.tournament_id);
+    setIsRealTournament(!testFlag);
 
     let query = supabase
       .from("players")
@@ -1132,17 +1134,33 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {availablePlayers.slice(0, 150).map((p) => (
-              <DraftPlayerRow
-                key={p.id}
-                player={p}
-                nation={nations.find((n: any) => n.name === p.team_name)}
-                posColor={POS_COLOR[p.position]}
-                isMyTurn={isMyTurn}
-                isConnected={isConnected}
-                onPick={pickPlayer}
-              />
-            ))}
+            {players.length === 0 && isRealTournament ? (
+              <div className="p-4" style={{ color: "var(--color-muted)" }}>
+                <p className="text-xs font-black mb-3">No World Cup players imported yet.</p>
+                <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Dry-run:</p>
+                <code className="block text-[9px] p-2 rounded-lg mb-3 leading-relaxed break-all"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts --dry-run
+                </code>
+                <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Import:</p>
+                <code className="block text-[9px] p-2 rounded-lg leading-relaxed break-all"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                  node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts
+                </code>
+              </div>
+            ) : (
+              availablePlayers.slice(0, 150).map((p) => (
+                <DraftPlayerRow
+                  key={p.id}
+                  player={p}
+                  nation={nations.find((n: any) => n.name === p.team_name)}
+                  posColor={POS_COLOR[p.position]}
+                  isMyTurn={isMyTurn}
+                  isConnected={isConnected}
+                  onPick={pickPlayer}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
