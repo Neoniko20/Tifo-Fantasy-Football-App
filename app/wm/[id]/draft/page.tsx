@@ -69,7 +69,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
   const [isConnected, setIsConnected] = useState(true);
   const [announcedPick, setAnnouncedPick] = useState<AnnouncedPick | null>(null);
   const [announcementVisible, setAnnouncementVisible] = useState(false);
-  const [isRealTournament, setIsRealTournament] = useState(false);
+  const [isRealTournament, setIsRealTournament] = useState<boolean | null>(null);
   const { toast } = useToast();
 
   const channelRef = useRef<any>(null);
@@ -1134,7 +1134,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {players.length === 0 && isRealTournament ? (
+            {isRealTournament === true && players.length === 0 ? (
               <div className="p-4" style={{ color: "var(--color-muted)" }}>
                 <p className="text-xs font-black mb-3">No World Cup players imported yet.</p>
                 <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Dry-run:</p>
@@ -1148,7 +1148,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
                   node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts
                 </code>
               </div>
-            ) : (
+            ) : isRealTournament !== null ? (
               availablePlayers.slice(0, 150).map((p) => (
                 <DraftPlayerRow
                   key={p.id}
@@ -1160,7 +1160,7 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
                   onPick={pickPlayer}
                 />
               ))
-            )}
+            ) : null}
           </div>
         </div>
       </div>
