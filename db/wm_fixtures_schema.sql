@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS wm_fixtures (
   stadium         VARCHAR,
   city            VARCHAR,
   status          VARCHAR NOT NULL DEFAULT 'scheduled',  -- scheduled, live, finished
-  home_score      INT DEFAULT 0,
-  away_score      INT DEFAULT 0,
+  home_score      INT DEFAULT NULL,
+  away_score      INT DEFAULT NULL,
   api_fixture_id  INT,                            -- ID from API-Football, unique per tournament
   extra_status    VARCHAR,                        -- HT, ET, PEN, delayed, interrupted
   created_at      TIMESTAMP DEFAULT now(),
@@ -41,22 +41,22 @@ CREATE INDEX IF NOT EXISTS idx_wm_fixtures_tournament_gameweek
 ALTER TABLE wm_fixtures ENABLE ROW LEVEL SECURITY;
 
 -- Public read — anyone can read fixture data (same pattern as wm_tournaments)
-CREATE POLICY "Public read wm_fixtures"
+CREATE POLICY IF NOT EXISTS "Public read wm_fixtures"
   ON wm_fixtures FOR SELECT
   USING (true);
 
 -- Service role write — only backend (import-fixtures route, ingest) can insert/update
-CREATE POLICY "Service role insert wm_fixtures"
+CREATE POLICY IF NOT EXISTS "Service role insert wm_fixtures"
   ON wm_fixtures FOR INSERT
   TO service_role
   WITH CHECK (true);
 
-CREATE POLICY "Service role update wm_fixtures"
+CREATE POLICY IF NOT EXISTS "Service role update wm_fixtures"
   ON wm_fixtures FOR UPDATE
   TO service_role
   USING (true);
 
-CREATE POLICY "Service role delete wm_fixtures"
+CREATE POLICY IF NOT EXISTS "Service role delete wm_fixtures"
   ON wm_fixtures FOR DELETE
   TO service_role
   USING (true);
