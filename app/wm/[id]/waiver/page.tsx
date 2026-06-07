@@ -6,6 +6,7 @@ import type { WaiverClaim } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
+import { BottomNav } from "@/app/components/BottomNav";
 
 const POS_COLOR: Record<string, string> = {
   GK: "var(--color-primary)", DF: "var(--color-info)", MF: "var(--color-success)", FW: "var(--color-error)",
@@ -574,6 +575,8 @@ export default function WaiverPage({ params }: { params: Promise<{ id: string }>
           />
         )}
       </div>
+
+      <BottomNav />
     </main>
   );
 }

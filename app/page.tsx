@@ -15,6 +15,7 @@ type League = {
   name: string;
   status: string;
   scoring_type: string;
+  mode: string | null;   // "liga" | "wm" — determines route family
 };
 
 type MyTeam = {
@@ -112,7 +113,7 @@ export default function HomePage() {
       const leagueIds = myTeams.map((t: MyTeam) => t.league_id);
 
       const [leaguesRes, allTeamsRes, gwRes, matchupRes, activityRes] = await Promise.all([
-        supabase.from("leagues").select("id, name, status, scoring_type").in("id", leagueIds),
+        supabase.from("leagues").select("id, name, status, scoring_type, mode").in("id", leagueIds),
         supabase.from("teams").select("id, league_id, total_points").in("league_id", leagueIds),
         supabase.from("liga_gameweeks").select("league_id, gameweek, status").in("league_id", leagueIds).order("gameweek", { ascending: false }),
         supabase.from("liga_matchups").select("league_id, gameweek, home_team_id, away_team_id, home_points, away_points, winner_team_id").in("league_id", leagueIds),
@@ -203,7 +204,12 @@ export default function HomePage() {
   // ── Derived hero values (no business logic change) ──────────────────────
   const activeCard   = cards.find(c => c.activeGW?.status === "active") ?? cards[0] ?? null;
   const activeGWNum  = activeCard?.activeGW?.gameweek;
-  const firstLineup  = activeCard ? `/leagues/${activeCard.league.id}/lineup` : "/leagues";
+  // WM leagues link to their hub; normal leagues link to their lineup page
+  const firstLineup = activeCard
+    ? activeCard.league.mode === "wm"
+      ? `/wm/${activeCard.league.id}`
+      : `/leagues/${activeCard.league.id}/lineup`
+    : "/leagues";
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -435,7 +441,7 @@ export default function HomePage() {
                 return (
                   <Link
                     key={league.id}
-                    href={`/leagues/${league.id}/lineup`}
+                    href={league.mode === "wm" ? `/wm/${league.id}` : `/leagues/${league.id}/lineup`}
                     className="group block overflow-hidden rounded-[24px] border border-[var(--color-border)] p-4 shadow-[0_0_30px_rgba(0,0,0,0.55)] backdrop-blur-md transition active:scale-[0.99]"
                     style={{
                       background:
