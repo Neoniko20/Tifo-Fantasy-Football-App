@@ -40,23 +40,29 @@ CREATE INDEX IF NOT EXISTS idx_wm_fixtures_tournament_gameweek
 
 ALTER TABLE wm_fixtures ENABLE ROW LEVEL SECURITY;
 
+-- Idempotent: drop-if-exists before recreating (CREATE POLICY IF NOT EXISTS is not valid PG syntax)
+DROP POLICY IF EXISTS "Public read wm_fixtures"          ON wm_fixtures;
+DROP POLICY IF EXISTS "Service role insert wm_fixtures"  ON wm_fixtures;
+DROP POLICY IF EXISTS "Service role update wm_fixtures"  ON wm_fixtures;
+DROP POLICY IF EXISTS "Service role delete wm_fixtures"  ON wm_fixtures;
+
 -- Public read — anyone can read fixture data (same pattern as wm_tournaments)
-CREATE POLICY IF NOT EXISTS "Public read wm_fixtures"
+CREATE POLICY "Public read wm_fixtures"
   ON wm_fixtures FOR SELECT
   USING (true);
 
 -- Service role write — only backend (import-fixtures route, ingest) can insert/update
-CREATE POLICY IF NOT EXISTS "Service role insert wm_fixtures"
+CREATE POLICY "Service role insert wm_fixtures"
   ON wm_fixtures FOR INSERT
   TO service_role
   WITH CHECK (true);
 
-CREATE POLICY IF NOT EXISTS "Service role update wm_fixtures"
+CREATE POLICY "Service role update wm_fixtures"
   ON wm_fixtures FOR UPDATE
   TO service_role
   USING (true);
 
-CREATE POLICY IF NOT EXISTS "Service role delete wm_fixtures"
+CREATE POLICY "Service role delete wm_fixtures"
   ON wm_fixtures FOR DELETE
   TO service_role
   USING (true);
