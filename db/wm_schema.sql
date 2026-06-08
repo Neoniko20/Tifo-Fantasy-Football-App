@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS wm_nations (
   name            VARCHAR NOT NULL,       -- "Germany"
   code            VARCHAR(3),             -- "GER"
   flag_url        VARCHAR,
-  group_letter    CHAR(1),               -- A, B, C, D, E, F, G, H
+  group_letter    CHAR(1),               -- A–L (WC 2026 has 12 groups)
   group_position  INT,                   -- 1-4 final standing in group
   eliminated_after_gameweek INT,          -- NULL = aktiv, 2 = nach GW2 raus
   final_position  INT,                   -- 1=Winner, 2=Runner-up, etc.
@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS wm_nations (
 CREATE TABLE IF NOT EXISTS wm_gameweeks (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tournament_id         UUID REFERENCES wm_tournaments(id) ON DELETE CASCADE,
-  gameweek              INT NOT NULL,     -- 1-7
+  gameweek              INT NOT NULL,     -- 1-8
   label                 VARCHAR,          -- "Gruppenphase GW1", "Achtelfinale", etc.
-  phase                 VARCHAR,          -- group, round_of_16, quarter, semi, final
+  phase                 VARCHAR,          -- group, round_of_32, round_of_16, quarter, semi, final
   start_date            DATE,
   end_date              DATE,
   status                VARCHAR DEFAULT 'upcoming', -- upcoming, active, finished
@@ -200,13 +200,14 @@ BEGIN
 
   INSERT INTO wm_gameweeks (tournament_id, gameweek, label, phase, status)
   VALUES
-    (t_id, 1, 'Gruppenphase — Spieltag 1', 'group', 'upcoming'),
-    (t_id, 2, 'Gruppenphase — Spieltag 2', 'group', 'upcoming'),
-    (t_id, 3, 'Gruppenphase — Spieltag 3', 'group', 'upcoming'),
-    (t_id, 4, 'Achtelfinale',               'round_of_16', 'upcoming'),
-    (t_id, 5, 'Viertelfinale',              'quarter', 'upcoming'),
-    (t_id, 6, 'Halbfinale',                 'semi', 'upcoming'),
-    (t_id, 7, 'Finale',                     'final', 'upcoming')
+    (t_id, 1, 'Gruppenphase — Spieltag 1', 'group',        'upcoming'),
+    (t_id, 2, 'Gruppenphase — Spieltag 2', 'group',        'upcoming'),
+    (t_id, 3, 'Gruppenphase — Spieltag 3', 'group',        'upcoming'),
+    (t_id, 4, 'Sechzehntelfinale',          'round_of_32',  'upcoming'),
+    (t_id, 5, 'Achtelfinale',               'round_of_16',  'upcoming'),
+    (t_id, 6, 'Viertelfinale',              'quarter',      'upcoming'),
+    (t_id, 7, 'Halbfinale',                 'semi',         'upcoming'),
+    (t_id, 8, 'Finale',                     'final',        'upcoming')
   ON CONFLICT (tournament_id, gameweek) DO NOTHING;
 END $$;
 

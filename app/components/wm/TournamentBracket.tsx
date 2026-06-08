@@ -29,7 +29,7 @@ const STAGE_LABEL: Record<WMStage, string> = {
   final:        "Finale",
 };
 
-// Expected match counts per WM stage (32-team tournament)
+// Expected match counts per WM stage (48-team WC 2026 format)
 const STAGE_MATCH_COUNT: Partial<Record<WMStage, number>> = {
   round_of_32: 16,
   round_of_16: 8,
