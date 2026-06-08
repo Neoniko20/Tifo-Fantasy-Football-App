@@ -33,9 +33,10 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 function assertEnv(): void {
   const missing: string[] = [];
-  if (!FOOTBALL_API_KEY)         missing.push("FOOTBALL_API_KEY");
-  if (!NEXT_PUBLIC_SUPABASE_URL) missing.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (!SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  // Check process.env directly — module-level consts are captured before loadDotEnv() runs
+  if (!process.env.FOOTBALL_API_KEY)          missing.push("FOOTBALL_API_KEY");
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL)  missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
   if (missing.length > 0) {
     console.error(`ERROR: Missing required env vars: ${missing.join(", ")}`);
     console.error("Tip: ensure .env.local is loaded (use dotenv or export vars manually)");
@@ -192,7 +193,7 @@ async function afootFetch(
 
   const res = await fetch(`${AFOOT_BASE}${endpointPath}`, {
     headers: {
-      "x-rapidapi-key":  FOOTBALL_API_KEY!,
+      "x-rapidapi-key":  process.env.FOOTBALL_API_KEY!,
       "x-rapidapi-host": "v3.football.api-sports.io",
     },
   });
