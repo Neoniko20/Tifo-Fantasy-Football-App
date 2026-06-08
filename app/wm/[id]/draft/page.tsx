@@ -444,6 +444,11 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
 
   async function startDraft() {
     if (teams.length < 1) { toast("Mindestens 1 Team!", "error"); return; }
+    // Guard: real tournament requires imported players
+    if (isRealTournament === true && players.length === 0) {
+      toast("Draft nicht möglich: Keine Spieler importiert.", "error");
+      return;
+    }
     // Guard: abort if a session already exists (would create silent duplicate)
     const { data: existingSession } = await supabase
       .from("draft_sessions").select("id, status").eq("league_id", leagueId).maybeSingle();
@@ -765,7 +770,23 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
             ))}
           </div>
 
-          {isOwner ? (
+          {isOwner && isRealTournament === true && players.length === 0 ? (
+            <div className="rounded-xl p-4"
+              style={{ background: "color-mix(in srgb, var(--color-error) 8%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-error) 30%, transparent)" }}>
+              <p className="text-sm font-black mb-1" style={{ color: "var(--color-error)" }}>
+                ❌ Draft blockiert – Keine Spieler importiert
+              </p>
+              <p className="text-[10px] leading-relaxed mb-3" style={{ color: "var(--color-muted)" }}>
+                {nations.length > 0
+                  ? `${nations.length} Nationen importiert, aber Kader noch nicht verfügbar. API-Football veröffentlicht die WM-Kader typischerweise kurz vor Turnierstart.`
+                  : "Noch keine WM-Daten importiert. Führe den Ingest-Script aus."}
+              </p>
+              <code className="block text-[9px] p-2 rounded-lg break-all leading-relaxed"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)", color: "var(--color-muted)" }}>
+                node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts
+              </code>
+            </div>
+          ) : isOwner ? (
             <button onClick={startDraft}
               className="w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest"
               style={{ background: "var(--color-primary)", color: "var(--bg-page)" }}>

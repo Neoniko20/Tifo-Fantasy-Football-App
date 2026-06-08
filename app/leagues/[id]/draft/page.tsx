@@ -580,9 +580,12 @@ export default function DraftPage({ params }: { params: Promise<{ id: string }> 
     : timeLeft > 10 ? "var(--color-primary)"
     : "var(--color-error)";
 
+  const normalize = (s: string) =>
+    s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
   const availablePlayers = players.filter(p => {
     if (pickedIds.has(p.id)) return false;
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !normalize(p.name).includes(normalize(search))) return false;
     if (posFilter !== "ALL" && p.position !== posFilter) return false;
     return true;
   });

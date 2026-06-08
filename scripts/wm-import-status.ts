@@ -11,6 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs";
 import * as path from "path";
+import { computeReadinessStatus, formatReadinessLines } from "../lib/wm-readiness.ts";
 
 // ── Load .env.local ────────────────────────────────────────────────────────
 function loadDotEnv(): void {
@@ -92,16 +93,18 @@ async function main(): Promise<void> {
   // ── Summary ───────────────────────────────────────────────────────────
   console.log("\n" + "─".repeat(50));
 
-  const teamsReady   = (nationsWithId ?? 0) >= 48;
-  const fixturesReady = (fixturesWithId ?? 0) >= 72;
-  const playersReady = (playersWithId ?? 0) > 0;
+  const readiness = computeReadinessStatus({
+    nationsWithId:  nationsWithId  ?? 0,
+    fixturesWithId: fixturesWithId ?? 0,
+    playersWithId:  playersWithId  ?? 0,
+  });
 
   console.log("\n🚦 Import readiness:");
-  console.log(`   Teams (48 expected):    ${teamsReady    ? "✅" : "⚠️ "} ${nationsWithId ?? 0} imported`);
-  console.log(`   Fixtures (72 expected): ${fixturesReady ? "✅" : "⚠️ "} ${fixturesWithId ?? 0} imported`);
-  console.log(`   Players:                ${playersReady  ? "✅" : "⏳"} ${playersWithId ?? 0} imported${!playersReady ? " — run import again when API-Football exposes squads" : ""}`);
+  for (const line of formatReadinessLines(readiness)) {
+    console.log(`   ${line}`);
+  }
 
-  if (!playersReady) {
+  if (readiness.draftBlocked) {
     console.log("\n💡 To re-run import (teams + fixtures from cache, players fetched fresh):");
     console.log("   node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts");
   }

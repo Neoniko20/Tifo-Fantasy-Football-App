@@ -7,11 +7,20 @@
  *  3. Draft empty state: players>0 → normal render (no empty state)
  *  4. Status script file exists and contains expected checks
  *  5. Audit SQL file exists and is read-only (no INSERT/UPDATE/DELETE)
+ *  6. computeReadinessStatus — all combinations
+ *  7. Draft gate — blocked when no players (real tournament)
+ *  8. Audit doc exists
  */
 
 import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
+import {
+  computeReadinessStatus,
+  formatReadinessLines,
+  WM_EXPECTED_NATIONS,
+  WM_EXPECTED_FIXTURES,
+} from "../lib/wm-readiness";
 
 // ── Helper: simulate draft empty-state decision logic ─────────────────────
 // Mirrors the conditional in app/wm/[id]/draft/page.tsx
@@ -136,5 +145,140 @@ describe("db/audit/wm_legacy_rows.sql", () => {
   it("queries wm_fixtures for rows without api_fixture_id", () => {
     expect(content).toContain("wm_fixtures");
     expect(content.toLowerCase()).toContain("api_fixture_id is null");
+  });
+});
+
+// ── 6. computeReadinessStatus ─────────────────────────────────────────────
+describe("computeReadinessStatus", () => {
+  it("all ready when thresholds met", () => {
+    const s = computeReadinessStatus({
+      nationsWithId:  WM_EXPECTED_NATIONS,
+      fixturesWithId: WM_EXPECTED_FIXTURES,
+      playersWithId:  832,
+    });
+    expect(s.nations.ready).toBe(true);
+    expect(s.fixtures.ready).toBe(true);
+    expect(s.players.ready).toBe(true);
+    expect(s.draftBlocked).toBe(false);
+  });
+
+  it("draftBlocked when players = 0 (even if nations+fixtures ready)", () => {
+    const s = computeReadinessStatus({
+      nationsWithId:  48,
+      fixturesWithId: 72,
+      playersWithId:  0,
+    });
+    expect(s.players.ready).toBe(false);
+    expect(s.draftBlocked).toBe(true);
+  });
+
+  it("nations not ready when below threshold", () => {
+    const s = computeReadinessStatus({ nationsWithId: 47, fixturesWithId: 72, playersWithId: 1 });
+    expect(s.nations.ready).toBe(false);
+    expect(s.draftBlocked).toBe(false);
+  });
+
+  it("fixtures not ready when below threshold", () => {
+    const s = computeReadinessStatus({ nationsWithId: 48, fixturesWithId: 71, playersWithId: 1 });
+    expect(s.fixtures.ready).toBe(false);
+    expect(s.draftBlocked).toBe(false);
+  });
+
+  it("all blocked at zero counts", () => {
+    const s = computeReadinessStatus({ nationsWithId: 0, fixturesWithId: 0, playersWithId: 0 });
+    expect(s.nations.ready).toBe(false);
+    expect(s.fixtures.ready).toBe(false);
+    expect(s.players.ready).toBe(false);
+    expect(s.draftBlocked).toBe(true);
+  });
+
+  it("exposes expected constants in returned shape", () => {
+    const s = computeReadinessStatus({ nationsWithId: 48, fixturesWithId: 72, playersWithId: 0 });
+    expect(s.nations.expected).toBe(WM_EXPECTED_NATIONS);
+    expect(s.fixtures.expected).toBe(WM_EXPECTED_FIXTURES);
+  });
+});
+
+// ── 7. formatReadinessLines ───────────────────────────────────────────────
+describe("formatReadinessLines", () => {
+  it("contains draft-blocked line when no players", () => {
+    const s = computeReadinessStatus({ nationsWithId: 48, fixturesWithId: 72, playersWithId: 0 });
+    const lines = formatReadinessLines(s);
+    expect(lines.some(l => l.includes("Draft Blocked"))).toBe(true);
+    expect(lines.some(l => l.includes("Squads Pending"))).toBe(true);
+  });
+
+  it("contains draft-ready line when players imported", () => {
+    const s = computeReadinessStatus({ nationsWithId: 48, fixturesWithId: 72, playersWithId: 832 });
+    const lines = formatReadinessLines(s);
+    expect(lines.some(l => l.includes("Draft Ready"))).toBe(true);
+    expect(lines.every(l => !l.includes("Draft Blocked"))).toBe(true);
+  });
+
+  it("returns 4 lines", () => {
+    const s = computeReadinessStatus({ nationsWithId: 48, fixturesWithId: 72, playersWithId: 0 });
+    expect(formatReadinessLines(s)).toHaveLength(4);
+  });
+});
+
+// ── 8. Draft gate helper (mirrors startDraft guard in draft/page.tsx) ─────
+describe("Draft gate — startDraft blocked when real tournament + no players", () => {
+  function isDraftBlocked(opts: {
+    isRealTournament: boolean | null;
+    playersLength: number;
+  }): boolean {
+    return opts.isRealTournament === true && opts.playersLength === 0;
+  }
+
+  it("blocked for real tournament with 0 players", () => {
+    expect(isDraftBlocked({ isRealTournament: true, playersLength: 0 })).toBe(true);
+  });
+
+  it("not blocked for real tournament with 1+ players", () => {
+    expect(isDraftBlocked({ isRealTournament: true, playersLength: 1 })).toBe(false);
+  });
+
+  it("not blocked for test tournament with 0 players", () => {
+    expect(isDraftBlocked({ isRealTournament: false, playersLength: 0 })).toBe(false);
+  });
+
+  it("not blocked while tournament type is loading (null)", () => {
+    expect(isDraftBlocked({ isRealTournament: null, playersLength: 0 })).toBe(false);
+  });
+
+  it("not blocked for real tournament with full squad", () => {
+    expect(isDraftBlocked({ isRealTournament: true, playersLength: 832 })).toBe(false);
+  });
+});
+
+// ── 9. Audit doc exists ───────────────────────────────────────────────────
+describe("docs/wm-import-audit.md", () => {
+  const auditPath = path.join(process.cwd(), "docs", "wm-import-audit.md");
+
+  it("file exists", () => {
+    expect(fs.existsSync(auditPath)).toBe(true);
+  });
+
+  it("documents nations without api_team_id", () => {
+    const content = fs.readFileSync(auditPath, "utf-8");
+    expect(content.toLowerCase()).toContain("api_team_id");
+  });
+
+  it("documents fixtures without api_fixture_id", () => {
+    const content = fs.readFileSync(auditPath, "utf-8");
+    expect(content.toLowerCase()).toContain("api_fixture_id");
+  });
+
+  it("contains no destructive SQL", () => {
+    const content = fs.readFileSync(auditPath, "utf-8").toUpperCase();
+    expect(content).not.toMatch(/^\s*DELETE\b/m);
+    expect(content).not.toMatch(/^\s*DROP\b/m);
+    expect(content).not.toMatch(/^\s*UPDATE\b/m);
+    expect(content).not.toMatch(/^\s*INSERT\b/m);
+  });
+
+  it("includes recommended action", () => {
+    const content = fs.readFileSync(auditPath, "utf-8").toLowerCase();
+    expect(content).toContain("recommended action");
   });
 });
