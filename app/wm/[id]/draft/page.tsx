@@ -1136,17 +1136,35 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
           <div className="flex-1 overflow-y-auto">
             {isRealTournament === true && players.length === 0 ? (
               <div className="p-4" style={{ color: "var(--color-muted)" }}>
-                <p className="text-xs font-black mb-3">No World Cup players imported yet.</p>
-                <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Dry-run:</p>
-                <code className="block text-[9px] p-2 rounded-lg mb-3 leading-relaxed break-all"
-                  style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                  node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts --dry-run
-                </code>
-                <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Import:</p>
-                <code className="block text-[9px] p-2 rounded-lg leading-relaxed break-all"
-                  style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
-                  node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts
-                </code>
+                {nations.length > 0 ? (
+                  /* Teams imported, but squads not available yet */
+                  <>
+                    <p className="text-xs font-black mb-2">Player squads not available yet.</p>
+                    <p className="text-[10px] mb-3 leading-relaxed">
+                      World Cup teams and fixtures are imported ({nations.length} nations). Player squads are not available from API-Football yet — they typically appear a few days before the tournament starts.
+                    </p>
+                    <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Re-run import when squads are ready:</p>
+                    <code className="block text-[9px] p-2 rounded-lg leading-relaxed break-all"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                      node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts
+                    </code>
+                  </>
+                ) : (
+                  /* Nothing imported yet */
+                  <>
+                    <p className="text-xs font-black mb-3">No World Cup players imported yet.</p>
+                    <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Dry-run:</p>
+                    <code className="block text-[9px] p-2 rounded-lg mb-3 leading-relaxed break-all"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                      node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts --dry-run
+                    </code>
+                    <p className="text-[9px] mb-1 uppercase tracking-widest font-black" style={{ color: "var(--color-border)" }}>Import:</p>
+                    <code className="block text-[9px] p-2 rounded-lg leading-relaxed break-all"
+                      style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+                      node --experimental-strip-types scripts/ingest-wm-2026-api-football.ts
+                    </code>
+                  </>
+                )}
               </div>
             ) : isRealTournament !== null ? (
               availablePlayers.slice(0, 150).map((p) => (
