@@ -272,9 +272,11 @@ async function ingestTeams(
     flag_url:      item.team.logo || null,
   }));
 
+  // Use name as conflict key: existing nations may have api_team_id=null,
+  // so upsert by (tournament_id, name) to update them with the real api_team_id.
   const { error } = await supabase
     .from("wm_nations")
-    .upsert(rows, { onConflict: "tournament_id,api_team_id" });
+    .upsert(rows, { onConflict: "tournament_id,name" });
 
   if (error) {
     throw new Error(`wm_nations upsert failed: ${error.message}`);
