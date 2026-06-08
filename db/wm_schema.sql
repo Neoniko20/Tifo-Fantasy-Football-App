@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS wm_nations (
 CREATE TABLE IF NOT EXISTS wm_gameweeks (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tournament_id         UUID REFERENCES wm_tournaments(id) ON DELETE CASCADE,
-  gameweek              INT NOT NULL,     -- 1-7
+  gameweek              INT NOT NULL,     -- 1-8
   label                 VARCHAR,          -- "Gruppenphase GW1", "Achtelfinale", etc.
   phase                 VARCHAR,          -- group, round_of_32, round_of_16, quarter, semi, final
   start_date            DATE,
