@@ -25,6 +25,7 @@ const CACHE_DIR = path.join(process.cwd(), ".cache", "api-football", "wm-2026");
 
 // ── CLI args ───────────────────────────────────────────────────────────────
 const DRY_RUN = process.argv.includes("--dry-run");
+const DEBUG   = process.argv.includes("--debug");
 
 // ── Env vars ───────────────────────────────────────────────────────────────
 const FOOTBALL_API_KEY        = process.env.FOOTBALL_API_KEY;
@@ -397,88 +398,112 @@ async function ingestFixtures(
   console.log(`  Upserted ${upserted} fixtures (${fixtures.length - rows.length} unmapped).`);
 }
 
-// ── Step 3: Fetch and upsert players (paginated) ───────────────────────────
+// ── Step 3: Fetch and upsert players via /players/squads?team ─────────────
+//
+// Uses the squad endpoint (one request per team) instead of the paginated
+// /players?league&season stats endpoint, which only returns data once matches
+// have been played. The squads endpoint is always populated pre-tournament.
 async function ingestPlayers(
   supabase: SupabaseClient,
   teamIdToNationId: Map<number, string>,
 ): Promise<void> {
-  console.log("\n── Step 3: Players (paginated) ───────────────────────────");
+  console.log("\n── Step 3: Players (via /players/squads per team) ────────");
 
-  let page = 1;
-  let totalUpserted = 0;
-  let totalPages = 1;
+  const teamIds = [...teamIdToNationId.keys()];
+  console.log(`  ${teamIds.length} Teams werden abgefragt...`);
+
   const allPlayerRows: any[] = [];
+  let teamsDone = 0;
+  let totalUpserted = 0;
 
-  while (true) {
-    const cacheFile = `players-page-${page}.json`;
-    const label = `players page ${page}`;
+  for (const apiTeamId of teamIds) {
+    const cacheFile = `squad-team-${apiTeamId}.json`;
+    const label     = `squad team ${apiTeamId}`;
 
     const json = await afootFetch(
-      `/players?league=${WC_LEAGUE_ID}&season=${WC_SEASON}&page=${page}`,
+      `/players/squads?team=${apiTeamId}`,
       cacheFile,
       label,
     );
 
-    const currentPage = json.paging?.current ?? page;
-    totalPages = json.paging?.total ?? 1;
+    const squadEntry = json.response?.[0];
+    if (!squadEntry) {
+      console.warn(`  [skip] team ${apiTeamId} — keine response`);
+      if (json.errors && Object.keys(json.errors).length > 0) {
+        console.warn(`  API errors:`, JSON.stringify(json.errors));
+      }
+      continue;
+    }
 
-    const entries: any[] = json.response || [];
-    console.log(`  [${currentPage}/${totalPages}] ${entries.length} players on this page`);
+    const teamName: string = squadEntry.team?.name ?? `Team ${apiTeamId}`;
+    const players: any[]   = squadEntry.players   ?? [];
 
-    for (const entry of entries) {
-      const player   = entry.player;
-      const stats    = entry.statistics?.[0];
-      if (!stats) continue;
+    if (DEBUG) {
+      console.log(`\n  ── ${teamName} (id=${apiTeamId}) ──────────────────────────`);
+      console.log(`  URL    : /players/squads?team=${apiTeamId}`);
+      console.log(`  Spieler: ${players.length}`);
+      if (json.errors && Object.keys(json.errors).length > 0) {
+        console.warn(`  API errors:`, JSON.stringify(json.errors));
+      }
+    }
 
-      const posRaw   = stats.games?.position;
+    let teamImported  = 0;
+    let teamDiscarded = 0;
+    const discardReasons: Record<string, number> = {};
+
+    for (const player of players) {
+      const posRaw   = player.position;
       const position = mapPosition(posRaw);
+
       if (!position) {
-        console.warn(`  Skipping player ${player?.name} — unknown position "${posRaw}"`);
+        teamDiscarded++;
+        discardReasons[`unknown_position:${posRaw}`] = (discardReasons[`unknown_position:${posRaw}`] || 0) + 1;
+        if (DEBUG) console.log(`  [skip] ${player.name} — unbekannte Position "${posRaw}"`);
+        else console.warn(`  Skipping ${player.name} — unknown position "${posRaw}"`);
         continue;
       }
 
-      const apiTeamId: number | undefined = stats.team?.id;
-      const teamName: string              = stats.team?.name || player?.nationality || null;
-      const ratingRaw = parseFloat(stats.games?.rating || "");
-      const rating    = isNaN(ratingRaw) ? null : Math.round(ratingRaw * 100) / 100;
+      teamImported++;
+      if (DEBUG) {
+        console.log(`  [ok]   ${player.name} | ${position} | ${teamName}`);
+      }
 
       allPlayerRows.push({
-        // Primary key in players table = player.id (api-football player id)
         id:                     player.id,
         api_football_player_id: player.id,
         name:                   player.name,
         position,
-        nationality:            player.nationality || null,
-        photo_url:              player.photo       || null,
+        nationality:            null,          // not in squads endpoint — populated by live stats later
+        photo_url:              player.photo   || null,
         team_name:              teamName,
-        api_team_id:            apiTeamId          || null,
+        api_team_id:            apiTeamId,
         is_test_player:         false,
         player_source:          "api_football",
         fpts:                   0,
-        rating,
-        goals:         stats.goals?.total           || 0,
-        assists:       stats.goals?.assists          || 0,
-        saves:         stats.goals?.saves            || 0,
-        minutes:       stats.games?.minutes          || 0,
-        appearances:   stats.games?.appearences      || 0,  // API-Football typo: "appearences" — matches API field name
-        shots_on:      stats.shots?.on               || 0,
-        key_passes:    stats.passes?.key             || 0,
-        pass_accuracy: Math.round(parseFloat(stats.passes?.accuracy || "0") || 0),
-        tackles:       stats.tackles?.total          || 0,
-        interceptions: stats.tackles?.interceptions  || 0,
-        dribbles:      stats.dribbles?.success       || 0,
-        yellow_cards:  (stats.cards?.yellow || 0) + (stats.cards?.yellowred || 0),
-        red_cards:     (stats.cards?.red    || 0) + (stats.cards?.yellowred || 0),
+        rating:                 null,
+        // Stats start at 0 — populated by live scoring once the tournament begins
+        goals: 0, assists: 0, saves: 0, minutes: 0, appearances: 0,
+        shots_on: 0, key_passes: 0, pass_accuracy: 0,
+        tackles: 0, interceptions: 0, dribbles: 0,
+        yellow_cards: 0, red_cards: 0,
       });
     }
 
-    // Break when current page >= total pages
-    if (currentPage >= totalPages) {
-      break;
-    }
+    teamsDone++;
 
-    page++;
+    if (DEBUG) {
+      console.log(`  importiert: ${teamImported}  verworfen: ${teamDiscarded}`);
+      if (teamDiscarded > 0) {
+        for (const [reason, count] of Object.entries(discardReasons)) {
+          console.log(`    ↳ ${reason}: ${count}×`);
+        }
+      }
+    } else {
+      console.log(`  [${teamsDone}/${teamIds.length}] ${teamName}: ${teamImported} Spieler`);
+    }
   }
+
+  console.log(`\n  Gesamt: ${allPlayerRows.length} Spieler aus ${teamsDone} Teams`);
 
   if (DRY_RUN) {
     console.log(`  [DRY RUN] Would upsert ${allPlayerRows.length} players.`);
@@ -489,14 +514,13 @@ async function ingestPlayers(
         name: sample.name,
         position: sample.position,
         team_name: sample.team_name,
-        nationality: sample.nationality,
         api_team_id: sample.api_team_id,
       }, null, 2));
     }
     return;
   }
 
-  // Upsert players in batches of 100
+  // Upsert in batches of 100
   const BATCH = 100;
   let hadError = false;
   for (let i = 0; i < allPlayerRows.length; i += BATCH) {
@@ -505,7 +529,7 @@ async function ingestPlayers(
       .from("players")
       .upsert(batch, { onConflict: "id" });
     if (error) {
-      console.error(`  Player upsert error (batch ${i / BATCH + 1}): ${error.message}`);
+      console.error(`  Player upsert error (batch ${Math.floor(i / BATCH) + 1}): ${error.message}`);
       hadError = true;
     } else {
       totalUpserted += batch.length;
@@ -514,7 +538,7 @@ async function ingestPlayers(
 
   if (hadError) throw new Error("One or more batch writes failed — check logs above");
 
-  console.log(`  Upserted ${totalUpserted} players (pages 1-${totalPages}).`);
+  console.log(`  Upserted ${totalUpserted} players.`);
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
@@ -527,7 +551,11 @@ async function main(): Promise<void> {
   console.log(`\nTIFO — WM 2026 Real Roster Ingest`);
   console.log(`  League ID : ${WC_LEAGUE_ID}  Season: ${WC_SEASON}`);
   console.log(`  Cache dir : ${CACHE_DIR}`);
-  console.log(`  Mode      : ${DRY_RUN ? "DRY RUN (no DB writes)" : "LIVE (writing to DB)"}`);
+  console.log(`  Mode      : ${DRY_RUN ? "DRY RUN (no DB writes)" : "LIVE (writing to DB)"}${DEBUG ? " + DEBUG" : ""}`);
+  if (DEBUG) {
+    console.log(`  Debug     : URL, importiert/verworfen pro Team werden ausgegeben`);
+    console.log(`  Hinweis   : Cache wird genutzt. Für frische Squad-Daten: rm .cache/api-football/wm-2026/squad-team-*.json`);
+  }
   console.log();
 
   // Create Supabase client (write operations need service role)
