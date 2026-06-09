@@ -41,13 +41,10 @@ export function crossMatchNations(
   const matched: NationMatchResult["matched"] = [];
   const unmatched: string[] = [];
 
-  const usedTeamNames = new Set<string>();
-
   for (const name of nationNames) {
     const count = playerCounts.get(name) ?? 0;
     if (count > 0) {
       matched.push({ nationName: name, playerCount: count });
-      usedTeamNames.add(name);
     } else {
       unmatched.push(name);
     }

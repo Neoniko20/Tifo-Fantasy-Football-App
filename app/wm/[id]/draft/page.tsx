@@ -444,9 +444,15 @@ export default function WMDraftPage({ params }: { params: Promise<{ id: string }
 
   async function startDraft() {
     if (teams.length < 1) { toast("Mindestens 1 Team!", "error"); return; }
-    // Guard: real tournament requires imported players
-    if (isRealTournament === true && players.length === 0) {
-      toast("Draft nicht möglich: Keine Spieler importiert.", "error");
+    // Guard: real tournament requires imported players.
+    // null = noch am Laden → ebenfalls blockieren (Race-Condition-Schutz).
+    if (isRealTournament !== false && players.length === 0) {
+      toast(
+        isRealTournament === null
+          ? "Draft nicht möglich: Spieler werden noch geladen."
+          : "Draft nicht möglich: Keine Spieler importiert.",
+        "error",
+      );
       return;
     }
     // Guard: abort if a session already exists (would create silent duplicate)
