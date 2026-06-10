@@ -83,3 +83,40 @@ export function applyAutoSubToLineup(
 
   return { startingXI: newXI, bench: newBench, applied: true };
 }
+
+// ── Reset helper ──────────────────────────────────────────────────────────────
+
+/**
+ * Reverses a list of auto-subs applied to a lineup snapshot.
+ *
+ * Processes subs in reverse application order (last applied first).
+ * For each sub:
+ *   - replaces player_in with player_out in startingXI
+ *   - re-adds player_in to the front of bench (restoring original bench order)
+ * Idempotent: duplicate player_in entries in bench are suppressed.
+ */
+export function reverseAutoSubs(
+  startingXI: number[],
+  bench: number[],
+  subs: Array<{ player_out: number; player_in: number }>,
+): { startingXI: number[]; bench: number[] } {
+  let xi       = [...startingXI];
+  let newBench = [...bench];
+
+  for (const sub of [...subs].reverse()) {
+    // Restore XI
+    const inIdx = xi.indexOf(sub.player_in);
+    if (inIdx !== -1) {
+      xi[inIdx] = sub.player_out;
+    } else if (!xi.includes(sub.player_out)) {
+      xi = [...xi, sub.player_out];
+    }
+
+    // Restore bench: prepend player_in (preserves original bench order on reverse iteration)
+    if (!newBench.includes(sub.player_in)) {
+      newBench = [sub.player_in, ...newBench];
+    }
+  }
+
+  return { startingXI: xi, bench: newBench };
+}

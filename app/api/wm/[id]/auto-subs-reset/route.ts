@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
+import { reverseAutoSubs } from "@/lib/live-sub";
 
 type ResetResult = {
   team_id: string;
@@ -106,7 +107,7 @@ export async function POST(
     // ── Load current lineup ─────────────────────────────────────────
     const { data: lineup, error: lineupError } = await supabase
       .from("team_lineups")
-      .select("starting_xi")
+      .select("starting_xi, bench")
       .eq("team_id", teamId)
       .eq("gameweek", gameweek)
       .maybeSingle();
@@ -122,21 +123,12 @@ export async function POST(
       continue;
     }
 
-    // ── Reverse subs: apply in reverse order ────────────────────────
-    // Auto-subs modified starting_xi: replaced player_out with player_in.
-    // To reverse: replace player_in back with player_out.
-    let xi = (lineup.starting_xi as number[]).slice();
-    for (const sub of [...subs].reverse()) {
-      const inIdx = xi.indexOf(sub.player_in);
-      if (inIdx !== -1) {
-        xi[inIdx] = sub.player_out;
-      } else {
-        // player_in not found in XI (edge case) — ensure player_out is present
-        if (!xi.includes(sub.player_out)) {
-          xi = [...xi, sub.player_out];
-        }
-      }
-    }
+    // ── Reverse subs (restores starting_xi and bench) ───────────────
+    const { startingXI: xi, bench: restoredBench } = reverseAutoSubs(
+      (lineup.starting_xi as number[]) ?? [],
+      (lineup.bench       as number[]) ?? [],
+      subs,
+    );
 
     // ── Guard: XI must remain exactly 11 players ────────────────────
     if (xi.length !== 11) {
@@ -149,10 +141,10 @@ export async function POST(
       continue;
     }
 
-    // ── Write restored lineup ───────────────────────────────────────
+    // ── Write restored lineup (starting_xi + bench) ─────────────────
     const { error: updateError } = await supabase
       .from("team_lineups")
-      .update({ starting_xi: xi, updated_at: new Date().toISOString() })
+      .update({ starting_xi: xi, bench: restoredBench, updated_at: new Date().toISOString() })
       .eq("team_id", teamId)
       .eq("gameweek", gameweek);
 
