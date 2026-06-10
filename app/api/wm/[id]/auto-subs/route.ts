@@ -260,26 +260,9 @@ export async function POST(
       continue;
     }
 
-    // team_substitutions schreiben
-    const subRows = subs.map(s => ({
-      team_id:    teamId,
-      gameweek:   gw.gameweek,
-      player_out: s.out,
-      player_in:  s.in,
-      reason:     "auto_sub",
-      auto:       true,
-    }));
-
-    const { error: subError } = await supabase.from("team_substitutions").insert(subRows);
-    if (subError) {
-      console.error(`[auto-subs] team ${teamId}:`, subError.message);
-      results.push({ team_id: teamId, subs: [], skipped: true, skip_reason: "DB-Fehler beim Speichern" });
-      continue;
-    }
-
-    // team_lineups.starting_xi + bench aktualisieren
-    const subbedIn  = new Set(subs.map(s => s.in));
-    const newBench  = bench.filter(pid => !subbedIn.has(pid));
+    // team_lineups first — if this fails no orphaned substitution record is written
+    const subbedIn = new Set(subs.map(s => s.in));
+    const newBench = bench.filter(pid => !subbedIn.has(pid));
 
     const { error: lineupError } = await supabase
       .from("team_lineups")
@@ -291,6 +274,23 @@ export async function POST(
       console.error(`[auto-subs] lineup update error for team ${teamId}:`, lineupError.message);
       results.push({ team_id: teamId, subs: [], skipped: true, skip_reason: "DB-Fehler bei Lineup-Update" });
       continue;
+    }
+
+    // Substitution record written only after confirmed lineup update
+    const subRows = subs.map(s => ({
+      team_id:    teamId,
+      gameweek:   gw.gameweek,
+      player_out: s.out,
+      player_in:  s.in,
+      reason:     "auto_sub",
+      auto:       true,
+    }));
+
+    const { error: subError } = await supabase.from("team_substitutions").insert(subRows);
+    if (subError) {
+      // Lineup already updated — log transparently; subs are reflected in starting_xi.
+      // processIngestEvent still fires: the lineup change is ground truth.
+      console.error(`[auto-subs] team ${teamId} sub record insert failed (lineup already updated):`, subError.message);
     }
 
     // ── System messages — one per sub (idempotent via team+gw+players)
