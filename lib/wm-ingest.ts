@@ -21,6 +21,7 @@ import {
   waiverMessage,
   waiverRejectedMessage,
 } from "@/lib/wm-system-messages";
+import { applyAutoSubToLineup } from "@/lib/live-sub";
 
 // ── Scoring guard — pure helper, exported for unit tests ─────────────────────
 
@@ -478,11 +479,80 @@ async function handleAutoSub(
   event: WMIngestEvent,
   supabase: ReturnType<typeof createServiceRoleClient>,
 ) {
-  const p = event.payload as unknown as AutoSubPayload;
+  const p   = event.payload as unknown as AutoSubPayload;
+  const gw  = event.gameweek;
+  const applied: string[] = [];
+  const warnings: string[] = [];
+
+  // ── Persist starting_xi + bench + team_substitutions (idempotent) ───────────
+  if (gw === undefined) {
+    warnings.push("missing_gameweek");
+    console.warn("[handleAutoSub] event.gameweek undefined — cannot persist lineup changes");
+  } else {
+    const { data: lineup } = await supabase
+      .from("team_lineups")
+      .select("starting_xi, bench")
+      .eq("team_id", p.team_id)
+      .eq("gameweek", gw)
+      .maybeSingle();
+
+    if (!lineup) {
+      warnings.push("lineup_not_found");
+      console.warn(`[handleAutoSub] no lineup for team ${p.team_id} gw${gw}`);
+    } else {
+      const { startingXI: newXI, bench: newBench, applied: wasNew } = applyAutoSubToLineup(
+        (lineup.starting_xi as number[]) ?? [],
+        (lineup.bench       as number[]) ?? [],
+        p.player_out_id,
+        p.player_in_id,
+      );
+
+      if (wasNew) {
+        const { error: lineupErr } = await supabase
+          .from("team_lineups")
+          .update({ starting_xi: newXI, bench: newBench, updated_at: new Date().toISOString() })
+          .eq("team_id", p.team_id)
+          .eq("gameweek", gw);
+
+        if (lineupErr) {
+          warnings.push("lineup_update_failed");
+          console.error(`[handleAutoSub] lineup update failed for team ${p.team_id}:`, lineupErr.message);
+        } else {
+          applied.push("team_lineups:starting_xi");
+        }
+      }
+
+      // Write team_substitutions — skip if row already exists
+      const { data: existingSub } = await supabase
+        .from("team_substitutions")
+        .select("id")
+        .eq("team_id",    p.team_id)
+        .eq("gameweek",   gw)
+        .eq("player_out", p.player_out_id)
+        .eq("player_in",  p.player_in_id)
+        .maybeSingle();
+
+      if (!existingSub) {
+        await supabase.from("team_substitutions").insert({
+          team_id:    p.team_id,
+          gameweek:   gw,
+          player_out: p.player_out_id,
+          player_in:  p.player_in_id,
+          reason:     "auto_sub",
+          auto:       true,
+        });
+        applied.push("team_substitutions:auto_sub");
+      }
+    }
+  }
+
+  // ── System message ───────────────────────────────────────────────────────────
   const src = (event.source === "simulator" ? "simulator" : "ingest_api") as "simulator" | "ingest_api";
   const msg = autoSubMessage(p.team_name, p.player_out_name, p.player_in_name, src, p.team_id);
   await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);
-  return { applied: ["league_messages:auto_sub"], warnings: [] };
+  applied.push("league_messages:auto_sub");
+
+  return { applied, warnings };
 }
 
 // ── Waiver-Claim handler ──────────────────────────────────────────────────────
