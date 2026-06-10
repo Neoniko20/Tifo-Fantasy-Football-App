@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { shouldScorePlayer } from "@/lib/wm-ingest";
 import fs from "fs";
 import path from "path";
 
@@ -324,5 +325,100 @@ describe("WM 2026 48-team schema", () => {
       .find((line) => line.includes("'final'") && line.includes("t_id"));
     expect(finalLine).toBeDefined();
     expect(finalLine).toContain("8,");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. shouldScorePlayer — Starter-Filter für Punktevergabe
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("shouldScorePlayer — Starter-Filter", () => {
+  const PLAYER = 42;
+  const CAPTAIN = 42;
+  const OTHER = 99;
+
+  const lineup = (xi: number[], captain: number | null = null) => ({
+    captain_id: captain,
+    starting_xi: xi,
+  });
+
+  // ── kein Lineup ────────────────────────────────────────────────────────
+
+  it("kein Lineup → score=false, reason=no_lineup", () => {
+    const r = shouldScorePlayer(PLAYER, null);
+    expect(r.score).toBe(false);
+    expect(r.isCaptain).toBe(false);
+    expect(r.reason).toBe("no_lineup");
+  });
+
+  // ── Starter erhält Punkte ──────────────────────────────────────────────
+
+  it("Spieler in starting_xi → score=true", () => {
+    const r = shouldScorePlayer(PLAYER, lineup([PLAYER, OTHER]));
+    expect(r.score).toBe(true);
+    expect(r.isCaptain).toBe(false);
+  });
+
+  // ── Bankspieler erhält keine Punkte ────────────────────────────────────
+
+  it("Spieler nicht in starting_xi → score=false (Bankspieler)", () => {
+    const r = shouldScorePlayer(PLAYER, lineup([OTHER, 77]));
+    expect(r.score).toBe(false);
+    expect(r.isCaptain).toBe(false);
+    expect(r.reason).toBeUndefined();
+  });
+
+  it("leeres starting_xi → score=false für jeden Spieler", () => {
+    const r = shouldScorePlayer(PLAYER, lineup([]));
+    expect(r.score).toBe(false);
+  });
+
+  // ── Spieler im Squad aber nicht in starting_xi ─────────────────────────
+
+  it("Spieler im Squad aber nicht in starting_xi → kein Score", () => {
+    // Simuliert: wm_squad_players hat Spieler 42, aber Lineup hat ihn auf Bank
+    const r = shouldScorePlayer(PLAYER, lineup([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]));
+    expect(r.score).toBe(false);
+  });
+
+  // ── Captain-Multiplier nur für Starter ────────────────────────────────
+
+  it("Captain in starting_xi → score=true, isCaptain=true", () => {
+    const r = shouldScorePlayer(CAPTAIN, lineup([CAPTAIN, OTHER], CAPTAIN));
+    expect(r.score).toBe(true);
+    expect(r.isCaptain).toBe(true);
+  });
+
+  it("Captain auf Bank → score=false, kein 2x-Multiplier", () => {
+    // Captain sitzt auf der Bank — nicht in starting_xi
+    const r = shouldScorePlayer(CAPTAIN, lineup([OTHER, 77], CAPTAIN));
+    expect(r.score).toBe(false);
+    expect(r.isCaptain).toBe(false);
+  });
+
+  it("Starter aber nicht Captain → score=true, isCaptain=false", () => {
+    // Captain ist ein anderer Spieler
+    const r = shouldScorePlayer(PLAYER, lineup([PLAYER, OTHER], OTHER));
+    expect(r.score).toBe(true);
+    expect(r.isCaptain).toBe(false);
+  });
+
+  // ── Typen-Robustheit ──────────────────────────────────────────────────
+
+  it("starting_xi mit gemischten Typen: Zahl-Match funktioniert", () => {
+    // JSONB aus Supabase liefert numbers — sicherstellen dass Include funktioniert
+    const r = shouldScorePlayer(42, lineup([10, 42, 99]));
+    expect(r.score).toBe(true);
+  });
+
+  it("captain_id=null → isCaptain=false auch wenn Spieler Starter ist", () => {
+    const r = shouldScorePlayer(PLAYER, lineup([PLAYER, OTHER], null));
+    expect(r.score).toBe(true);
+    expect(r.isCaptain).toBe(false);
+  });
+
+  it("starting_xi ist kein Array (z.B. null aus DB) → score=false", () => {
+    const r = shouldScorePlayer(PLAYER, { captain_id: null, starting_xi: null });
+    expect(r.score).toBe(false);
   });
 });

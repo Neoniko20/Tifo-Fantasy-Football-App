@@ -378,14 +378,6 @@ function printKnownGaps() {
     },
     {
       id: "GAP-4",
-      title: "Scoring filtert nicht explizit gegen team_lineups.starting_xi",
-      detail:
-        "handlePlayerStatUpdate() iteriert wm_squad_players und berechnet Punkte " +
-        "für alle Squad-Spieler. Ob ein Spieler tatsächlich in starting_xi steht, " +
-        "wird nicht geprüft → Bench-Spieler könnten Punkte erhalten.",
-    },
-    {
-      id: "GAP-5",
       title: "Lineup-Lock bei GW-Start nicht automatisiert",
       detail:
         "team_lineups.locked wird nicht automatisch auf true gesetzt wenn ein " +
@@ -393,7 +385,7 @@ function printKnownGaps() {
         "oder DB-Trigger ausgelöst werden.",
     },
     {
-      id: "GAP-6",
+      id: "GAP-5",
       title: "GW-Start / GW-Finish sind manuelle Admin-Calls",
       detail:
         "api/wm/[id]/gameweek-start und gameweek-finish existieren, werden aber " +

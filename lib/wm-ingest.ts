@@ -22,6 +22,35 @@ import {
   waiverRejectedMessage,
 } from "@/lib/wm-system-messages";
 
+// ── Scoring guard — pure helper, exported for unit tests ─────────────────────
+
+/**
+ * Entscheidet ob ein Spieler für ein Team in einem GW Punkte erhalten soll.
+ *
+ * Regeln:
+ * - Kein Lineup → kein Score (returns score: false, reason: "no_lineup")
+ * - Spieler nicht in starting_xi → kein Score (Bankspieler)
+ * - Spieler in starting_xi → Score; isCaptain=true wenn er captain_id ist
+ *
+ * Achtung: Auto-Sub schreibt nur eine System-Message und ändert starting_xi
+ * nicht in der DB. Ein auto-gebenchter Spieler bleibt in starting_xi und
+ * erhält weiterhin Punkte. Das ist korrektes Verhalten bis Auto-Sub vollständig
+ * implementiert ist (GAP-5).
+ */
+export function shouldScorePlayer(
+  playerId: number,
+  lineup: { captain_id: number | null; starting_xi: unknown } | null,
+): { score: boolean; isCaptain: boolean; reason?: string } {
+  if (!lineup) {
+    return { score: false, isCaptain: false, reason: "no_lineup" };
+  }
+  const xi: number[] = Array.isArray(lineup.starting_xi) ? (lineup.starting_xi as number[]) : [];
+  if (!xi.includes(playerId)) {
+    return { score: false, isCaptain: false };
+  }
+  return { score: true, isCaptain: lineup.captain_id === playerId };
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function processIngestEvent(
@@ -328,14 +357,21 @@ async function handlePlayerStatUpdate(
   const succeededTeamIds: string[] = [];
 
   for (const entry of squadEntries) {
-    // Check if player is captain this GW for this team
+    // Load lineup to determine starter status and captain
     const { data: lineup } = await supabase
       .from("team_lineups")
-      .select("captain_id")
+      .select("captain_id, starting_xi")
       .eq("team_id", entry.team_id)
       .eq("gameweek", gw)
       .maybeSingle();
-    const isCaptain = lineup?.captain_id === p.player_id;
+
+    const { score, isCaptain, reason } = shouldScorePlayer(p.player_id, lineup);
+    if (!score) {
+      if (reason === "no_lineup") {
+        warnings.push(`no lineup for team ${entry.team_id} GW${gw} — skipping points`);
+      }
+      continue; // Bankspieler oder fehlendes Lineup → keine Punkte
+    }
 
     const result = calculateWMGameweekPoints(stats, nation, gw, isCaptain, settings?.scoring_rules);
 
