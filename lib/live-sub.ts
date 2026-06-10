@@ -58,3 +58,28 @@ export function applyLiveSubs(
 
   return { effectiveXI, subs };
 }
+
+// ── Single-sub helper ─────────────────────────────────────────────────────────
+
+/**
+ * Applies one auto-sub to a lineup snapshot.
+ *
+ * Returns the updated arrays and whether the sub was new.
+ * applied=false when player_out is not in starting_xi — covers both the
+ * "already applied" (idempotent) and "bad data" edge cases.
+ */
+export function applyAutoSubToLineup(
+  startingXI: number[],
+  bench: number[],
+  playerOutId: number,
+  playerInId: number,
+): { startingXI: number[]; bench: number[]; applied: boolean } {
+  if (!startingXI.includes(playerOutId)) {
+    return { startingXI: [...startingXI], bench: [...bench], applied: false };
+  }
+
+  const newXI  = startingXI.map(id => (id === playerOutId ? playerInId : id));
+  const newBench = bench.filter(id => id !== playerInId);
+
+  return { startingXI: newXI, bench: newBench, applied: true };
+}

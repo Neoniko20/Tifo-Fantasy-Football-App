@@ -277,12 +277,21 @@ export async function POST(
       continue;
     }
 
-    // team_lineups.starting_xi aktualisieren
-    await supabase
+    // team_lineups.starting_xi + bench aktualisieren
+    const subbedIn  = new Set(subs.map(s => s.in));
+    const newBench  = bench.filter(pid => !subbedIn.has(pid));
+
+    const { error: lineupError } = await supabase
       .from("team_lineups")
-      .update({ starting_xi: effectiveXI, updated_at: new Date().toISOString() })
+      .update({ starting_xi: effectiveXI, bench: newBench, updated_at: new Date().toISOString() })
       .eq("team_id", teamId)
       .eq("gameweek", gw.gameweek);
+
+    if (lineupError) {
+      console.error(`[auto-subs] lineup update error for team ${teamId}:`, lineupError.message);
+      results.push({ team_id: teamId, subs: [], skipped: true, skip_reason: "DB-Fehler bei Lineup-Update" });
+      continue;
+    }
 
     // ── System messages — one per sub (idempotent via team+gw+players)
     const fantasyTeamName = teamNameMap[teamId] ?? `Team ${teamId.slice(0, 8)}`;
