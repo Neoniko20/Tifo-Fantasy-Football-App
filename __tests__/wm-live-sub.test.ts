@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { applyLiveSubs, applyAutoSubToLineup } from "@/lib/live-sub";
+import { applyLiveSubs, applyAutoSubToLineup, reverseAutoSubs } from "@/lib/live-sub";
 import { shouldScorePlayer } from "@/lib/wm-ingest";
 
 // ── Test-Fixtures ─────────────────────────────────────────────────────────────
@@ -150,7 +150,99 @@ describe("applyAutoSubToLineup", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3. shouldScorePlayer nach Auto-Sub
+// 3. reverseAutoSubs — Reset-Helper
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("reverseAutoSubs", () => {
+  // Ausgangszustand nach einem Sub: Spieler 2 wurde durch 12 ersetzt
+  const XI_AFTER   = [1, 12, 3, 4, 5, 6, 7, 8, 9, 10, 11]; // 12 in XI, 2 nicht mehr
+  const BENCH_AFTER = [13, 14, 15];                          // 12 nicht mehr in bench
+
+  const ONE_SUB = [{ player_out: 2, player_in: 12 }];
+
+  it("stellt starting_xi korrekt wieder her", () => {
+    const { startingXI } = reverseAutoSubs(XI_AFTER, BENCH_AFTER, ONE_SUB);
+
+    expect(startingXI).toContain(2);
+    expect(startingXI).not.toContain(12);
+    expect(startingXI).toHaveLength(11);
+  });
+
+  it("stellt bench korrekt wieder her", () => {
+    const { bench } = reverseAutoSubs(XI_AFTER, BENCH_AFTER, ONE_SUB);
+
+    expect(bench).toContain(12);
+    expect(bench).not.toContain(2); // player_out gehört nicht in bench
+  });
+
+  it("player_in wird nicht doppelt in bench eingefügt (Idempotenz)", () => {
+    // 12 ist bereits in bench — darf nicht doppelt auftauchen
+    const benchWithDuplicate = [12, 13, 14, 15];
+    const { bench } = reverseAutoSubs(XI_AFTER, benchWithDuplicate, ONE_SUB);
+
+    expect(bench.filter(id => id === 12)).toHaveLength(1);
+  });
+
+  it("mehrere Substitutionen werden korrekt zurückgesetzt", () => {
+    // Nach zwei Subs: 2→12, 3→13
+    const xiAfterTwo    = [1, 12, 13, 4, 5, 6, 7, 8, 9, 10, 11];
+    const benchAfterTwo = [14, 15];
+    const twoSubs = [
+      { player_out: 2, player_in: 12 },
+      { player_out: 3, player_in: 13 },
+    ];
+
+    const { startingXI, bench } = reverseAutoSubs(xiAfterTwo, benchAfterTwo, twoSubs);
+
+    expect(startingXI).toContain(2);
+    expect(startingXI).toContain(3);
+    expect(startingXI).not.toContain(12);
+    expect(startingXI).not.toContain(13);
+    expect(startingXI).toHaveLength(11);
+
+    expect(bench).toContain(12);
+    expect(bench).toContain(13);
+    expect(bench).not.toContain(2);
+    expect(bench).not.toContain(3);
+  });
+
+  it("bench-Reihenfolge wird durch umgekehrte Iteration wiederhergestellt", () => {
+    // Original bench: [12, 13, 14, 15]
+    // Nach zwei Subs (12 zuerst, dann 13): bench = [14, 15]
+    const xiAfterTwo    = [1, 12, 13, 4, 5, 6, 7, 8, 9, 10, 11];
+    const benchAfterTwo = [14, 15];
+    const twoSubs = [
+      { player_out: 2, player_in: 12 }, // id=1 (zuerst angewendet)
+      { player_out: 3, player_in: 13 }, // id=2 (danach angewendet)
+    ];
+
+    const { bench } = reverseAutoSubs(xiAfterTwo, benchAfterTwo, twoSubs);
+
+    // Reverse iteration: erst 13 prepend → [13,14,15], dann 12 prepend → [12,13,14,15]
+    expect(bench[0]).toBe(12);
+    expect(bench[1]).toBe(13);
+  });
+
+  it("kein Sub vorhanden → XI und bench unverändert", () => {
+    const { startingXI, bench } = reverseAutoSubs(XI_AFTER, BENCH_AFTER, []);
+
+    expect(startingXI).toEqual(XI_AFTER);
+    expect(bench).toEqual(BENCH_AFTER);
+  });
+
+  it("player_in nicht in XI (edge case) → player_out wird hinzugefügt, bench trotzdem wiederhergestellt", () => {
+    // Ungewöhnlicher Fall: player_in wurde manuell aus XI entfernt
+    const xiWithout12 = [1, 99, 3, 4, 5, 6, 7, 8, 9, 10, 11]; // 12 nicht drin
+    const { startingXI, bench } = reverseAutoSubs(xiWithout12, BENCH_AFTER, ONE_SUB);
+
+    // player_out (2) wird an den 11-Guard weitergereicht
+    expect(bench).toContain(12); // bench trotzdem restored
+    expect(startingXI).toContain(2); // player_out appended
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. shouldScorePlayer nach Auto-Sub
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("shouldScorePlayer nach Auto-Sub", () => {
