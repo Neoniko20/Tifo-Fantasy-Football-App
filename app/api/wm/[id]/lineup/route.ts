@@ -153,6 +153,15 @@ export async function POST(
     return NextResponse.json({ error: "Startelf muss genau 11 Spieler enthalten" }, { status: 400 });
   }
 
+  // ── 9b. Bank: nicht größer als bench_size ────────────────────────
+  const maxBench = wmSettings?.bench_size ?? 4;
+  if (bench.length > maxBench) {
+    return NextResponse.json(
+      { error: `Bank darf maximal ${maxBench} Spieler enthalten (${bench.length} angegeben)` },
+      { status: 400 },
+    );
+  }
+
   // ── 10. Formation gültig ──────────────────────────────────────────
   if (!FORMATIONS[formation]) {
     return NextResponse.json({ error: `Unbekannte Formation: ${formation}` }, { status: 400 });
