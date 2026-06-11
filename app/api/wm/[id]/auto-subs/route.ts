@@ -10,6 +10,7 @@ type TeamResult = {
   subs: { out: number; in: number }[];
   skipped: boolean;
   skip_reason?: string;
+  sub_record_error?: string;
 };
 
 export async function POST(
@@ -314,7 +315,9 @@ export async function POST(
       }, "ingest_api");
     }
 
-    results.push({ team_id: teamId, subs, skipped: false });
+    const result: TeamResult = { team_id: teamId, subs, skipped: false };
+    if (subError) result.sub_record_error = subError.message;
+    results.push(result);
   }
 
   const totalSubs = results.reduce((n, r) => n + r.subs.length, 0);
