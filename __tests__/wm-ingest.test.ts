@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { shouldScorePlayer } from "@/lib/wm-ingest";
+import { shouldScorePlayer, handleAutoSub } from "@/lib/wm-ingest";
 import fs from "fs";
 import path from "path";
 
@@ -420,5 +420,220 @@ describe("shouldScorePlayer — Starter-Filter", () => {
   it("starting_xi ist kein Array (z.B. null aus DB) → score=false", () => {
     const r = shouldScorePlayer(PLAYER, { captain_id: null, starting_xi: null });
     expect(r.score).toBe(false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. handleAutoSub — Persistenzlogik mit Mock-Supabase
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Minimal chainable Supabase mock for handleAutoSub.
+ *
+ * Handles the exact call chains used inside handleAutoSub:
+ *   team_lineups  : .select().eq().eq().maybeSingle()  and  .update().eq().eq() [awaited]
+ *   team_substitutions : .select().eq()×4.maybeSingle()  and  .insert()
+ *   league_messages    : .insert()  (via writeSystemMessage)
+ */
+function buildAutoSubMock(cfg: {
+  lineup: { starting_xi: number[]; bench: number[] } | null;
+  lineupUpdateError?: { message: string } | null;
+  existingSub?: { id: string } | null;
+  subInsertError?: { message: string } | null;
+}) {
+  const insertCalls: Array<{ table: string; data: unknown }> = [];
+  const updateCalls: Array<{ table: string; data: unknown }> = [];
+
+  function makeChain(opts: {
+    selectData: unknown;
+    updateError: { message: string } | null;
+    insertError: { message: string } | null;
+    table: string;
+  }) {
+    // Capture the last insert/update payload before settling
+    let lastInsertData: unknown;
+    let lastUpdateData: unknown;
+
+    const chain: any = new Proxy(
+      {},
+      {
+        get(_t, prop: string) {
+          if (prop === "maybeSingle") {
+            return () => Promise.resolve({ data: opts.selectData, error: null });
+          }
+          if (prop === "insert") {
+            return (data: unknown) => {
+              lastInsertData = data;
+              insertCalls.push({ table: opts.table, data });
+              return Promise.resolve({ error: opts.insertError ?? null });
+            };
+          }
+          if (prop === "update") {
+            return (data: unknown) => {
+              lastUpdateData = data;
+              updateCalls.push({ table: opts.table, data });
+              return chain;
+            };
+          }
+          if (prop === "then") {
+            // Direct await on chain (e.g. after .update().eq().eq())
+            return (fn: (v: unknown) => unknown) =>
+              Promise.resolve({ error: opts.updateError ?? null }).then(fn);
+          }
+          // .select(), .eq(), .single() — all return the same chain
+          return () => chain;
+        },
+      },
+    );
+    return chain;
+  }
+
+  const supabase: any = {
+    from(table: string) {
+      if (table === "team_lineups") {
+        return makeChain({
+          table,
+          selectData: cfg.lineup,
+          updateError: cfg.lineupUpdateError ?? null,
+          insertError: null,
+        });
+      }
+      if (table === "team_substitutions") {
+        return makeChain({
+          table,
+          selectData: cfg.existingSub ?? null,
+          updateError: null,
+          insertError: cfg.subInsertError ?? null,
+        });
+      }
+      // league_messages and any other table: silent success
+      return makeChain({ table, selectData: null, updateError: null, insertError: null });
+    },
+    _insertCalls: insertCalls,
+    _updateCalls: updateCalls,
+  };
+
+  return supabase;
+}
+
+/** Factory for a minimal auto_sub.applied event */
+function makeAutoSubEvent(overrides: Partial<{
+  gameweek: number | undefined;
+  playerOutId: number;
+  playerInId: number;
+}> = {}): import("@/lib/wm-types").WMIngestEvent {
+  // Use 'in' check so passing gameweek: undefined keeps it undefined (not defaulted)
+  const gameweek   = "gameweek"   in overrides ? overrides.gameweek   : 3;
+  const playerOutId = "playerOutId" in overrides ? overrides.playerOutId! : 10;
+  const playerInId  = "playerInId"  in overrides ? overrides.playerInId!  : 20;
+  return {
+    type: "auto_sub.applied",
+    tournament_id: "t-test",
+    gameweek,
+    source: "admin",
+    idempotency_key: `test-autosub-${playerOutId}-${playerInId}`,
+    payload: {
+      team_id:         "team-1",
+      team_name:       "Test FC",
+      player_out_id:   playerOutId,
+      player_out_name: `Spieler ${playerOutId}`,
+      player_in_id:    playerInId,
+      player_in_name:  `Spieler ${playerInId}`,
+      reason:          "not_playing",
+    },
+  };
+}
+
+const LEAGUE = "league-1";
+const LINEUP_WITH_PLAYER_OUT = { starting_xi: [10, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12], bench: [20, 22] };
+
+describe("handleAutoSub — Persistenzlogik mit Mock-Supabase", () => {
+  it("schreibt team_lineups UPDATE wenn player_out in starting_xi", async () => {
+    const supa = buildAutoSubMock({ lineup: LINEUP_WITH_PLAYER_OUT });
+    const { applied } = await handleAutoSub(LEAGUE, makeAutoSubEvent(), supa);
+
+    expect(applied).toContain("team_lineups:starting_xi");
+    const lineupUpdate = supa._updateCalls.find((c: any) => c.table === "team_lineups");
+    expect(lineupUpdate).toBeDefined();
+    // player 10 replaced by 20 in starting_xi
+    expect(lineupUpdate!.data.starting_xi).toContain(20);
+    expect(lineupUpdate!.data.starting_xi).not.toContain(10);
+    // player 20 removed from bench (was subbed in)
+    expect(lineupUpdate!.data.bench).not.toContain(20);
+  });
+
+  it("schreibt team_substitutions INSERT wenn kein Record existiert", async () => {
+    const supa = buildAutoSubMock({ lineup: LINEUP_WITH_PLAYER_OUT, existingSub: null });
+    const { applied } = await handleAutoSub(LEAGUE, makeAutoSubEvent(), supa);
+
+    expect(applied).toContain("team_substitutions:auto_sub");
+    const subInsert = supa._insertCalls.find((c: any) => c.table === "team_substitutions");
+    expect(subInsert).toBeDefined();
+    expect(subInsert!.data).toMatchObject({
+      team_id:    "team-1",
+      gameweek:   3,
+      player_out: 10,
+      player_in:  20,
+      auto:       true,
+    });
+  });
+
+  it("überspringt INSERT wenn team_substitutions-Record bereits existiert", async () => {
+    const supa = buildAutoSubMock({
+      lineup: LINEUP_WITH_PLAYER_OUT,
+      existingSub: { id: "existing-sub-id" },
+    });
+    const { applied } = await handleAutoSub(LEAGUE, makeAutoSubEvent(), supa);
+
+    expect(applied).not.toContain("team_substitutions:auto_sub");
+    const subInsert = supa._insertCalls.find((c: any) => c.table === "team_substitutions");
+    expect(subInsert).toBeUndefined();
+  });
+
+  it("doppelter Aufruf ist idempotent — kein zweiter INSERT bei existierendem Record", async () => {
+    // Simulate second call: existingSub already present (as if first call succeeded)
+    const supa = buildAutoSubMock({
+      lineup: LINEUP_WITH_PLAYER_OUT,
+      existingSub: { id: "already-written" },
+    });
+    const { applied, warnings } = await handleAutoSub(LEAGUE, makeAutoSubEvent(), supa);
+
+    expect(warnings).toHaveLength(0);
+    expect(applied).not.toContain("team_substitutions:auto_sub");
+    expect(supa._insertCalls.filter((c: any) => c.table === "team_substitutions")).toHaveLength(0);
+  });
+
+  it("fehlende Lineup-Zeile crasht nicht — gibt lineup_not_found Warning", async () => {
+    const supa = buildAutoSubMock({ lineup: null });
+    const { applied, warnings } = await handleAutoSub(LEAGUE, makeAutoSubEvent(), supa);
+
+    expect(warnings).toContain("lineup_not_found");
+    expect(supa._updateCalls).toHaveLength(0);
+    expect(supa._insertCalls.filter((c: any) => c.table === "team_substitutions")).toHaveLength(0);
+  });
+
+  it("fehlendes gameweek crasht nicht — gibt missing_gameweek Warning", async () => {
+    const supa = buildAutoSubMock({ lineup: LINEUP_WITH_PLAYER_OUT });
+    const { warnings } = await handleAutoSub(
+      LEAGUE,
+      makeAutoSubEvent({ gameweek: undefined }),
+      supa,
+    );
+
+    expect(warnings).toContain("missing_gameweek");
+    expect(supa._updateCalls).toHaveLength(0);
+  });
+
+  it("team_substitutions INSERT-Fehler gibt sub_insert_failed Warning — kein stiller Datenverlust", async () => {
+    const supa = buildAutoSubMock({
+      lineup: LINEUP_WITH_PLAYER_OUT,
+      subInsertError: { message: "duplicate key value violates unique constraint" },
+    });
+    const { applied, warnings } = await handleAutoSub(LEAGUE, makeAutoSubEvent(), supa);
+
+    expect(warnings).toContain("sub_insert_failed");
+    expect(applied).not.toContain("team_substitutions:auto_sub");
+    // Lineup update still happened — it is ground truth
+    expect(applied).toContain("team_lineups:starting_xi");
   });
 });
