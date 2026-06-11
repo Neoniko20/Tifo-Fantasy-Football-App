@@ -42,6 +42,7 @@ export function calculateWMGameweekPoints(
   gameweek: number,
   isCaptain = false,
   rules?: Partial<ScoringRules> | null,
+  isViceCaptain = false,
 ): GWPointsResult {
   const nation_active =
     !nation?.eliminated_after_gameweek ||
@@ -95,8 +96,11 @@ export function calculateWMGameweekPoints(
 
   const base = Math.round(p * 10) / 10;
 
+  // isCaptain takes precedence; isViceCaptain applies captain_multiplier only
+  // when captain did not play (determined by caller via DB lookup).
+  const actingCaptain = isCaptain || isViceCaptain;
   return {
-    points: isCaptain ? base * r.captain_multiplier : base,
+    points: actingCaptain ? base * r.captain_multiplier : base,
     nation_active: true,
     breakdown: { ...stats },
   };

@@ -216,6 +216,51 @@ describe("calculateWMGameweekPoints — Nation eliminiert", () => {
   });
 });
 
+// ── Vice-Captain Fallback ─────────────────────────────────────────────────
+
+describe("calculateWMGameweekPoints — Vice-Captain Fallback", () => {
+  it("VC bekommt captain_multiplier wenn Captain nicht gespielt hat (isViceCaptain=true)", () => {
+    const base = gw({ goals: 1, position: "FW" }).points;
+    const vc   = calculateWMGameweekPoints(baseStats({ goals: 1, position: "FW" }), nation(), 1, false, null, true).points;
+    expect(vc).toBeCloseTo(base * r.captain_multiplier);
+  });
+
+  it("VC ohne Einsatz (0 Min) bekommt trotz isViceCaptain=true 0 Punkte", () => {
+    const vc = calculateWMGameweekPoints(baseStats({ minutes: 0 }), nation(), 1, false, null, true).points;
+    expect(vc).toBe(0);
+  });
+
+  it("Captain (isCaptain=true) hat Vorrang vor VC-Flag — kein doppelter Multiplier", () => {
+    const onlyCaptain = gw({ goals: 1, position: "FW" }, true).points;
+    const both = calculateWMGameweekPoints(baseStats({ goals: 1, position: "FW" }), nation(), 1, true, null, true).points;
+    expect(both).toBeCloseTo(onlyCaptain);
+  });
+
+  it("VC-Flag false → normaler Score ohne Multiplier", () => {
+    const base  = gw({ goals: 1, position: "FW" }).points;
+    const noVc  = calculateWMGameweekPoints(baseStats({ goals: 1, position: "FW" }), nation(), 1, false, null, false).points;
+    expect(noVc).toBeCloseTo(base);
+  });
+
+  it("VC mit eliminierter Nation = 0 Punkte, auch wenn isViceCaptain=true", () => {
+    const result = calculateWMGameweekPoints(
+      baseStats({ goals: 2, position: "FW" }),
+      nation({ eliminated_after_gameweek: 1 }),
+      3,
+      false,
+      null,
+      true,
+    );
+    expect(result.points).toBe(0);
+  });
+
+  it("VC mit custom captain_multiplier 3× bekommt 3-fachen Score", () => {
+    const base = gw({ goals: 1, position: "FW" }, false, undefined, { captain_multiplier: 3 }).points;
+    const vc   = calculateWMGameweekPoints(baseStats({ goals: 1, position: "FW" }), nation(), 1, false, { captain_multiplier: 3 }, true).points;
+    expect(vc).toBeCloseTo(base * 3);
+  });
+});
+
 // ── Captain-Multiplier ───────────────────────────────────────────────────
 
 describe("calculateWMGameweekPoints — Captain-Multiplier", () => {
