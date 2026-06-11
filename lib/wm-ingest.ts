@@ -474,7 +474,8 @@ async function handlePlayerStatUpdate(
 
 // ── Auto-Sub handler ──────────────────────────────────────────────────────────
 
-async function handleAutoSub(
+/** @internal exported for unit tests only — use processIngestEvent in production */
+export async function handleAutoSub(
   leagueId: string,
   event: WMIngestEvent,
   supabase: ReturnType<typeof createServiceRoleClient>,
