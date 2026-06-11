@@ -534,7 +534,7 @@ export async function handleAutoSub(
         .maybeSingle();
 
       if (!existingSub) {
-        await supabase.from("team_substitutions").insert({
+        const { error: subInsertErr } = await supabase.from("team_substitutions").insert({
           team_id:    p.team_id,
           gameweek:   gw,
           player_out: p.player_out_id,
@@ -542,7 +542,12 @@ export async function handleAutoSub(
           reason:     "auto_sub",
           auto:       true,
         });
-        applied.push("team_substitutions:auto_sub");
+        if (subInsertErr) {
+          warnings.push("sub_insert_failed");
+          console.error(`[handleAutoSub] sub record insert failed for team ${p.team_id}:`, subInsertErr.message);
+        } else {
+          applied.push("team_substitutions:auto_sub");
+        }
       }
     }
   }

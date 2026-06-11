@@ -558,6 +558,8 @@ describe("handleAutoSub — Persistenzlogik mit Mock-Supabase", () => {
     // player 10 replaced by 20 in starting_xi
     expect(lineupUpdate!.data.starting_xi).toContain(20);
     expect(lineupUpdate!.data.starting_xi).not.toContain(10);
+    // player 20 removed from bench (was subbed in)
+    expect(lineupUpdate!.data.bench).not.toContain(20);
   });
 
   it("schreibt team_substitutions INSERT wenn kein Record existiert", async () => {
@@ -620,5 +622,18 @@ describe("handleAutoSub — Persistenzlogik mit Mock-Supabase", () => {
 
     expect(warnings).toContain("missing_gameweek");
     expect(supa._updateCalls).toHaveLength(0);
+  });
+
+  it("team_substitutions INSERT-Fehler gibt sub_insert_failed Warning — kein stiller Datenverlust", async () => {
+    const supa = buildAutoSubMock({
+      lineup: LINEUP_WITH_PLAYER_OUT,
+      subInsertError: { message: "duplicate key value violates unique constraint" },
+    });
+    const { applied, warnings } = await handleAutoSub(LEAGUE, makeAutoSubEvent(), supa);
+
+    expect(warnings).toContain("sub_insert_failed");
+    expect(applied).not.toContain("team_substitutions:auto_sub");
+    // Lineup update still happened — it is ground truth
+    expect(applied).toContain("team_lineups:starting_xi");
   });
 });
