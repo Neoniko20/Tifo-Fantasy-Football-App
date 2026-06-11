@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS team_substitutions (
   player_out  INT NOT NULL,
   player_in   INT NOT NULL,
   reason      VARCHAR,                    -- 'eliminated', 'injured', 'manual'
-  auto        BOOLEAN DEFAULT false,
+  auto        BOOLEAN DEFAULT false NOT NULL,
   created_at  TIMESTAMP DEFAULT now()
 );
 
