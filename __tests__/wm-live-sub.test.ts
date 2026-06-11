@@ -4,7 +4,9 @@
  * Covers:
  *  1. applyLiveSubs  — Algorithmus-Korrektheit (Starter-Ersatz, GK-Regel, Idempotenz)
  *  2. applyAutoSubToLineup — Einzel-Sub-Persistenz-Helper (startingXI, bench, Idempotenz)
- *  3. shouldScorePlayer nach Auto-Sub — eingewechselter Spieler punktet, ausgewechselter nicht
+ *  3. reverseAutoSubs — Reset-Helper
+ *  4. Apply/Reverse Round-Trip — Symmetrie zwischen applyAutoSubToLineup und reverseAutoSubs
+ *  5. shouldScorePlayer nach Auto-Sub — eingewechselter Spieler punktet, ausgewechselter nicht
  */
 
 import { describe, it, expect } from "vitest";
@@ -238,6 +240,60 @@ describe("reverseAutoSubs", () => {
     // player_out (2) wird an den 11-Guard weitergereicht
     expect(bench).toContain(12); // bench trotzdem restored
     expect(startingXI).toContain(2); // player_out appended
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. Apply/Reverse Round-Trip — Symmetrie applyAutoSubToLineup ↔ reverseAutoSubs
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Apply/Reverse Round-Trip", () => {
+  it("einzelner Sub: apply → reverse stellt starting_xi exakt wieder her", () => {
+    const { startingXI: afterXI, bench: afterBench } = applyAutoSubToLineup(XI, BENCH, 2, 12);
+    const { startingXI: restoredXI } = reverseAutoSubs(afterXI, afterBench, [
+      { player_out: 2, player_in: 12 },
+    ]);
+    expect(restoredXI).toEqual(XI);
+  });
+
+  it("einzelner Sub: apply → reverse stellt bench exakt wieder her", () => {
+    const { startingXI: afterXI, bench: afterBench } = applyAutoSubToLineup(XI, BENCH, 2, 12);
+    const { bench: restoredBench } = reverseAutoSubs(afterXI, afterBench, [
+      { player_out: 2, player_in: 12 },
+    ]);
+    expect(restoredBench).toEqual(BENCH);
+  });
+
+  it("zwei Subs: apply × 2 → reverse stellt starting_xi exakt wieder her", () => {
+    const step1 = applyAutoSubToLineup(XI, BENCH, 2, 12);
+    const step2 = applyAutoSubToLineup(step1.startingXI, step1.bench, 3, 13);
+    const { startingXI: restoredXI } = reverseAutoSubs(step2.startingXI, step2.bench, [
+      { player_out: 2, player_in: 12 },
+      { player_out: 3, player_in: 13 },
+    ]);
+    expect(restoredXI).toEqual(XI);
+  });
+
+  it("zwei Subs: apply × 2 → reverse stellt bench exakt wieder her", () => {
+    const step1 = applyAutoSubToLineup(XI, BENCH, 2, 12);
+    const step2 = applyAutoSubToLineup(step1.startingXI, step1.bench, 3, 13);
+    const { bench: restoredBench } = reverseAutoSubs(step2.startingXI, step2.bench, [
+      { player_out: 2, player_in: 12 },
+      { player_out: 3, player_in: 13 },
+    ]);
+    expect(restoredBench).toEqual(BENCH);
+  });
+
+  it("apply → reverse → apply erneut: zweiter Apply liefert dasselbe Ergebnis wie erster", () => {
+    const firstApply = applyAutoSubToLineup(XI, BENCH, 2, 12);
+    const reversed   = reverseAutoSubs(firstApply.startingXI, firstApply.bench, [
+      { player_out: 2, player_in: 12 },
+    ]);
+    const secondApply = applyAutoSubToLineup(reversed.startingXI, reversed.bench, 2, 12);
+
+    expect(secondApply.applied).toBe(true);
+    expect(secondApply.startingXI).toEqual(firstApply.startingXI);
+    expect(secondApply.bench).toEqual(firstApply.bench);
   });
 });
 
