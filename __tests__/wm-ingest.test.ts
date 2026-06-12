@@ -421,6 +421,17 @@ describe("shouldScorePlayer — Starter-Filter", () => {
     const r = shouldScorePlayer(PLAYER, { captain_id: null, starting_xi: null });
     expect(r.score).toBe(false);
   });
+
+  // ── Vice-Captain auf der Bank ─────────────────────────────────────────────
+  // Wenn der VC nicht in starting_xi ist, gibt shouldScorePlayer score=false zurück.
+  // handlePlayerStatUpdate überspringt dann die gesamte VC-Logik — kein Acting-Captain.
+  it("VC auf Bank → score=false, isCaptain=false (kein Acting-Captain möglich)", () => {
+    const VC = 55;
+    // VC ist NICHT in starting_xi — sitzt auf der Bank
+    const r = shouldScorePlayer(VC, { captain_id: OTHER, starting_xi: [PLAYER, OTHER] });
+    expect(r.score).toBe(false);
+    expect(r.isCaptain).toBe(false);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

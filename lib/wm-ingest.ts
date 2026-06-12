@@ -358,10 +358,10 @@ async function handlePlayerStatUpdate(
   const succeededTeamIds: string[] = [];
 
   for (const entry of squadEntries) {
-    // Load lineup to determine starter status and captain
+    // Load lineup to determine starter status, captain and vice-captain
     const { data: lineup } = await supabase
       .from("team_lineups")
-      .select("captain_id, starting_xi")
+      .select("captain_id, vice_captain_id, starting_xi")
       .eq("team_id", entry.team_id)
       .eq("gameweek", gw)
       .maybeSingle();
@@ -374,7 +374,28 @@ async function handlePlayerStatUpdate(
       continue; // Bankspieler oder fehlendes Lineup → keine Punkte
     }
 
-    const result = calculateWMGameweekPoints(stats, nation, gw, isCaptain, settings?.scoring_rules);
+    // Vice-captain fallback: VC gets captain_multiplier only when captain did not play.
+    // "Did not play" = captain has no wm_gameweek_points row for this GW, or minutes === 0.
+    // isCaptain always takes precedence.
+    let isViceCaptain = false;
+    const vcId = (lineup as { vice_captain_id?: number | null } | null)?.vice_captain_id ?? null;
+    if (!isCaptain && vcId !== null && p.player_id === vcId) {
+      const captainId = (lineup as { captain_id?: number | null } | null)?.captain_id ?? null;
+      if (captainId !== null) {
+        const { data: captainPoints } = await supabase
+          .from("wm_gameweek_points")
+          .select("minutes")
+          .eq("team_id", entry.team_id)
+          .eq("player_id", captainId)
+          .eq("gameweek", gw)
+          .maybeSingle();
+        // Fallback active if captain has no row or minutes === 0
+        const captainMinutes = captainPoints?.minutes ?? 0;
+        isViceCaptain = captainMinutes === 0;
+      }
+    }
+
+    const result = calculateWMGameweekPoints(stats, nation, gw, isCaptain, settings?.scoring_rules, isViceCaptain);
 
     const { error } = await supabase
       .from("wm_gameweek_points")
@@ -395,6 +416,9 @@ async function handlePlayerStatUpdate(
         red_cards:    p.red_cards ?? 0,
         clean_sheet:  p.clean_sheet ?? false,
         nation_active: result.nation_active,
+        // is_captain tracks lineup role only (captain_id === player_id).
+        // Acting-VC effect is already baked into `points` via calculateWMGameweekPoints.
+        // Never set is_captain=true for a VC — downstream reads would double-apply the multiplier.
         is_captain:   isCaptain,
       }, { onConflict: "team_id,player_id,gameweek" });
 
