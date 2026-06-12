@@ -259,6 +259,16 @@ describe("calculateWMGameweekPoints — Vice-Captain Fallback", () => {
     const vc   = calculateWMGameweekPoints(baseStats({ goals: 1, position: "FW" }), nation(), 1, false, { captain_multiplier: 3 }, true).points;
     expect(vc).toBeCloseTo(base * 3);
   });
+
+  // Semantik-Invariante: calculateWMGameweekPoints gibt kein is_captain zurück.
+  // is_captain in der DB wird ausschließlich durch isCaptain (captain_id === player_id) gesetzt —
+  // niemals durch isViceCaptain. Der Acting-VC-Effekt ist nur in `points` sichtbar.
+  it("calculateWMGameweekPoints gibt nur points + nation_active zurück — kein is_captain-Feld", () => {
+    const result = calculateWMGameweekPoints(baseStats({ goals: 1, position: "FW" }), nation(), 1, false, null, true);
+    expect(result).toHaveProperty("points");
+    expect(result).toHaveProperty("nation_active");
+    expect(result).not.toHaveProperty("is_captain");
+  });
 });
 
 // ── Captain-Multiplier ───────────────────────────────────────────────────

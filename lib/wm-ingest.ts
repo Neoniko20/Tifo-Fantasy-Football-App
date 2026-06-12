@@ -416,7 +416,10 @@ async function handlePlayerStatUpdate(
         red_cards:    p.red_cards ?? 0,
         clean_sheet:  p.clean_sheet ?? false,
         nation_active: result.nation_active,
-        is_captain:   isCaptain || isViceCaptain,
+        // is_captain tracks lineup role only (captain_id === player_id).
+        // Acting-VC effect is already baked into `points` via calculateWMGameweekPoints.
+        // Never set is_captain=true for a VC — downstream reads would double-apply the multiplier.
+        is_captain:   isCaptain,
       }, { onConflict: "team_id,player_id,gameweek" });
 
     if (error) {
