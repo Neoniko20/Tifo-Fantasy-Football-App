@@ -170,6 +170,27 @@ export interface WMGameweekPoints {
 
 // ── Ingest Layer Types ─────────────────────────────────────────────────────────
 
+// Payload for player.stat_update events.
+// Either player_id (local players.id) or api_football_player_id must be provided.
+// If both are present, player_id takes precedence (backward compat).
+export interface PlayerStatUpdatePayload {
+  player_id?:             number; // local players.id — used by simulator/admin
+  api_football_player_id?: number; // API-Football player.id — used by live ingest
+  goals?:         number;
+  assists?:       number;
+  minutes?:       number;
+  shots_on?:      number;
+  key_passes?:    number;
+  pass_accuracy?: number;
+  dribbles?:      number;
+  tackles?:       number;
+  interceptions?: number;
+  saves?:         number;
+  yellow_cards?:  number;
+  red_cards?:     number;
+  clean_sheet?:   boolean;
+}
+
 export type WMEventType =
   | "fixture.status_changed"       // scheduled → live → finished
   | "fixture.score_updated"        // home_score, away_score

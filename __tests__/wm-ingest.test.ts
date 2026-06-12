@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { shouldScorePlayer, handleAutoSub } from "@/lib/wm-ingest";
+import { shouldScorePlayer, handleAutoSub, resolveStatUpdatePlayerId } from "@/lib/wm-ingest";
 import fs from "fs";
 import path from "path";
 
@@ -435,7 +435,81 @@ describe("shouldScorePlayer — Starter-Filter", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. handleAutoSub — Persistenzlogik mit Mock-Supabase
+// 6. resolveStatUpdatePlayerId — API-Football ID Lookup
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Minimal mock Supabase for resolveStatUpdatePlayerId tests */
+function makePlayerLookupMock(result: { id: number } | null) {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: result }),
+        }),
+      }),
+    }),
+  } as any;
+}
+
+describe("resolveStatUpdatePlayerId — API-Football ID Lookup", () => {
+  it("player_id direkt → gibt lokale ID zurück ohne DB-Lookup", async () => {
+    // supabase wird nie aufgerufen wenn player_id gesetzt
+    const sb = { from: vi.fn() } as any;
+    const result = await resolveStatUpdatePlayerId({ player_id: 42 }, sb);
+    expect(result).toEqual({ id: 42 });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("player_id hat Vorrang vor api_football_player_id (backward compat)", async () => {
+    const sb = { from: vi.fn() } as any;
+    const result = await resolveStatUpdatePlayerId(
+      { player_id: 42, api_football_player_id: 99999 },
+      sb,
+    );
+    expect(result).toEqual({ id: 42 });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("api_football_player_id → findet lokalen Spieler und gibt dessen ID zurück", async () => {
+    const sb = makePlayerLookupMock({ id: 730 }); // Courtois: api_id=730 → local id=730
+    const result = await resolveStatUpdatePlayerId({ api_football_player_id: 730 }, sb);
+    expect(result).toEqual({ id: 730 });
+  });
+
+  it("api_football_player_id unbekannt → warning unmapped_api_player", async () => {
+    const sb = makePlayerLookupMock(null);
+    const result = await resolveStatUpdatePlayerId({ api_football_player_id: 99999 }, sb);
+    expect(result).toEqual({ warning: "unmapped_api_player:99999" });
+  });
+
+  it("weder player_id noch api_football_player_id → warning missing", async () => {
+    const sb = { from: vi.fn() } as any;
+    const result = await resolveStatUpdatePlayerId({}, sb);
+    expect("warning" in result).toBe(true);
+    if ("warning" in result) {
+      expect(result.warning).toContain("missing");
+    }
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("Test-Spieler (kein api_football_player_id) bleibt via player_id nutzbar", async () => {
+    const sb = { from: vi.fn() } as any;
+    // Test-Spieler haben lokale IDs 90001–90120 und keine api_football_player_id
+    const result = await resolveStatUpdatePlayerId({ player_id: 90001 }, sb);
+    expect(result).toEqual({ id: 90001 });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("Idempotenz: gleicher Input → gleiches Ergebnis", async () => {
+    const sb = makePlayerLookupMock({ id: 892 });
+    const r1 = await resolveStatUpdatePlayerId({ api_football_player_id: 892 }, sb);
+    const r2 = await resolveStatUpdatePlayerId({ api_football_player_id: 892 }, makePlayerLookupMock({ id: 892 }) );
+    expect(r1).toEqual(r2);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. handleAutoSub — Persistenzlogik mit Mock-Supabase
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
