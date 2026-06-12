@@ -28,7 +28,6 @@ import { fileURLToPath } from "url";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const WC_LEAGUE_ID  = 1;
 const DEFAULT_SEASON = 2026;
 const AFOOT_BASE    = "https://v3.football.api-sports.io";
 const RATE_LIMIT_MS = 2200;
@@ -171,7 +170,6 @@ async function fetchSquad(apiTeamId: number): Promise<ApiPlayer[]> {
   if (DEBUG) console.log(`  [api]   GET /players/squads?team=${apiTeamId}`);
   const res = await fetch(`${AFOOT_BASE}/players/squads?team=${apiTeamId}`, {
     headers: { "x-apisports-key": process.env.FOOTBALL_API_KEY! },
-    cache: "no-store",
   });
 
   const remaining = res.headers.get("x-ratelimit-requests-remaining");
@@ -183,7 +181,7 @@ async function fetchSquad(apiTeamId: number): Promise<ApiPlayer[]> {
     const retryAfter = parseInt(res.headers.get("retry-after") || "15", 10);
     console.warn(`  Rate limit — warte ${retryAfter}s...`);
     await new Promise(r => setTimeout(r, retryAfter * 1000));
-    return fetchSquad(apiTeamId); // one retry
+    return fetchSquad(apiTeamId); // retry after backoff
   }
 
   if (!res.ok) throw new Error(`HTTP ${res.status} für team ${apiTeamId}`);
@@ -309,23 +307,30 @@ async function main(): Promise<void> {
     }
   }
 
-  // Squad-Daten pro Nation cachen
+  // Squad-Daten pro Nation laden (mit Cache)
+  // Delay nur bei echten API-Calls, nicht bei Cache-Hits
   const squadByNation = new Map<string, ApiPlayer[]>(); // nation_id → players
   let apiCallsDone = 0;
 
   for (let i = 0; i < nationsWithId.length; i++) {
     const [nationId, nation] = nationsWithId[i];
-    if (i > 0) await new Promise(r => setTimeout(r, RATE_LIMIT_MS));
+    const cacheFile = path.join(CACHE_DIR, `squad-team-${nation.api_team_id}.json`);
+    const isCached  = fs.existsSync(cacheFile);
+
+    if (!isCached && apiCallsDone > 0) {
+      await new Promise(r => setTimeout(r, RATE_LIMIT_MS));
+    }
 
     try {
       const players = await fetchSquad(nation.api_team_id!);
       squadByNation.set(nationId, players);
+      if (!isCached) apiCallsDone++;
       if (DEBUG) {
-        console.log(`  [${i + 1}/${nationsWithId.length}] ${nation.name}: ${players.length} API-Spieler`);
+        const src = isCached ? "cache" : "api";
+        console.log(`  [${i + 1}/${nationsWithId.length}] ${nation.name}: ${players.length} Spieler [${src}]`);
       } else {
-        process.stdout.write(`.`);
+        process.stdout.write(isCached ? "c" : ".");
       }
-      apiCallsDone++;
     } catch (err: any) {
       console.warn(`\n  ⚠️  Fehler für ${nation.name}: ${err.message}`);
       squadByNation.set(nationId, []);
