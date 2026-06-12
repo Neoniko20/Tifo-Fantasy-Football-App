@@ -53,6 +53,29 @@ export function shouldScorePlayer(
   return { score: true, isCaptain: lineup.captain_id === playerId };
 }
 
+// ── Ingest status helpers ──────────────────────────────────────────────────────
+
+const RESOLUTION_FAILURE_PREFIXES = [
+  "unmapped_api_player",
+  "player.stat_update missing",
+  "db_error",
+] as const;
+
+/** @internal exported for unit tests only */
+export function resolveIngestStatus(
+  applied: string[],
+  warnings: string[],
+): "processed" | "partial" {
+  const hasUpsertFailures = warnings.some(w => w.startsWith("upsert failed"));
+  const hasResolutionFailures = warnings.some(w =>
+    RESOLUTION_FAILURE_PREFIXES.some(p => w.startsWith(p))
+  );
+  if (hasUpsertFailures || (hasResolutionFailures && applied.length === 0)) {
+    return "partial";
+  }
+  return "processed";
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function processIngestEvent(
@@ -108,9 +131,8 @@ export async function processIngestEvent(
     applied.push(...result.applied);
     warnings.push(...result.warnings);
 
-    // 4. Mark processed — use "partial" if any warnings include upsert failures
-    const hasUpsertFailures = warnings.some(w => w.startsWith("upsert failed"));
-    const finalStatus = hasUpsertFailures ? "partial" : "processed";
+    // 4. Mark processed — "partial" on upsert failures or unresolved player IDs
+    const finalStatus = resolveIngestStatus(applied, warnings);
     const { error: updateError } = await supabase
       .from("wm_event_log")
       .update({ status: finalStatus, processed_at: new Date().toISOString() })
@@ -300,12 +322,13 @@ export async function resolveStatUpdatePlayerId(
   if (payload.player_id != null) return { id: payload.player_id };
 
   if (payload.api_football_player_id != null) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("players")
       .select("id")
       .eq("api_football_player_id", payload.api_football_player_id)
       .maybeSingle();
 
+    if (error) return { warning: `db_error:${error.message}` };
     if (!data) return { warning: `unmapped_api_player:${payload.api_football_player_id}` };
     return { id: data.id };
   }
