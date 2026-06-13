@@ -68,7 +68,7 @@ export function mapAfStatToPayload(
   // Clean sheet: goalkeeper or defender who played and conceded 0
   const conceded = n(s.goals.conceded);
   const cleanSheet =
-    minutes > 0 && conceded === 0 && (position === "G" || position === "D");
+    minutes > 0 && conceded === 0 && (position === "G" || position === "D" || position === "M");
 
   const passAccuracyRaw = s.passes.accuracy;
   const pass_accuracy =
@@ -92,12 +92,18 @@ export function mapAfStatToPayload(
   };
 }
 
-/** Deterministic idempotency key for a player-stat-update event. */
+/**
+ * Hour-bucketed idempotency key for a player-stat-update event.
+ * API-Football delivers cumulative stats — a new key per hour allows each
+ * polling interval to overwrite the previous score via upsert, while still
+ * preventing duplicates within the same hour.
+ */
 export function makeIngestIdempotencyKey(
   apiFixtureId: number,
   apiPlayerId: number,
+  pollHour: string = new Date().toISOString().slice(0, 13), // "2026-06-13T20"
 ): string {
-  return `fixture:${apiFixtureId}:player:${apiPlayerId}:v1`;
+  return `fixture:${apiFixtureId}:player:${apiPlayerId}:poll:${pollHour}`;
 }
 
 /**

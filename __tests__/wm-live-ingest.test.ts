@@ -123,10 +123,26 @@ describe("mapAfStatToPayload — API-Football → PlayerStatUpdatePayload", () =
     expect(result.clean_sheet).toBe(true);
   });
 
-  it("Mittelfeldspieler (M) mit 0 Gegentoren → clean_sheet false (nicht für MF)", () => {
+  it("Mittelfeldspieler (M) mit 0 Gegentoren und 90 min → clean_sheet true", () => {
     const result = mapAfStatToPayload(makePlayerEntry({
       games: { minutes: 90, position: "M", captain: false, substitute: false },
-      goals: { total: 0, conceded: 0, assists: 0, saves: 0 },
+      goals: { total: 1, conceded: 0, assists: 0, saves: 0 },
+    }));
+    expect(result.clean_sheet).toBe(true);
+  });
+
+  it("Mittelfeldspieler (M) mit 1 Gegentor → clean_sheet false", () => {
+    const result = mapAfStatToPayload(makePlayerEntry({
+      games: { minutes: 90, position: "M", captain: false, substitute: false },
+      goals: { total: 0, conceded: 1, assists: 0, saves: 0 },
+    }));
+    expect(result.clean_sheet).toBe(false);
+  });
+
+  it("Stürmer (F) mit 0 Gegentoren → clean_sheet false (FW erhält keine CS-Punkte)", () => {
+    const result = mapAfStatToPayload(makePlayerEntry({
+      games: { minutes: 90, position: "F", captain: false, substitute: false },
+      goals: { total: 2, conceded: 0, assists: 0, saves: 0 },
     }));
     expect(result.clean_sheet).toBe(false);
   });
@@ -149,23 +165,41 @@ describe("mapAfStatToPayload — API-Football → PlayerStatUpdatePayload", () =
 // 2. makeIngestIdempotencyKey
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe("makeIngestIdempotencyKey — deterministischer idempotency key", () => {
-  it("erzeugt erwartetes Format", () => {
-    expect(makeIngestIdempotencyKey(12345, 276)).toBe("fixture:12345:player:276:v1");
+describe("makeIngestIdempotencyKey — hour-bucketed idempotency key", () => {
+  it("erzeugt erwartetes Format mit poll-Hour", () => {
+    const key = makeIngestIdempotencyKey(12345, 276, "2026-06-15T20");
+    expect(key).toBe("fixture:12345:player:276:poll:2026-06-15T20");
   });
 
-  it("gleiche Inputs → gleicher Key (deterministisch)", () => {
-    const k1 = makeIngestIdempotencyKey(1001, 500);
-    const k2 = makeIngestIdempotencyKey(1001, 500);
+  it("enthält kein :v1 mehr", () => {
+    const key = makeIngestIdempotencyKey(12345, 276, "2026-06-15T20");
+    expect(key).not.toContain(":v1");
+  });
+
+  it("gleiche Fixture/Player/gleiche Stunde → gleicher Key (Duplikate werden geblockt)", () => {
+    const k1 = makeIngestIdempotencyKey(1001, 500, "2026-06-15T18");
+    const k2 = makeIngestIdempotencyKey(1001, 500, "2026-06-15T18");
     expect(k1).toBe(k2);
   });
 
+  it("gleiche Fixture/Player/neue Stunde → anderer Key (neue Stats werden verarbeitet)", () => {
+    const k1 = makeIngestIdempotencyKey(1001, 500, "2026-06-15T18");
+    const k2 = makeIngestIdempotencyKey(1001, 500, "2026-06-15T19");
+    expect(k1).not.toBe(k2);
+  });
+
   it("unterschiedliche fixture-IDs → unterschiedliche Keys", () => {
-    expect(makeIngestIdempotencyKey(1, 500)).not.toBe(makeIngestIdempotencyKey(2, 500));
+    expect(makeIngestIdempotencyKey(1, 500, "2026-06-15T18")).not.toBe(makeIngestIdempotencyKey(2, 500, "2026-06-15T18"));
   });
 
   it("unterschiedliche player-IDs → unterschiedliche Keys", () => {
-    expect(makeIngestIdempotencyKey(1001, 1)).not.toBe(makeIngestIdempotencyKey(1001, 2));
+    expect(makeIngestIdempotencyKey(1001, 1, "2026-06-15T18")).not.toBe(makeIngestIdempotencyKey(1001, 2, "2026-06-15T18"));
+  });
+
+  it("default pollHour entspricht aktueller UTC-Stunde", () => {
+    const expectedHour = new Date().toISOString().slice(0, 13);
+    const key = makeIngestIdempotencyKey(1, 1);
+    expect(key).toContain(`poll:${expectedHour}`);
   });
 });
 

@@ -107,6 +107,12 @@ export async function GET(req: NextRequest) {
       isFixtureRelevant(f.status, f.kickoff, now),
     );
 
+    // Load league settings once per tournament (not per player)
+    const { data: leagueSettings } = await supabase
+      .from("wm_league_settings")
+      .select("league_id")
+      .eq("tournament_id", tournamentId);
+
     // 6. Per-fixture: fetch player stats from API-Football + dispatch events
     for (const fixture of relevantFixtures) {
       const apiFixtureId = fixture.api_fixture_id as number;
@@ -144,12 +150,6 @@ export async function GET(req: NextRequest) {
             idempotency_key: idempotencyKey,
             source: "api_football",
           };
-
-          // Process per-league: find all WM leagues for this tournament
-          const { data: leagueSettings } = await supabase
-            .from("wm_league_settings")
-            .select("league_id")
-            .eq("tournament_id", tournamentId);
 
           for (const ls of leagueSettings ?? []) {
             const result = await processIngestEvent(ls.league_id, event, "api_football_sync");
