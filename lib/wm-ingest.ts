@@ -8,6 +8,7 @@ import { calculateWMGameweekPoints } from "@/lib/wm-points";
 import type {
   WMIngestEvent, WMEventType, ProcessedBy, IngestResult,
   WMNation, Position, AutoSubPayload, WaiverClaimPayload,
+  PlayerStatUpdatePayload,
 } from "@/lib/wm-types";
 import type { GWStats } from "@/lib/wm-points";
 import {
@@ -50,6 +51,29 @@ export function shouldScorePlayer(
     return { score: false, isCaptain: false };
   }
   return { score: true, isCaptain: lineup.captain_id === playerId };
+}
+
+// ── Ingest status helpers ──────────────────────────────────────────────────────
+
+const RESOLUTION_FAILURE_PREFIXES = [
+  "unmapped_api_player",
+  "player.stat_update missing",
+  "db_error",
+] as const;
+
+/** @internal exported for unit tests only */
+export function resolveIngestStatus(
+  applied: string[],
+  warnings: string[],
+): "processed" | "partial" {
+  const hasUpsertFailures = warnings.some(w => w.startsWith("upsert failed"));
+  const hasResolutionFailures = warnings.some(w =>
+    RESOLUTION_FAILURE_PREFIXES.some(p => w.startsWith(p))
+  );
+  if (hasUpsertFailures || (hasResolutionFailures && applied.length === 0)) {
+    return "partial";
+  }
+  return "processed";
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
@@ -107,9 +131,8 @@ export async function processIngestEvent(
     applied.push(...result.applied);
     warnings.push(...result.warnings);
 
-    // 4. Mark processed — use "partial" if any warnings include upsert failures
-    const hasUpsertFailures = warnings.some(w => w.startsWith("upsert failed"));
-    const finalStatus = hasUpsertFailures ? "partial" : "processed";
+    // 4. Mark processed — "partial" on upsert failures or unresolved player IDs
+    const finalStatus = resolveIngestStatus(applied, warnings);
     const { error: updateError } = await supabase
       .from("wm_event_log")
       .update({ status: finalStatus, processed_at: new Date().toISOString() })
@@ -285,6 +308,34 @@ async function handleNationEliminated(
   return { applied, warnings };
 }
 
+/**
+ * Resolves a stat-update payload to a local players.id.
+ * player_id (local) takes precedence over api_football_player_id.
+ * Returns { id } on success, { warning } when unmapped or missing.
+ *
+ * @internal exported for unit tests only — use processIngestEvent in production
+ */
+export async function resolveStatUpdatePlayerId(
+  payload: PlayerStatUpdatePayload,
+  supabase: ReturnType<typeof createServiceRoleClient>,
+): Promise<{ id: number } | { warning: string }> {
+  if (payload.player_id != null) return { id: payload.player_id };
+
+  if (payload.api_football_player_id != null) {
+    const { data, error } = await supabase
+      .from("players")
+      .select("id")
+      .eq("api_football_player_id", payload.api_football_player_id)
+      .maybeSingle();
+
+    if (error) return { warning: `db_error:${error.message}` };
+    if (!data) return { warning: `unmapped_api_player:${payload.api_football_player_id}` };
+    return { id: data.id };
+  }
+
+  return { warning: "player.stat_update missing player_id and api_football_player_id" };
+}
+
 async function handlePlayerStatUpdate(
   leagueId: string,
   event: WMIngestEvent,
@@ -293,14 +344,7 @@ async function handlePlayerStatUpdate(
   const applied: string[] = [];
   const warnings: string[] = [];
 
-  const p = event.payload as {
-    player_id: number;
-    goals?: number; assists?: number; minutes?: number;
-    shots_on?: number; key_passes?: number; pass_accuracy?: number;
-    dribbles?: number; tackles?: number; interceptions?: number;
-    saves?: number; yellow_cards?: number; red_cards?: number;
-    clean_sheet?: boolean;
-  };
+  const p = event.payload as PlayerStatUpdatePayload;
 
   const gw = event.gameweek;
   if (!gw) {
@@ -308,16 +352,24 @@ async function handlePlayerStatUpdate(
     return { applied, warnings };
   }
 
+  // ── Resolve local player_id ───────────────────────────────────────────────
+  const resolved = await resolveStatUpdatePlayerId(p, supabase);
+  if ("warning" in resolved) {
+    warnings.push(resolved.warning);
+    return { applied, warnings };
+  }
+  const localPlayerId = resolved.id;
+
   // Lookup player name + position
   const { data: player } = await supabase
-    .from("players").select("name, position").eq("id", p.player_id).maybeSingle();
-  if (!player?.position) warnings.push(`player ${p.player_id} position not found, defaulted to MF`);
+    .from("players").select("name, position").eq("id", localPlayerId).maybeSingle();
+  if (!player?.position) warnings.push(`player ${localPlayerId} position not found, defaulted to MF`);
 
   // Lookup player nation for this tournament
   const { data: playerNationRow } = await supabase
     .from("wm_player_nations")
     .select("wm_nations(*)")
-    .eq("player_id", p.player_id)
+    .eq("player_id", localPlayerId)
     .eq("tournament_id", event.tournament_id)
     .maybeSingle();
   const nation = (playerNationRow?.wm_nations as unknown as WMNation | null) ?? null;
@@ -327,10 +379,10 @@ async function handlePlayerStatUpdate(
     .from("wm_squad_players")
     .select("team_id")
     .eq("league_id", leagueId)
-    .eq("player_id", p.player_id);
+    .eq("player_id", localPlayerId);
 
   if (!squadEntries?.length) {
-    warnings.push(`player ${p.player_id} not in any squad in league ${leagueId}`);
+    warnings.push(`player ${localPlayerId} not in any squad in league ${leagueId}`);
     return { applied, warnings };
   }
 
@@ -366,7 +418,7 @@ async function handlePlayerStatUpdate(
       .eq("gameweek", gw)
       .maybeSingle();
 
-    const { score, isCaptain, reason } = shouldScorePlayer(p.player_id, lineup);
+    const { score, isCaptain, reason } = shouldScorePlayer(localPlayerId, lineup);
     if (!score) {
       if (reason === "no_lineup") {
         warnings.push(`no lineup for team ${entry.team_id} GW${gw} — skipping points`);
@@ -379,7 +431,7 @@ async function handlePlayerStatUpdate(
     // isCaptain always takes precedence.
     let isViceCaptain = false;
     const vcId = (lineup as { vice_captain_id?: number | null } | null)?.vice_captain_id ?? null;
-    if (!isCaptain && vcId !== null && p.player_id === vcId) {
+    if (!isCaptain && vcId !== null && localPlayerId === vcId) {
       const captainId = (lineup as { captain_id?: number | null } | null)?.captain_id ?? null;
       if (captainId !== null) {
         const { data: captainPoints } = await supabase
@@ -401,7 +453,7 @@ async function handlePlayerStatUpdate(
       .from("wm_gameweek_points")
       .upsert({
         team_id:      entry.team_id,
-        player_id:    p.player_id,
+        player_id:    localPlayerId,
         gameweek:     gw,
         league_id:    leagueId,
         points:       result.points,
@@ -425,7 +477,7 @@ async function handlePlayerStatUpdate(
     if (error) {
       warnings.push(`upsert failed for team ${entry.team_id}: ${error.message}`);
     } else {
-      applied.push(`wm_gameweek_points:${entry.team_id}:${p.player_id}`);
+      applied.push(`wm_gameweek_points:${entry.team_id}:${localPlayerId}`);
       succeededTeamIds.push(entry.team_id);
     }
   }
@@ -486,7 +538,7 @@ async function handlePlayerStatUpdate(
       nation?.flag_url ?? null,
       p.goals ?? 1,
       src,
-      p.player_id,
+      localPlayerId,
       fixtureId,
     );
     await writeSystemMessage(supabase, leagueId, msg.content, msg.meta);

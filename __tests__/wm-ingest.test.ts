@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { shouldScorePlayer, handleAutoSub } from "@/lib/wm-ingest";
+import { shouldScorePlayer, handleAutoSub, resolveStatUpdatePlayerId, resolveIngestStatus } from "@/lib/wm-ingest";
 import fs from "fs";
 import path from "path";
 
@@ -435,7 +435,143 @@ describe("shouldScorePlayer — Starter-Filter", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. handleAutoSub — Persistenzlogik mit Mock-Supabase
+// 6. resolveStatUpdatePlayerId — API-Football ID Lookup
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Minimal mock Supabase for resolveStatUpdatePlayerId tests */
+function makePlayerLookupMock(
+  result: { id: number } | null,
+  error: { message: string } | null = null,
+) {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: result, error }),
+        }),
+      }),
+    }),
+  } as any;
+}
+
+describe("resolveStatUpdatePlayerId — API-Football ID Lookup", () => {
+  it("player_id direkt → gibt lokale ID zurück ohne DB-Lookup", async () => {
+    // supabase wird nie aufgerufen wenn player_id gesetzt
+    const sb = { from: vi.fn() } as any;
+    const result = await resolveStatUpdatePlayerId({ player_id: 42 }, sb);
+    expect(result).toEqual({ id: 42 });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("player_id hat Vorrang vor api_football_player_id (backward compat)", async () => {
+    const sb = { from: vi.fn() } as any;
+    const result = await resolveStatUpdatePlayerId(
+      { player_id: 42, api_football_player_id: 99999 },
+      sb,
+    );
+    expect(result).toEqual({ id: 42 });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("api_football_player_id → findet lokalen Spieler und gibt dessen ID zurück", async () => {
+    const sb = makePlayerLookupMock({ id: 730 }); // Courtois: api_id=730 → local id=730
+    const result = await resolveStatUpdatePlayerId({ api_football_player_id: 730 }, sb);
+    expect(result).toEqual({ id: 730 });
+  });
+
+  it("api_football_player_id unbekannt → warning unmapped_api_player", async () => {
+    const sb = makePlayerLookupMock(null);
+    const result = await resolveStatUpdatePlayerId({ api_football_player_id: 99999 }, sb);
+    expect(result).toEqual({ warning: "unmapped_api_player:99999" });
+  });
+
+  it("weder player_id noch api_football_player_id → warning missing", async () => {
+    const sb = { from: vi.fn() } as any;
+    const result = await resolveStatUpdatePlayerId({}, sb);
+    expect("warning" in result).toBe(true);
+    if ("warning" in result) {
+      expect(result.warning).toContain("missing");
+    }
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("Test-Spieler (kein api_football_player_id) bleibt via player_id nutzbar", async () => {
+    const sb = { from: vi.fn() } as any;
+    // Test-Spieler haben lokale IDs 90001–90120 und keine api_football_player_id
+    const result = await resolveStatUpdatePlayerId({ player_id: 90001 }, sb);
+    expect(result).toEqual({ id: 90001 });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  it("Determinstik: gleicher Input → gleiches Ergebnis", async () => {
+    const r1 = await resolveStatUpdatePlayerId({ api_football_player_id: 892 }, makePlayerLookupMock({ id: 892 }));
+    const r2 = await resolveStatUpdatePlayerId({ api_football_player_id: 892 }, makePlayerLookupMock({ id: 892 }));
+    expect(r1).toEqual(r2);
+  });
+
+  it("DB-Fehler → warning db_error (nicht unmapped_api_player)", async () => {
+    const sb = makePlayerLookupMock(null, { message: "connection refused" });
+    const result = await resolveStatUpdatePlayerId({ api_football_player_id: 730 }, sb);
+    expect(result).toEqual({ warning: "db_error:connection refused" });
+  });
+
+  it("DB-Fehler data + error → error hat Vorrang vor data", async () => {
+    // Supabase gibt manchmal { data: null, error } zurück — sicherstellen dass error-Pfad greift
+    const sb = makePlayerLookupMock(null, { message: "timeout" });
+    const result = await resolveStatUpdatePlayerId({ api_football_player_id: 1 }, sb);
+    expect("warning" in result).toBe(true);
+    if ("warning" in result) {
+      expect(result.warning).toMatch(/^db_error:/);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. resolveIngestStatus — Event-Log-Status-Mapping
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("resolveIngestStatus — Event-Log-Status-Mapping", () => {
+  it("leeres applied + keine warnings → processed", () => {
+    expect(resolveIngestStatus([], [])).toBe("processed");
+  });
+
+  it("applied vorhanden + keine warnings → processed", () => {
+    expect(resolveIngestStatus(["wm_gameweek_points:team1:42"], [])).toBe("processed");
+  });
+
+  it("upsert failure warning → partial", () => {
+    expect(resolveIngestStatus(["wm_gameweek_points:team1:42"], ["upsert failed for team team1: conflict"])).toBe("partial");
+  });
+
+  it("unmapped_api_player + applied:[] → partial", () => {
+    expect(resolveIngestStatus([], ["unmapped_api_player:99999"])).toBe("partial");
+  });
+
+  it("player.stat_update missing + applied:[] → partial", () => {
+    expect(resolveIngestStatus([], ["player.stat_update missing player_id and api_football_player_id"])).toBe("partial");
+  });
+
+  it("db_error + applied:[] → partial", () => {
+    expect(resolveIngestStatus([], ["db_error:connection refused"])).toBe("partial");
+  });
+
+  it("resolution failure aber applied nicht leer → processed (andere Teams hatten Erfolg)", () => {
+    expect(resolveIngestStatus(
+      ["wm_gameweek_points:team1:42"],
+      ["unmapped_api_player:99999"],
+    )).toBe("processed");
+  });
+
+  it("upsert failure + applied vorhanden → partial (upsert failures überschreiben immer)", () => {
+    expect(resolveIngestStatus(
+      ["wm_gameweek_points:team1:42"],
+      ["upsert failed for team team2: conflict"],
+    )).toBe("partial");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. handleAutoSub — Persistenzlogik mit Mock-Supabase
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
