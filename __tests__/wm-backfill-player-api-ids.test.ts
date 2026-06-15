@@ -144,6 +144,25 @@ describe("paginatedSelect", () => {
     expect(query).toHaveBeenCalledTimes(2);
   });
 
+  it("lädt drei Pages und akkumuliert Offsets korrekt", async () => {
+    const page1 = Array.from({ length: 1000 }, (_, i) => ({ id: i }));
+    const page2 = Array.from({ length: 1000 }, (_, i) => ({ id: 1000 + i }));
+    const page3 = [{ id: 2000 }, { id: 2001 }, { id: 2002 }];
+
+    const query = vi.fn()
+      .mockResolvedValueOnce({ data: page1, error: null })
+      .mockResolvedValueOnce({ data: page2, error: null })
+      .mockResolvedValueOnce({ data: page3, error: null });
+
+    const result = await paginatedSelect(query);
+
+    expect(result).toHaveLength(2003);
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query).toHaveBeenNthCalledWith(1, 0, 1000);
+    expect(query).toHaveBeenNthCalledWith(2, 1000, 1000);
+    expect(query).toHaveBeenNthCalledWith(3, 2000, 1000);
+  });
+
   it("leere erste Seite → leeres Array", async () => {
     const query = vi.fn().mockResolvedValueOnce({ data: [], error: null });
 
