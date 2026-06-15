@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { processIngestEvent } from "@/lib/wm-ingest";
 import {
+  afetch,
   mapAfStatToPayload,
   makeIngestIdempotencyKey,
   isFixtureRelevant,
@@ -12,24 +13,7 @@ import type { WMIngestEvent } from "@/lib/wm-types";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const AF_BASE = "https://v3.football.api-sports.io";
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function afetch(path: string, apiKey: string): Promise<any> {
-  const res = await fetch(`${AF_BASE}${path}`, {
-    headers: { "x-apisports-key": apiKey },
-    cache: "no-store",
-  });
-
-  if (res.status === 429) {
-    const retryAfter = parseInt(res.headers.get("retry-after") || "10", 10);
-    await delay(retryAfter * 1000);
-    return afetch(path, apiKey);
-  }
-
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${path}`);
-  return res.json();
-}
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 
@@ -69,10 +53,11 @@ export async function GET(req: NextRequest) {
     dry_run: dryRun,
   };
 
-  // 3. Load all active WM tournaments
+  // 3. Load active WM tournaments only — avoids polling finished/upcoming ones
   const { data: tournaments } = await supabase
     .from("wm_tournaments")
-    .select("id");
+    .select("id")
+    .eq("status", "active");
 
   if (!tournaments?.length) {
     return NextResponse.json({ ok: true, ...summary, message: "no tournaments" });
