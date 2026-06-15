@@ -378,6 +378,18 @@ function checkLineupLockInfra() {
   }
 }
 
+function checkViceCaptainInfra() {
+  const ingestFile = path.join(process.cwd(), "lib/wm-ingest.ts");
+  if (fs.existsSync(ingestFile)) {
+    const content = fs.readFileSync(ingestFile, "utf8");
+    if (content.includes("isViceCaptain") && content.includes("vice_captain_id")) {
+      pass("Vice-Captain-Fallback implementiert (PR #49)");
+      return;
+    }
+  }
+  warn("Vice-Captain-Fallback nicht in lib/wm-ingest.ts gefunden");
+}
+
 async function checkPlayerApiIdMapping(sb: SupabaseClient) {
   // Prüft ob players.api_football_player_id per Backfill befüllt wurde (PR #50+51+59)
   const { count, error } = await sb
@@ -404,14 +416,6 @@ function printKnownGaps() {
   header("GAPS", "Offene Features / bekannte Einschränkungen (WARN, kein FAIL)");
 
   const gaps = [
-    {
-      id: "GAP-3",
-      title: "Vice-Captain-Fallback nicht implementiert",
-      detail:
-        "handlePlayerStatUpdate() in lib/wm-ingest.ts prüft nur captain_id, " +
-        "nicht vice_captain_id. scoring_rules.vice_captain_multiplier existiert, " +
-        "wird aber nie angewendet.",
-    },
     {
       id: "GAP-5",
       title: "GW-Start / GW-Finish sind manuelle Admin-Calls",
@@ -463,6 +467,7 @@ async function main() {
   header("INFRA", "Infrastruktur-Checks (Dateien, kein DB)");
   checkLiveIngestInfra();
   checkLineupLockInfra();
+  checkViceCaptainInfra();
   await checkPlayerApiIdMapping(sb);
 
   printKnownGaps();
