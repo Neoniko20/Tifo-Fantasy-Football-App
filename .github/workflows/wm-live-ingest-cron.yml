@@ -1,0 +1,42 @@
+name: WM Live Ingest
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no DB writes)"
+        type: boolean
+        default: false
+
+jobs:
+  ingest:
+    name: Poll live match stats
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Call live ingest endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          WM_LIVE_INGEST_URL: ${{ secrets.WM_LIVE_INGEST_URL }}
+        run: |
+          URL="${WM_LIVE_INGEST_URL}"
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            URL="${URL}?dryRun=1"
+          fi
+
+          HTTP_STATUS=$(curl --silent --show-error --output /tmp/ingest_response.json \
+            --write-out "%{http_code}" \
+            --max-time 420 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "${URL}")
+
+          echo "HTTP status: ${HTTP_STATUS}"
+          cat /tmp/ingest_response.json
+
+          if [[ "${HTTP_STATUS}" -lt 200 || "${HTTP_STATUS}" -ge 300 ]]; then
+            echo "Endpoint returned non-2xx status: ${HTTP_STATUS}"
+            exit 1
+          fi

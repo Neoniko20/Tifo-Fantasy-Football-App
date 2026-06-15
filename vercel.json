@@ -16,10 +16,6 @@
     {
       "path": "/api/cron/process-waivers-wm",
       "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/cron/wm-live-ingest",
-      "schedule": "0 * * * *"
     }
   ]
 }
