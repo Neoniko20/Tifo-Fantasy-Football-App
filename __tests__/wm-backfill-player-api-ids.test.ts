@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { normalizePlayerName, matchPlayer } from "../scripts/wm-backfill-player-api-ids";
+import { describe, it, expect, vi } from "vitest";
+import { normalizePlayerName, matchPlayer, paginatedSelect } from "../scripts/wm-backfill-player-api-ids";
 import type { ApiPlayer } from "../scripts/wm-backfill-player-api-ids";
 
 // ── normalizePlayerName ───────────────────────────────────────────────────
@@ -98,5 +98,73 @@ describe("matchPlayer", () => {
     const result = matchPlayer("Park Ji-Sung", api);
     // Beide werden als ambiguous erkannt — kein single winner
     expect(result.type).toBe("ambiguous");
+  });
+});
+
+// ── paginatedSelect ───────────────────────────────────────────────────────
+
+describe("paginatedSelect", () => {
+  it("lädt eine einzelne Page (weniger als PAGE_SIZE)", async () => {
+    const rows = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const query = vi.fn().mockResolvedValueOnce({ data: rows, error: null });
+
+    const result = await paginatedSelect(query);
+
+    expect(result).toEqual(rows);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(0, 1000);
+  });
+
+  it("lädt mehrere Pages und kombiniert Ergebnisse", async () => {
+    const page1 = Array.from({ length: 1000 }, (_, i) => ({ id: i }));
+    const page2 = [{ id: 1000 }, { id: 1001 }];
+
+    const query = vi.fn()
+      .mockResolvedValueOnce({ data: page1, error: null })
+      .mockResolvedValueOnce({ data: page2, error: null });
+
+    const result = await paginatedSelect(query);
+
+    expect(result).toHaveLength(1002);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenNthCalledWith(1, 0, 1000);
+    expect(query).toHaveBeenNthCalledWith(2, 1000, 1000);
+  });
+
+  it("stoppt wenn letzte Page genau PAGE_SIZE enthält aber nächste leer ist", async () => {
+    const page1 = Array.from({ length: 1000 }, (_, i) => ({ id: i }));
+
+    const query = vi.fn()
+      .mockResolvedValueOnce({ data: page1, error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
+
+    const result = await paginatedSelect(query);
+
+    expect(result).toHaveLength(1000);
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it("leere erste Seite → leeres Array", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ data: [], error: null });
+
+    const result = await paginatedSelect(query);
+
+    expect(result).toEqual([]);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("null data → leeres Array", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ data: null, error: null });
+
+    const result = await paginatedSelect(query);
+
+    expect(result).toEqual([]);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it("wirft Fehler bei DB-Error", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ data: null, error: { message: "DB connection lost" } });
+
+    await expect(paginatedSelect(query)).rejects.toThrow("DB connection lost");
   });
 });

@@ -203,24 +203,43 @@ function extractPlayers(json: any): ApiPlayer[] {
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 1000;
+
+export async function paginatedSelect<T>(
+  queryBuilder: (offset: number, limit: number) => Promise<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<T[]> {
+  const results: T[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await queryBuilder(offset, PAGE_SIZE);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    results.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+  return results;
+}
+
 async function loadWMPlayers(
   supabase: SupabaseClient,
   tournamentId: string,
 ): Promise<LocalPlayer[]> {
   // Join: wm_player_nations → players + wm_nations (for api_team_id)
-  const { data, error } = await supabase
-    .from("wm_player_nations")
-    .select(`
-      player_id,
-      players!inner ( id, name, position, api_football_player_id ),
-      wm_nations!inner ( id, name, api_team_id )
-    `)
-    .eq("tournament_id", tournamentId);
+  // Paginiert mit PAGE_SIZE=1000, um Supabase 1000-Row-Limit zu umgehen.
+  const raw = await paginatedSelect((offset, limit) =>
+    supabase
+      .from("wm_player_nations")
+      .select(`
+        player_id,
+        players!inner ( id, name, position, api_football_player_id ),
+        wm_nations!inner ( id, name, api_team_id )
+      `)
+      .eq("tournament_id", tournamentId)
+      .range(offset, offset + limit - 1) as any,
+  );
 
-  if (error) throw new Error(`wm_player_nations query failed: ${error.message}`);
-  if (!data?.length) return [];
-
-  return data.map((row: any) => ({
+  return raw.map((row: any) => ({
     id:                     row.players.id,
     name:                   row.players.name,
     position:               row.players.position,
