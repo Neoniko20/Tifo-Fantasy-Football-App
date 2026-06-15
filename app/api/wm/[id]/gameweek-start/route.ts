@@ -74,6 +74,20 @@ export async function POST(
     return NextResponse.json({ error: "Spieltag-Status Update fehlgeschlagen: " + gwError.message }, { status: 500 });
   }
 
+  // ── 5b. Lock all team_lineups for this gameweek ───────────────────
+  // Idempotent: already-locked rows stay locked.
+  const { error: lockError } = await supabase
+    .from("team_lineups")
+    .update({ locked: true })
+    .eq("tournament_id", tournamentId)
+    .eq("gameweek", gameweek);
+  if (lockError) {
+    return NextResponse.json(
+      { error: "Lineup-Lock fehlgeschlagen: " + lockError.message },
+      { status: 500 },
+    );
+  }
+
   // ── 6. Load all teams ordered by total_points DESC ───────────────
   // ORDER BY total_points DESC → rank = index + 1
   // Ties: same total_points → same effective rank ordering (stable sort)
@@ -109,5 +123,5 @@ export async function POST(
     );
   }
 
-  return NextResponse.json({ ok: true, snapshot_count: snapshots.length });
+  return NextResponse.json({ ok: true, snapshot_count: snapshots.length, lineups_locked: true });
 }
