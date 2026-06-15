@@ -5,9 +5,14 @@ import type { PlayerStatUpdatePayload } from "@/lib/wm-types";
 const AF_BASE = "https://v3.football.api-sports.io";
 const _delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+const RETRY_AFTER_MAX_S = 30;
+
 /**
  * Fetches from API-Football with automatic 429 retry.
- * Retries at most `maxRetries` times (default 3), honouring Retry-After.
+ * Initial attempt + at most `maxRetries` retries (default 3), i.e. up to
+ * maxRetries+1 total HTTP calls. Retry-After is honoured but capped at
+ * RETRY_AFTER_MAX_S to prevent a single long wait from exhausting the
+ * Vercel function budget (maxDuration=300s).
  * Throws after the cap is exhausted so the caller can record a warning.
  */
 export async function afetch(
@@ -23,9 +28,11 @@ export async function afetch(
 
     if (res.status === 429) {
       if (attempt >= maxRetries) {
-        throw new Error(`rate-limited after ${maxRetries} retries — ${path}`);
+        const plural = maxRetries === 1 ? "retry" : "retries";
+        throw new Error(`rate-limited after ${maxRetries} ${plural} — ${path}`);
       }
-      const retryAfter = parseInt(res.headers.get("retry-after") || "10", 10);
+      const raw = parseInt(res.headers.get("retry-after") ?? "5", 10);
+      const retryAfter = Number.isNaN(raw) ? 5 : Math.min(raw, RETRY_AFTER_MAX_S);
       await _delay(retryAfter * 1000);
       continue;
     }
@@ -33,6 +40,8 @@ export async function afetch(
     if (!res.ok) throw new Error(`HTTP ${res.status} — ${path}`);
     return res.json();
   }
+  // unreachable: loop always returns or throws
+  throw new Error("afetch: unexpected loop exit");
 }
 
 // ── API-Football response types ───────────────────────────────────────────────

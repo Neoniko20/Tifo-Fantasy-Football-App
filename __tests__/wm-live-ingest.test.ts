@@ -264,17 +264,17 @@ describe("afetch — bounded 429 retry", () => {
     expect(result).toEqual({ ok: true });
   });
 
-  it("wirft nach maxRetries=1 bei dauerhaftem 429", async () => {
+  it("wirft nach maxRetries=1 bei dauerhaftem 429 (Singular: retry)", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValue(makeResponse(429, { "retry-after": "0" })));
-    await expect(afetch("/fixtures?id=1", "key", 1)).rejects.toThrow("rate-limited after 1 retries");
+    await expect(afetch("/fixtures?id=1", "key", 1)).rejects.toThrow("rate-limited after 1 retry");
   });
 
-  it("wirft nach Standard maxRetries=3 bei dauerhaftem 429", async () => {
+  it("wirft nach Standard maxRetries=3 bei dauerhaftem 429 (Plural: retries)", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValue(makeResponse(429, { "retry-after": "0" })));
     await expect(afetch("/fixtures?id=1", "key")).rejects.toThrow("rate-limited after 3 retries");
-    // 4 Calls: attempt 0,1,2,3 — wirft beim letzten
+    // attempt 0,1,2,3 → 4 HTTP-Calls insgesamt (initialer Versuch + 3 Retries)
     expect((fetch as any).mock.calls.length).toBe(4);
   });
 
@@ -298,5 +298,34 @@ describe("afetch — bounded 429 retry", () => {
     await expect(afetch("/fixtures?id=1", "SECRET_KEY", 0)).rejects.toThrow(
       expect.not.stringContaining("SECRET_KEY"),
     );
+  });
+
+  it("retry-after: '60' wird auf max. 30s gecappt", async () => {
+    const delayedMs: number[] = [];
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(makeResponse(429, { "retry-after": "60" }))
+      .mockResolvedValueOnce(makeResponse(200, {}, { ok: true })));
+    // Spy auf setTimeout um tatsächlich verwendeten Delay zu prüfen ohne zu warten
+    vi.stubGlobal("setTimeout", (fn: () => void, ms: number) => {
+      delayedMs.push(ms);
+      fn(); // sofort ausführen im Test
+      return 0 as any;
+    });
+    await afetch("/fixtures?id=1", "key");
+    expect(delayedMs[0]).toBe(30 * 1000);
+  });
+
+  it("retry-after ohne Header nutzt Default (5s, gecappt auf max 30s)", async () => {
+    const delayedMs: number[] = [];
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(makeResponse(429, {})) // kein retry-after Header
+      .mockResolvedValueOnce(makeResponse(200, {}, { ok: true })));
+    vi.stubGlobal("setTimeout", (fn: () => void, ms: number) => {
+      delayedMs.push(ms);
+      fn();
+      return 0 as any;
+    });
+    await afetch("/fixtures?id=1", "key");
+    expect(delayedMs[0]).toBe(5 * 1000);
   });
 });
