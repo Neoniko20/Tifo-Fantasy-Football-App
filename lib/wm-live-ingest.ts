@@ -1,5 +1,49 @@
 import type { PlayerStatUpdatePayload } from "@/lib/wm-types";
 
+// ── API-Football fetch with bounded retry ─────────────────────────────────────
+
+const AF_BASE = "https://v3.football.api-sports.io";
+const _delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+const RETRY_AFTER_MAX_S = 30;
+
+/**
+ * Fetches from API-Football with automatic 429 retry.
+ * Initial attempt + at most `maxRetries` retries (default 3), i.e. up to
+ * maxRetries+1 total HTTP calls. Retry-After is honoured but capped at
+ * RETRY_AFTER_MAX_S to prevent a single long wait from exhausting the
+ * Vercel function budget (maxDuration=300s).
+ * Throws after the cap is exhausted so the caller can record a warning.
+ */
+export async function afetch(
+  path: string,
+  apiKey: string,
+  maxRetries = 3,
+): Promise<any> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(`${AF_BASE}${path}`, {
+      headers: { "x-apisports-key": apiKey },
+      cache: "no-store",
+    });
+
+    if (res.status === 429) {
+      if (attempt >= maxRetries) {
+        const plural = maxRetries === 1 ? "retry" : "retries";
+        throw new Error(`rate-limited after ${maxRetries} ${plural} — ${path}`);
+      }
+      const raw = parseInt(res.headers.get("retry-after") ?? "5", 10);
+      const retryAfter = Number.isNaN(raw) ? 5 : Math.min(raw, RETRY_AFTER_MAX_S);
+      await _delay(retryAfter * 1000);
+      continue;
+    }
+
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${path}`);
+    return res.json();
+  }
+  // unreachable: loop always returns or throws
+  throw new Error("afetch: unexpected loop exit");
+}
+
 // ── API-Football response types ───────────────────────────────────────────────
 
 export interface AfFixturePlayerEntry {
@@ -97,6 +141,13 @@ export function mapAfStatToPayload(
  * API-Football delivers cumulative stats — a new key per hour allows each
  * polling interval to overwrite the previous score via upsert, while still
  * preventing duplicates within the same hour.
+ *
+ * Trade-off: because the bucket resets on the hour boundary, live scores
+ * can lag up to ~59 minutes behind reality. This is intentional: the
+ * GitHub Actions cron runs hourly, so within a single poll cycle all
+ * updates for the same fixture/player are deduplicated. Acceptable for
+ * a hobby-tier WM fantasy league; switch to a sub-hour bucket (e.g.
+ * 15-min) if real-time scoring becomes a requirement.
  */
 export function makeIngestIdempotencyKey(
   apiFixtureId: number,

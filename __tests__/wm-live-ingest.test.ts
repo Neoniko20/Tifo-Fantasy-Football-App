@@ -2,11 +2,12 @@
  * Tests für lib/wm-live-ingest.ts
  *
  * Fokus: pure Transformer-Helpers — mapAfStatToPayload, makeIngestIdempotencyKey,
- * isFixtureRelevant. Kein Supabase, kein fetch, keine Route-Logik.
+ * isFixtureRelevant, afetch (retry cap).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  afetch,
   mapAfStatToPayload,
   makeIngestIdempotencyKey,
   isFixtureRelevant,
@@ -236,5 +237,95 @@ describe("isFixtureRelevant — Fixture-Filter für Live-Polling", () => {
     const kickoff = new Date("2026-06-15T16:30:00Z").toISOString(); // 1h 30min her
     expect(isFixtureRelevant("finished", kickoff, now, 60 * 60 * 1000)).toBe(false); // 1h Fenster
     expect(isFixtureRelevant("finished", kickoff, now, 2 * 60 * 60 * 1000)).toBe(true); // 2h Fenster
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. afetch — 429 Retry Cap
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("afetch — bounded 429 retry", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function makeResponse(status: number, headers: Record<string, string> = {}, body: any = {}): Response {
+    return {
+      status,
+      ok: status >= 200 && status < 300,
+      headers: { get: (k: string) => headers[k] ?? null },
+      json: async () => body,
+    } as unknown as Response;
+  }
+
+  it("gibt JSON zurück bei erfolgreicher Antwort", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(makeResponse(200, {}, { ok: true })));
+    const result = await afetch("/fixtures?id=1", "key123");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("wirft nach maxRetries=1 bei dauerhaftem 429 (Singular: retry)", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValue(makeResponse(429, { "retry-after": "0" })));
+    await expect(afetch("/fixtures?id=1", "key", 1)).rejects.toThrow("rate-limited after 1 retry");
+  });
+
+  it("wirft nach Standard maxRetries=3 bei dauerhaftem 429 (Plural: retries)", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValue(makeResponse(429, { "retry-after": "0" })));
+    await expect(afetch("/fixtures?id=1", "key")).rejects.toThrow("rate-limited after 3 retries");
+    // attempt 0,1,2,3 → 4 HTTP-Calls insgesamt (initialer Versuch + 3 Retries)
+    expect((fetch as any).mock.calls.length).toBe(4);
+  });
+
+  it("retry erfolgreich wenn zweiter Call 200 liefert", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(makeResponse(429, { "retry-after": "0" }))
+      .mockResolvedValueOnce(makeResponse(200, {}, { data: "ok" })));
+    const result = await afetch("/fixtures?id=1", "key");
+    expect(result).toEqual({ data: "ok" });
+    expect((fetch as any).mock.calls.length).toBe(2);
+  });
+
+  it("wirft sofort bei anderen HTTP-Fehlern (nicht 429)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(makeResponse(500)));
+    await expect(afetch("/fixtures?id=1", "key")).rejects.toThrow("HTTP 500");
+  });
+
+  it("API-Key wird nicht in der Fehlermeldung geloggt", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValue(makeResponse(429, { "retry-after": "0" })));
+    await expect(afetch("/fixtures?id=1", "SECRET_KEY", 0)).rejects.toThrow(
+      expect.not.stringContaining("SECRET_KEY"),
+    );
+  });
+
+  it("retry-after: '60' wird auf max. 30s gecappt", async () => {
+    const delayedMs: number[] = [];
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(makeResponse(429, { "retry-after": "60" }))
+      .mockResolvedValueOnce(makeResponse(200, {}, { ok: true })));
+    // Spy auf setTimeout um tatsächlich verwendeten Delay zu prüfen ohne zu warten
+    vi.stubGlobal("setTimeout", (fn: () => void, ms: number) => {
+      delayedMs.push(ms);
+      fn(); // sofort ausführen im Test
+      return 0 as any;
+    });
+    await afetch("/fixtures?id=1", "key");
+    expect(delayedMs[0]).toBe(30 * 1000);
+  });
+
+  it("retry-after ohne Header nutzt Default (5s, gecappt auf max 30s)", async () => {
+    const delayedMs: number[] = [];
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(makeResponse(429, {})) // kein retry-after Header
+      .mockResolvedValueOnce(makeResponse(200, {}, { ok: true })));
+    vi.stubGlobal("setTimeout", (fn: () => void, ms: number) => {
+      delayedMs.push(ms);
+      fn();
+      return 0 as any;
+    });
+    await afetch("/fixtures?id=1", "key");
+    expect(delayedMs[0]).toBe(5 * 1000);
   });
 });
