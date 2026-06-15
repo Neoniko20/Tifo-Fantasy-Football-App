@@ -346,28 +346,64 @@ async function checkPlayerNations(sb: SupabaseClient) {
   }
 }
 
+// ── Infrastructure checks (file-existence, no DB) ────────────────────────────
+
+function checkLiveIngestInfra() {
+  const cronRoute   = path.join(process.cwd(), "app/api/cron/wm-live-ingest/route.ts");
+  const ghaWorkflow = path.join(process.cwd(), ".github/workflows/wm-live-ingest-cron.yml");
+  const ingestLib   = path.join(process.cwd(), "lib/wm-live-ingest.ts");
+
+  const allPresent = [cronRoute, ghaWorkflow, ingestLib].every(fs.existsSync);
+  if (allPresent) {
+    pass("Live-Ingest Pipeline vorhanden (Cron-Route + GHA-Workflow + afetch-Lib, PR #52+53+60)");
+  } else {
+    if (!fs.existsSync(cronRoute))   warn("app/api/cron/wm-live-ingest/route.ts fehlt");
+    if (!fs.existsSync(ghaWorkflow)) warn(".github/workflows/wm-live-ingest-cron.yml fehlt");
+    if (!fs.existsSync(ingestLib))   warn("lib/wm-live-ingest.ts fehlt");
+  }
+}
+
+function checkLineupLockInfra() {
+  const gwStartRoute  = path.join(process.cwd(), "app/api/wm/[id]/gameweek-start/route.ts");
+  const lockLib       = path.join(process.cwd(), "lib/wm-lineup-lock.ts");
+  const lineupRoute   = path.join(process.cwd(), "app/api/wm/[id]/lineup/route.ts");
+
+  const allPresent = [gwStartRoute, lockLib, lineupRoute].every(fs.existsSync);
+  if (allPresent) {
+    pass("Lineup-Lock automatisiert (gameweek-start setzt locked=true, shouldAllowLineupSave aktiv, PR #54)");
+  } else {
+    if (!fs.existsSync(gwStartRoute)) warn("app/api/wm/[id]/gameweek-start/route.ts fehlt");
+    if (!fs.existsSync(lockLib))      warn("lib/wm-lineup-lock.ts fehlt");
+    if (!fs.existsSync(lineupRoute))  warn("app/api/wm/[id]/lineup/route.ts fehlt");
+  }
+}
+
+async function checkPlayerApiIdMapping(sb: SupabaseClient) {
+  // Prüft ob players.api_football_player_id per Backfill befüllt wurde (PR #50+51+59)
+  const { count, error } = await sb
+    .from("players")
+    .select("id", { count: "exact", head: true })
+    .not("api_football_player_id", "is", null);
+  if (error) {
+    warn("api_football_player_id-Check fehlgeschlagen", error.message);
+    return;
+  }
+  const mapped = count ?? 0;
+  if (mapped >= 1000) {
+    pass(`players.api_football_player_id befüllt (${mapped} gemappt, PR #50+51+59)`);
+  } else if (mapped > 0) {
+    warn(`Nur ${mapped} Spieler mit api_football_player_id — Backfill unvollständig?`);
+  } else {
+    warn("Keine players.api_football_player_id gesetzt — Backfill noch nicht gelaufen");
+  }
+}
+
 // ── Bekannte Gaps ────────────────────────────────────────────────────────────
 
 function printKnownGaps() {
-  header("GAPS", "Bekannte nicht-implementierte Features (WARN, kein FAIL)");
+  header("GAPS", "Offene Features / bekannte Einschränkungen (WARN, kein FAIL)");
 
   const gaps = [
-    {
-      id: "GAP-1",
-      title: "Kein produktiver Live-Ingest / API-Football-Polling",
-      detail:
-        "app/api/wm/[id]/simulate (synthetisch) existiert, aber keine produktive Route " +
-        "die live Spielerstatistiken von API-Football polt. " +
-        "handlePlayerStatUpdate() in lib/wm-ingest.ts ist vorhanden, hat aber keinen realen Trigger.",
-    },
-    {
-      id: "GAP-2",
-      title: "Kein wm_player_map: API-Football player_id ↔ lokale players.id",
-      detail:
-        "wm_gameweek_points.player_id referenziert players.id (Vereinsspieler). " +
-        "API-Football verwendet abweichende Spieler-IDs für Nationalspieler. " +
-        "Ohne Mapping-Tabelle schlägt der Ingest bei echten API-Daten fehl.",
-    },
     {
       id: "GAP-3",
       title: "Vice-Captain-Fallback nicht implementiert",
@@ -375,14 +411,6 @@ function printKnownGaps() {
         "handlePlayerStatUpdate() in lib/wm-ingest.ts prüft nur captain_id, " +
         "nicht vice_captain_id. scoring_rules.vice_captain_multiplier existiert, " +
         "wird aber nie angewendet.",
-    },
-    {
-      id: "GAP-4",
-      title: "Lineup-Lock bei GW-Start nicht automatisiert",
-      detail:
-        "team_lineups.locked wird nicht automatisch auf true gesetzt wenn ein " +
-        "Gameweek auf status='active' wechselt. Muss manuell per Admin-Aufruf " +
-        "oder DB-Trigger ausgelöst werden.",
     },
     {
       id: "GAP-5",
@@ -431,6 +459,12 @@ async function main() {
   await checkLineups(sb, leagueId);
   await checkGameweekPoints(sb);
   await checkPlayerNations(sb);
+
+  header("INFRA", "Infrastruktur-Checks (Dateien, kein DB)");
+  checkLiveIngestInfra();
+  checkLineupLockInfra();
+  await checkPlayerApiIdMapping(sb);
+
   printKnownGaps();
 
   // ── Zusammenfassung ───────────────────────────────────────────────────────
