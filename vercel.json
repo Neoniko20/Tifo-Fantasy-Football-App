@@ -19,7 +19,7 @@
     },
     {
       "path": "/api/cron/wm-live-ingest",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
