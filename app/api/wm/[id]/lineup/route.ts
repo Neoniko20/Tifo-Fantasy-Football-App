@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase-server";
 import { createClient } from "@supabase/supabase-js";
 import { FORMATIONS, validateFormation } from "@/lib/wm-formations";
+import { shouldAllowLineupSave } from "@/lib/wm-lineup-lock";
 
 type LineupBody = {
   team_id:         string;
@@ -114,10 +115,6 @@ export async function POST(
     return NextResponse.json({ error: "Gameweek nicht gefunden oder gehört nicht zu dieser Liga" }, { status: 404 });
   }
 
-  if (gw.status === "finished") {
-    return NextResponse.json({ error: "Dieser Spieltag ist bereits abgeschlossen" }, { status: 409 });
-  }
-
   // Deadline-Check (falls das Feld existiert)
   if (gw.deadline && new Date(gw.deadline) < new Date()) {
     return NextResponse.json({ error: "Aufstellungs-Deadline ist bereits abgelaufen" }, { status: 409 });
@@ -202,7 +199,9 @@ export async function POST(
     return NextResponse.json({ error: "Kapitän und Vize-Kapitän dürfen nicht identisch sein" }, { status: 400 });
   }
 
-  // ── 12. Bestehenden Lineup-Lock prüfen ────────────────────────────
+  // ── 12. Gameweek-Status + Lineup-Lock prüfen ─────────────────────
+  // Checks (in order): finished → active → row locked.
+  // Covers the "no existing row but GW already active" gap.
   const { data: existingLineup } = await supabase
     .from("team_lineups")
     .select("locked")
@@ -210,8 +209,12 @@ export async function POST(
     .eq("gameweek", gw.gameweek)
     .maybeSingle();
 
-  if (existingLineup?.locked) {
-    return NextResponse.json({ error: "Aufstellung ist gesperrt und kann nicht mehr geändert werden" }, { status: 409 });
+  const lockCheck = shouldAllowLineupSave({
+    gameweekStatus: gw.status,
+    existingLocked: existingLineup?.locked,
+  });
+  if (!lockCheck.allow) {
+    return NextResponse.json({ error: lockCheck.error }, { status: lockCheck.status });
   }
 
   // ── 13. Upsert ────────────────────────────────────────────────────
@@ -226,7 +229,6 @@ export async function POST(
       bench,
       captain_id:      captain_id ?? null,
       vice_captain_id: vice_captain_id ?? null,
-      locked:          false,
       updated_at:      new Date().toISOString(),
     }, { onConflict: "team_id,gameweek" });
 
