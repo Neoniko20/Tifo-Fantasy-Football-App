@@ -120,6 +120,16 @@ export async function POST(
     return NextResponse.json({ error: "Aufstellungs-Deadline ist bereits abgelaufen" }, { status: 409 });
   }
 
+  // Early exit for active/finished GW — skips all validation queries below.
+  // shouldAllowLineupSave is authoritative; passing existingLocked=undefined here
+  // is safe because active/finished both deny on status alone before checking locked.
+  if (gw.status === "active" || gw.status === "finished") {
+    const lockCheck = shouldAllowLineupSave({ gameweekStatus: gw.status, existingLocked: undefined });
+    if (!lockCheck.allow) {
+      return NextResponse.json({ error: lockCheck.error }, { status: lockCheck.status });
+    }
+  }
+
   // ── 7. Duplikate prüfen ───────────────────────────────────────────
   const allPlayerIds = [...starters, ...bench];
   const uniqueIds = new Set(allPlayerIds);

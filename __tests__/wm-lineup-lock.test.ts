@@ -123,6 +123,15 @@ describe("gameweek-start route: lineup lock step", () => {
     const content = fs.readFileSync(routePath, "utf-8");
     expect(content).toContain("lineups_locked");
   });
+
+  it("no-teams early return enthält lineups_locked:true", () => {
+    const content = fs.readFileSync(routePath, "utf-8");
+    // Both the no-teams path and the success path must include lineups_locked
+    const noTeamsIdx = content.indexOf("snapshot_count: 0");
+    expect(noTeamsIdx).toBeGreaterThan(-1);
+    const noTeamsReturn = content.slice(noTeamsIdx, noTeamsIdx + 60);
+    expect(noTeamsReturn).toContain("lineups_locked");
+  });
 });
 
 describe("lineup route: uses shouldAllowLineupSave", () => {
@@ -150,5 +159,24 @@ describe("lineup route: uses shouldAllowLineupSave", () => {
     const content = fs.readFileSync(routePath, "utf-8");
     expect(content).toContain("gameweekStatus");
     expect(content).toContain("existingLocked");
+  });
+
+  it("early exit für active GW vor Squad-/Formations-Queries", () => {
+    const content = fs.readFileSync(routePath, "utf-8");
+    // Early exit block must appear before the squad ownership query
+    const earlyExitIdx = content.indexOf('gw.status === "active" || gw.status === "finished"');
+    const squadQueryIdx = content.indexOf("wm_squad_players");
+    expect(earlyExitIdx).toBeGreaterThan(-1);
+    expect(squadQueryIdx).toBeGreaterThan(-1);
+    expect(earlyExitIdx).toBeLessThan(squadQueryIdx);
+  });
+
+  it("early exit nutzt shouldAllowLineupSave für konsistente Fehlermeldung", () => {
+    const content = fs.readFileSync(routePath, "utf-8");
+    // The early-exit block must call shouldAllowLineupSave (not hardcode a message)
+    const earlyExitStart = content.indexOf('gw.status === "active" || gw.status === "finished"');
+    const earlyExitEnd = content.indexOf("// ── 7.", earlyExitStart);
+    const earlyBlock = content.slice(earlyExitStart, earlyExitEnd);
+    expect(earlyBlock).toContain("shouldAllowLineupSave");
   });
 });

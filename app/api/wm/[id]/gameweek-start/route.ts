@@ -100,7 +100,7 @@ export async function POST(
     return NextResponse.json({ error: "Teams laden fehlgeschlagen: " + teamsError.message }, { status: 500 });
   }
   if (!teams?.length) {
-    return NextResponse.json({ ok: true, snapshot_count: 0 });
+    return NextResponse.json({ ok: true, snapshot_count: 0, lineups_locked: true });
   }
 
   // ── 7. Build rank snapshot rows ───────────────────────────────────
