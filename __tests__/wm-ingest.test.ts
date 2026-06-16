@@ -795,23 +795,31 @@ describe("handleAutoSub — Persistenzlogik mit Mock-Supabase", () => {
  * Handles two UPDATE call chains:
  *   wm_gameweeks   : .update({ status }).eq().eq()  [awaited]
  *   team_lineups   : .update({ locked: true }).eq().eq()  [awaited]
+ *
+ * Captures both UPDATE payloads and .eq() filter arguments per table
+ * so tests can verify the lock is correctly scoped.
  */
 function buildGameweekStatusMock(cfg: {
   gwUpdateError?: { message: string } | null;
   lockUpdateError?: { message: string } | null;
 }) {
   const updateCalls: Array<{ table: string; data: unknown }> = [];
+  const eqCalls: Array<{ table: string; column: string; value: unknown }> = [];
 
   function makeChain(table: string, updateError: { message: string } | null) {
-    let capturedData: unknown;
     const chain: any = new Proxy(
       {},
       {
         get(_t, prop: string) {
           if (prop === "update") {
             return (data: unknown) => {
-              capturedData = data;
               updateCalls.push({ table, data });
+              return chain;
+            };
+          }
+          if (prop === "eq") {
+            return (column: string, value: unknown) => {
+              eqCalls.push({ table, column, value });
               return chain;
             };
           }
@@ -819,7 +827,7 @@ function buildGameweekStatusMock(cfg: {
             return (fn: (v: unknown) => unknown) =>
               Promise.resolve({ error: updateError ?? null }).then(fn);
           }
-          // .eq(), .select(), etc. — return same chain
+          // .select(), .single(), etc. — return same chain
           return () => chain;
         },
       },
@@ -838,6 +846,7 @@ function buildGameweekStatusMock(cfg: {
       return makeChain(table, null);
     },
     _updateCalls: updateCalls,
+    _eqCalls: eqCalls,
   };
 
   return supabase;
@@ -867,13 +876,19 @@ describe("handleGameweekStatus — Lineup-Lock bei status=active", () => {
     expect(warnings).toHaveLength(0);
   });
 
-  it("status=active → schreibt locked=true auf team_lineups mit korrekter tournament_id und gameweek", async () => {
+  it("status=active → schreibt locked=true mit korrektem tournament_id und gameweek Filter", async () => {
     const supa = buildGameweekStatusMock({});
     await handleGameweekStatus(makeGwStatusEvent("active", 2), supa);
 
     const lockCall = supa._updateCalls.find((c: any) => c.table === "team_lineups");
     expect(lockCall).toBeDefined();
     expect(lockCall!.data).toMatchObject({ locked: true });
+
+    // Verifiziert dass der Lock exakt auf tournament_id + gameweek begrenzt ist
+    // (kein unscoped UPDATE der alle Lineups sperren würde)
+    const lockFilters = supa._eqCalls.filter((c: any) => c.table === "team_lineups");
+    expect(lockFilters).toContainEqual({ table: "team_lineups", column: "tournament_id", value: "tournament-wm2026" });
+    expect(lockFilters).toContainEqual({ table: "team_lineups", column: "gameweek", value: 2 });
   });
 
   it("status=upcoming → kein team_lineups UPDATE", async () => {

@@ -59,6 +59,7 @@ const RESOLUTION_FAILURE_PREFIXES = [
   "unmapped_api_player",
   "player.stat_update missing",
   "db_error",
+  "lineups_lock_failed",
 ] as const;
 
 /** @internal exported for unit tests only */
