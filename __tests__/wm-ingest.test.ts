@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { shouldScorePlayer, handleAutoSub, resolveStatUpdatePlayerId, resolveIngestStatus } from "@/lib/wm-ingest";
+import { shouldScorePlayer, handleAutoSub, handleGameweekStatus, resolveStatUpdatePlayerId, resolveIngestStatus } from "@/lib/wm-ingest";
 import fs from "fs";
 import path from "path";
 
@@ -782,5 +782,163 @@ describe("handleAutoSub — Persistenzlogik mit Mock-Supabase", () => {
     expect(applied).not.toContain("team_substitutions:auto_sub");
     // Lineup update still happened — it is ground truth
     expect(applied).toContain("team_lineups:starting_xi");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. handleGameweekStatus — Lineup-Lock bei status=active
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Minimal chainable Supabase mock for handleGameweekStatus.
+ *
+ * Handles two UPDATE call chains:
+ *   wm_gameweeks   : .update({ status }).eq().eq()  [awaited]
+ *   team_lineups   : .update({ locked: true }).eq().eq()  [awaited]
+ *
+ * Captures both UPDATE payloads and .eq() filter arguments per table
+ * so tests can verify the lock is correctly scoped.
+ */
+function buildGameweekStatusMock(cfg: {
+  gwUpdateError?: { message: string } | null;
+  lockUpdateError?: { message: string } | null;
+}) {
+  const updateCalls: Array<{ table: string; data: unknown }> = [];
+  const eqCalls: Array<{ table: string; column: string; value: unknown }> = [];
+
+  function makeChain(table: string, updateError: { message: string } | null) {
+    const chain: any = new Proxy(
+      {},
+      {
+        get(_t, prop: string) {
+          if (prop === "update") {
+            return (data: unknown) => {
+              updateCalls.push({ table, data });
+              return chain;
+            };
+          }
+          if (prop === "eq") {
+            return (column: string, value: unknown) => {
+              eqCalls.push({ table, column, value });
+              return chain;
+            };
+          }
+          if (prop === "then") {
+            return (fn: (v: unknown) => unknown) =>
+              Promise.resolve({ error: updateError ?? null }).then(fn);
+          }
+          // .select(), .single(), etc. — return same chain
+          return () => chain;
+        },
+      },
+    );
+    return chain;
+  }
+
+  const supabase: any = {
+    from(table: string) {
+      if (table === "wm_gameweeks") {
+        return makeChain(table, cfg.gwUpdateError ?? null);
+      }
+      if (table === "team_lineups") {
+        return makeChain(table, cfg.lockUpdateError ?? null);
+      }
+      return makeChain(table, null);
+    },
+    _updateCalls: updateCalls,
+    _eqCalls: eqCalls,
+  };
+
+  return supabase;
+}
+
+/** Factory for a minimal gameweek.status_changed event */
+function makeGwStatusEvent(
+  status: "upcoming" | "active" | "finished",
+  gw = 3,
+): import("@/lib/wm-types").WMIngestEvent {
+  return {
+    type: "gameweek.status_changed",
+    tournament_id: "tournament-wm2026",
+    gameweek: gw,
+    source: "admin",
+    payload: { gameweek: gw, status },
+  };
+}
+
+describe("handleGameweekStatus — Lineup-Lock bei status=active", () => {
+  it("status=active → wm_gameweeks.status + team_lineups.locked in applied", async () => {
+    const supa = buildGameweekStatusMock({});
+    const { applied, warnings } = await handleGameweekStatus(makeGwStatusEvent("active"), supa);
+
+    expect(applied).toContain("wm_gameweeks.status");
+    expect(applied).toContain("team_lineups.locked");
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("status=active → schreibt locked=true mit korrektem tournament_id und gameweek Filter", async () => {
+    const supa = buildGameweekStatusMock({});
+    await handleGameweekStatus(makeGwStatusEvent("active", 2), supa);
+
+    const lockCall = supa._updateCalls.find((c: any) => c.table === "team_lineups");
+    expect(lockCall).toBeDefined();
+    expect(lockCall!.data).toMatchObject({ locked: true });
+
+    // Verifiziert dass der Lock exakt auf tournament_id + gameweek begrenzt ist
+    // (kein unscoped UPDATE der alle Lineups sperren würde)
+    const lockFilters = supa._eqCalls.filter((c: any) => c.table === "team_lineups");
+    expect(lockFilters).toContainEqual({ table: "team_lineups", column: "tournament_id", value: "tournament-wm2026" });
+    expect(lockFilters).toContainEqual({ table: "team_lineups", column: "gameweek", value: 2 });
+  });
+
+  it("status=upcoming → kein team_lineups UPDATE", async () => {
+    const supa = buildGameweekStatusMock({});
+    const { applied, warnings } = await handleGameweekStatus(makeGwStatusEvent("upcoming"), supa);
+
+    expect(applied).toContain("wm_gameweeks.status");
+    expect(applied).not.toContain("team_lineups.locked");
+    expect(warnings).toHaveLength(0);
+    expect(supa._updateCalls.filter((c: any) => c.table === "team_lineups")).toHaveLength(0);
+  });
+
+  it("status=finished → kein team_lineups UPDATE", async () => {
+    const supa = buildGameweekStatusMock({});
+    const { applied } = await handleGameweekStatus(makeGwStatusEvent("finished"), supa);
+
+    expect(applied).not.toContain("team_lineups.locked");
+    expect(supa._updateCalls.filter((c: any) => c.table === "team_lineups")).toHaveLength(0);
+  });
+
+  it("Lock ist idempotent — zweiter Aufruf schreibt locked=true erneut ohne Fehler", async () => {
+    const supa = buildGameweekStatusMock({});
+    const first  = await handleGameweekStatus(makeGwStatusEvent("active"), supa);
+    const second = await handleGameweekStatus(makeGwStatusEvent("active"), supa);
+
+    expect(first.applied).toContain("team_lineups.locked");
+    expect(second.applied).toContain("team_lineups.locked");
+    expect(first.warnings).toHaveLength(0);
+    expect(second.warnings).toHaveLength(0);
+  });
+
+  it("Lock-Fehler → lineups_lock_failed Warning, kein throw, wm_gameweeks.status trotzdem in applied", async () => {
+    const supa = buildGameweekStatusMock({
+      lockUpdateError: { message: "connection timeout" },
+    });
+    const { applied, warnings } = await handleGameweekStatus(makeGwStatusEvent("active"), supa);
+
+    expect(applied).toContain("wm_gameweeks.status");
+    expect(applied).not.toContain("team_lineups.locked");
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/lineups_lock_failed/);
+    expect(warnings[0]).toContain("connection timeout");
+  });
+
+  it("wm_gameweeks UPDATE-Fehler → wirft Error (bestehende Logik unverändert)", async () => {
+    const supa = buildGameweekStatusMock({
+      gwUpdateError: { message: "foreign key violation" },
+    });
+    await expect(handleGameweekStatus(makeGwStatusEvent("active"), supa)).rejects.toThrow(
+      "gameweek status update failed",
+    );
   });
 });

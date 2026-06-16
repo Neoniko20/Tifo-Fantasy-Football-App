@@ -59,6 +59,7 @@ const RESOLUTION_FAILURE_PREFIXES = [
   "unmapped_api_player",
   "player.stat_update missing",
   "db_error",
+  "lineups_lock_failed",
 ] as const;
 
 /** @internal exported for unit tests only */
@@ -253,7 +254,8 @@ async function handlePenaltiesUpdated(
   return { applied: ["wm_fixtures.penalties"], warnings: [] };
 }
 
-async function handleGameweekStatus(
+/** @internal exported for unit tests only — use processIngestEvent in production */
+export async function handleGameweekStatus(
   event: WMIngestEvent,
   supabase: ReturnType<typeof createServiceRoleClient>,
 ) {
@@ -268,7 +270,24 @@ async function handleGameweekStatus(
     .eq("tournament_id", event.tournament_id)
     .eq("gameweek", gw);
   if (error) throw new Error("gameweek status update failed: " + error.message);
-  return { applied: ["wm_gameweeks.status"], warnings: [] };
+
+  const applied: string[] = ["wm_gameweeks.status"];
+  const warnings: string[] = [];
+
+  if (status === "active") {
+    const { error: lockError } = await supabase
+      .from("team_lineups")
+      .update({ locked: true })
+      .eq("tournament_id", event.tournament_id)
+      .eq("gameweek", gw);
+    if (lockError) {
+      warnings.push(`lineups_lock_failed: ${lockError.message}`);
+    } else {
+      applied.push("team_lineups.locked");
+    }
+  }
+
+  return { applied, warnings };
 }
 
 async function handleNationEliminated(
