@@ -3,28 +3,19 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { FORMATIONS } from "@/lib/wm-formations";
-import { validateFormation } from "@/lib/wm-formations";
 import type { Position } from "@/lib/wm-types";
 import { useToast } from "@/app/components/ToastProvider";
-import { PlayerCard } from "@/app/components/PlayerCard";
+import { PlayerCardLineup } from "@/app/components/players/PlayerCardLineup";
 import { BottomNav } from "@/app/components/BottomNav";
 import { Spinner } from "@/app/components/ui/Spinner";
-
-const POS_COLOR: Record<string, string> = {
-  GK: "var(--color-primary)",
-  DF: "var(--color-info)",
-  MF: "var(--color-success)",
-  FW: "var(--color-error)",
-};
+import type { PlayerCardViewModel, PositionLabel } from "@/app/types/player";
 
 type Player = {
   id: number;
   name: string;
-  photo_url: string;
+  photo_url: string | null;
   position: Position;
   team_name: string;
-  fpts: number;
-  nation_id?: string;
 };
 
 export default function LineupPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,8 +35,11 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const [selectedSlot, setSelectedSlot] = useState<{ type: "xi" | "bench"; index: number } | null>(null);
   const [gameweek, setGameweek] = useState(1);
   const [gameweekId, setGameweekId] = useState<string | null>(null);
-  const [nations, setNations] = useState<Array<{ name: string; eliminated_after_gameweek?: number | null }>>([]);
-  const [playerNationMap, setPlayerNationMap] = useState<Record<number, { eliminated_after_gameweek?: number | null } | null>>({});
+  const [playerNationElimMap, setPlayerNationElimMap] = useState<Record<number, { eliminated_after_gameweek?: number | null } | null>>({});
+  const [nationFlagMap, setNationFlagMap] = useState<Record<number, string | null>>({});
+  const [gwPointsMap, setGwPointsMap] = useState<Record<number, number>>({});
+  const [isLineupLocked, setIsLineupLocked] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -58,12 +52,10 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   }, []);
 
   async function loadAll(userId: string) {
-    // Team
     const { data: team } = await supabase
       .from("teams").select("*").eq("league_id", leagueId).eq("user_id", userId).single();
     setMyTeam(team);
 
-    // Settings
     const { data: settingsData } = await supabase
       .from("wm_league_settings").select("*").eq("league_id", leagueId).maybeSingle();
     setSettings(settingsData);
@@ -71,7 +63,6 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       setFormation(settingsData.allowed_formations[0]);
     }
 
-    // Aktive Gameweek laden
     let activeGW: number = 1;
     let activeGWId: string | null = null;
     if (settingsData?.tournament_id) {
@@ -91,52 +82,61 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       }
     }
 
-    // Nationen für Eliminations-Check laden
-    if (settingsData?.tournament_id) {
-      const { data: nData } = await supabase
-        .from("wm_nations")
-        .select("name, eliminated_after_gameweek")
-        .eq("tournament_id", settingsData.tournament_id);
-      setNations(nData || []);
-    }
-
     if (!team) return;
 
-    // WM-Kader aus isolierter Tabelle laden
     const { data: picks } = await supabase
       .from("wm_squad_players")
       .select("player_id")
       .eq("team_id", team.id);
 
-    let playersData: any[] = [];
+    let playersData: Player[] = [];
     if (picks && picks.length > 0) {
-      const playerIds = picks.map(p => p.player_id);
+      const playerIds = picks.map((p: any) => p.player_id);
+
       const { data: fetched } = await supabase
         .from("players")
-        .select("id, name, photo_url, position, team_name, fpts")
+        .select("id, name, photo_url, position, team_name")
         .in("id", playerIds);
-      playersData = fetched || [];
+      playersData = (fetched || []) as Player[];
       setDraftPicks(playersData);
 
-      // FK-based nation lookup
-      if (settingsData?.tournament_id && picks && picks.length > 0) {
+      // Nation flags + elimination info in one query
+      if (settingsData?.tournament_id) {
         const { data: pnData } = await supabase
           .from("wm_player_nations")
-          .select("player_id, wm_nations(eliminated_after_gameweek)")
+          .select("player_id, wm_nations(flag_url, eliminated_after_gameweek)")
           .eq("tournament_id", settingsData.tournament_id)
           .in("player_id", playerIds);
 
         if (pnData && pnData.length > 0) {
-          const map: Record<number, { eliminated_after_gameweek?: number | null } | null> = {};
-          for (const pn of pnData) {
-            map[pn.player_id] = (pn.wm_nations as any) ?? null;
+          const flagMap: Record<number, string | null> = {};
+          const elimMap: Record<number, { eliminated_after_gameweek?: number | null } | null> = {};
+          for (const pn of pnData as any[]) {
+            flagMap[pn.player_id] = pn.wm_nations?.flag_url ?? null;
+            elimMap[pn.player_id] = pn.wm_nations ?? null;
           }
-          setPlayerNationMap(map);
+          setNationFlagMap(flagMap);
+          setPlayerNationElimMap(elimMap);
+        }
+      }
+
+      // GW points for current gameweek
+      if (activeGW) {
+        const { data: gwPoints } = await supabase
+          .from("wm_gameweek_points")
+          .select("player_id, points")
+          .eq("team_id", team.id)
+          .eq("gameweek", activeGW);
+        if (gwPoints && gwPoints.length > 0) {
+          const ptMap: Record<number, number> = {};
+          for (const row of gwPoints as any[]) {
+            ptMap[row.player_id] = row.points ?? 0;
+          }
+          setGwPointsMap(ptMap);
         }
       }
     }
 
-    // Gespeicherte Aufstellung laden (activeGW statt state-Variable, die noch nicht aktualisiert ist)
     const { data: lineup } = await supabase
       .from("team_lineups")
       .select("*")
@@ -144,24 +144,46 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
       .eq("gameweek", activeGW)
       .maybeSingle();
 
-    if (lineup && playersData.length > 0) {
-      setFormation(lineup.formation);
-      setCaptainId(lineup.captain_id);
-      setViceCaptainId(lineup.vice_captain_id);
-      // Spieler-Objekte für gespeicherte XI/Bench wiederherstellen
-      const allPlayers = playersData as Player[];
-      const xi = (lineup.starting_xi as number[]).map(
-        (id: number) => allPlayers.find(p => p.id === id) || null
-      );
-      const benchArr = (lineup.bench as number[]).map(
-        (id: number) => allPlayers.find(p => p.id === id)
-      ).filter(Boolean) as Player[];
-      setStartingXI(xi);
-      setBench(benchArr);
+    if (lineup) {
+      setIsLineupLocked(!!lineup.locked);
+
+      if (playersData.length > 0) {
+        setFormation(lineup.formation);
+        setCaptainId(lineup.captain_id);
+        setViceCaptainId(lineup.vice_captain_id);
+        const xi = (lineup.starting_xi as number[]).map(
+          (id: number) => playersData.find(p => p.id === id) || null
+        );
+        const benchArr = (lineup.bench as number[]).map(
+          (id: number) => playersData.find(p => p.id === id)
+        ).filter(Boolean) as Player[];
+        setStartingXI(xi);
+        setBench(benchArr);
+      }
     }
   }
 
-  // Spieler in Slot zuweisen
+  function isEliminated(player: Player): boolean {
+    const mapped = playerNationElimMap[player.id];
+    if (!mapped?.eliminated_after_gameweek) return false;
+    return gameweek > mapped.eliminated_after_gameweek;
+  }
+
+  function toVM(player: Player, capId: number | null, vcId: number | null): PlayerCardViewModel {
+    const elim = isEliminated(player);
+    const gwPts = gwPointsMap[player.id];
+    return {
+      id: player.id,
+      name: player.name,
+      positionLabel: player.position as PositionLabel,
+      imageUrl: player.photo_url ?? null,
+      nationFlagUrl: nationFlagMap[player.id] ?? null,
+      gameweekPoints: gwPts !== undefined ? gwPts : undefined,
+      isCaptain: player.id === capId,
+      isViceCaptain: player.id === vcId,
+    };
+  }
+
   function assignPlayer(player: Player) {
     if (!selectedSlot) return;
     const formationConfig = FORMATIONS[formation];
@@ -169,21 +191,17 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
 
     if (selectedSlot.type === "xi") {
       const slot = formationConfig.layout[selectedSlot.index];
-      // Position-Check
       if (slot && slot.position !== player.position) {
         toast(`Dieser Slot benötigt ${slot.position}, Spieler ist ${player.position}`, "error");
         return;
       }
       const newXI = [...startingXI];
-      // Alten Spieler raus (falls schon woanders zugewiesen)
       const existingIdx = newXI.findIndex(p => p?.id === player.id);
       if (existingIdx !== -1) newXI[existingIdx] = null;
-      // Vom Bench entfernen falls nötig
       setBench(prev => prev.filter(p => p.id !== player.id));
       newXI[selectedSlot.index] = player;
       setStartingXI(newXI);
     } else {
-      // Bank-Slot
       const newBench = [...bench];
       const existingXIIdx = startingXI.findIndex(p => p?.id === player.id);
       if (existingXIIdx !== -1) {
@@ -199,7 +217,6 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
     setSelectedSlot(null);
   }
 
-  // Spieler aus Slot entfernen
   function removeFromSlot(type: "xi" | "bench", index: number) {
     if (type === "xi") {
       const newXI = [...startingXI];
@@ -213,21 +230,10 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
     setSelectedSlot(null);
   }
 
-  // Formation wechseln — XI leeren
   function changeFormation(newFormation: string) {
     setFormation(newFormation);
     setStartingXI(Array(11).fill(null));
     setSelectedSlot(null);
-  }
-
-  function isEliminated(player: Player): boolean {
-    if (player.id in playerNationMap) {
-      const mapped = playerNationMap[player.id];
-      if (!mapped?.eliminated_after_gameweek) return false;
-      return gameweek > mapped.eliminated_after_gameweek;
-    }
-    // No team_name fallback: all players have wm_player_nations entries after M-03a.
-    return false;
   }
 
   async function saveLineup() {
@@ -286,16 +292,15 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const unassignedPlayers = draftPicks.filter(p => !assignedIds.has(p.id));
   const maxBench = settings?.bench_size ?? 4;
 
-  // Spielfeld-Reihen aus Formation-Layout ableiten
   const rows = formationConfig
-    ? Array.from(new Set(formationConfig.layout.map(s => s.row)))
-        .sort((a, b) => b - a) // FW oben, GK unten
+    ? Array.from(new Set(formationConfig.layout.map((s: any) => s.row)))
+        .sort((a, b) => (b as number) - (a as number))
         .map(row => ({
           row,
           slots: formationConfig.layout
-            .map((s, i) => ({ ...s, slotIndex: i }))
-            .filter(s => s.row === row)
-            .sort((a, b) => a.col - b.col),
+            .map((s: any, i: number) => ({ ...s, slotIndex: i }))
+            .filter((s: any) => s.row === row)
+            .sort((a: any, b: any) => a.col - b.col),
         }))
     : [];
 
@@ -325,6 +330,13 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
     </main>
   );
 
+  const POS_COLOR: Record<string, string> = {
+    GK: "var(--color-accent)",
+    DF: "var(--color-info)",
+    MF: "var(--color-success)",
+    FW: "var(--color-error)",
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center p-4 pb-28" style={{ background: "var(--bg-page)" }}>
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-64 h-32 rounded-full blur-3xl opacity-10 pointer-events-none"
@@ -342,78 +354,104 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
             Spielplan →
           </button>
         </div>
-        <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>Aufstellung</p>
-        <button onClick={saveLineup} disabled={saving}
-          className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all"
-          style={{ background: saved ? "var(--color-success)" : "var(--color-primary)", color: "var(--bg-page)" }}>
-          {saving ? "..." : saved ? "✓ Gespeichert" : "Speichern"}
-        </button>
+        <div className="flex flex-col items-center gap-0.5">
+          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>Aufstellung</p>
+          {isLineupLocked && (
+            <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
+              style={{ background: "color-mix(in srgb, var(--color-muted) 15%, transparent)", color: "var(--color-muted)" }}>
+              🔒 GW{gameweek} gesperrt
+            </span>
+          )}
+        </div>
+        {!isLineupLocked ? (
+          <button onClick={saveLineup} disabled={saving}
+            className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all"
+            style={{ background: saved ? "var(--color-success)" : "var(--color-primary)", color: "var(--bg-page)" }}>
+            {saving ? "..." : saved ? "✓ Gespeichert" : "Speichern"}
+          </button>
+        ) : (
+          <div className="w-16" />
+        )}
       </div>
 
-      {/* Formation-Selector */}
-      <div className="w-full max-w-md mb-4">
-        <div className="flex gap-1.5 flex-wrap">
-          {(settings?.allowed_formations || Object.keys(FORMATIONS)).map((f: string) => (
-            <button key={f} onClick={() => changeFormation(f)}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
-              style={{
-                background: formation === f ? "var(--color-primary)" : "var(--bg-card)",
-                color: formation === f ? "var(--bg-page)" : "var(--color-muted)",
-                border: `1px solid ${formation === f ? "var(--color-primary)" : "var(--color-border)"}`,
-              }}>
-              {f}
-            </button>
-          ))}
+      {/* Formation-Selector — nur wenn nicht gesperrt */}
+      {!isLineupLocked && (
+        <div className="w-full max-w-md mb-4">
+          <div className="flex gap-1.5 flex-wrap">
+            {(settings?.allowed_formations || Object.keys(FORMATIONS)).map((f: string) => (
+              <button key={f} onClick={() => changeFormation(f)}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-black transition-all"
+                style={{
+                  background: formation === f ? "var(--color-primary)" : "var(--bg-card)",
+                  color: formation === f ? "var(--bg-page)" : "var(--color-muted)",
+                  border: `1px solid ${formation === f ? "var(--color-primary)" : "var(--color-border)"}`,
+                }}>
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Spielfeld */}
       <div className="w-full max-w-md rounded-2xl overflow-hidden mb-4"
-        style={{ background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))", border: "1px solid color-mix(in srgb, var(--color-success) 15%, var(--bg-page))", minHeight: 360 }}>
-        {/* Feld-Markierungen */}
-        <div className="relative p-3" style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--color-success) 8%, var(--bg-page)) 0%, var(--bg-page) 100%)" }}>
-          {/* Mittellinie */}
+        style={{
+          background: "color-mix(in srgb, var(--color-success) 10%, var(--bg-page))",
+          border: "1px solid color-mix(in srgb, var(--color-success) 15%, var(--bg-page))",
+          minHeight: 360,
+        }}>
+        <div className="relative p-3"
+          style={{ background: "linear-gradient(180deg, color-mix(in srgb, var(--color-success) 8%, var(--bg-page)) 0%, var(--bg-page) 100%)" }}>
           <div className="absolute left-3 right-3 top-1/2 h-px opacity-20" style={{ background: "var(--color-success)" }} />
           <div className="absolute left-1/2 top-1/2 w-16 h-16 rounded-full border opacity-10 -translate-x-1/2 -translate-y-1/2"
             style={{ borderColor: "var(--color-success)" }} />
 
-          {rows.map(({ row, slots }) => (
+          {rows.map(({ row, slots }: any) => (
             <div key={row} className="flex justify-center gap-2 mb-3">
-              {slots.map(({ position, slotIndex }) => {
+              {slots.map(({ position, slotIndex }: any) => {
                 const player = startingXI[slotIndex];
-                const isSelected = selectedSlot?.type === "xi" && selectedSlot.index === slotIndex;
-                const posColor = POS_COLOR[position] || "var(--color-text)";
-                const isCap = player?.id === captainId;
-                const isVC = player?.id === viceCaptainId;
-
+                const isSelected = !isLineupLocked && selectedSlot?.type === "xi" && selectedSlot.index === slotIndex;
                 const elim = player ? isEliminated(player) : false;
+                const vm = player ? toVM(player, captainId, viceCaptainId) : null;
+
                 return (
                   <div key={slotIndex}
-                    onClick={() => setSelectedSlot(isSelected ? null : { type: "xi", index: slotIndex })}
+                    onClick={() => {
+                      if (isLineupLocked) {
+                        if (player) setSelectedPlayer(player);
+                      } else {
+                        setSelectedSlot(isSelected ? null : { type: "xi", index: slotIndex });
+                      }
+                    }}
                     className="flex flex-col items-center cursor-pointer transition-all"
-                    style={{ width: 64, opacity: elim ? 0.7 : 1 }}>
-                    {/* Avatar */}
-                    <PlayerCard player={player} posColor={elim ? "var(--color-error)" : posColor} size={44} selected={isSelected} posLabel={position} isCap={isCap} isVC={isVC} />
-                    {/* Name */}
-                    <p className="text-[8px] font-black text-center leading-tight mt-1 truncate w-full"
-                      style={{ color: player ? (elim ? "var(--color-error)" : "var(--color-text)") : "var(--color-border)" }}>
-                      {player ? player.name.split(" ").pop() : position}
-                    </p>
-                    {player && (
-                      <div className="flex gap-1 mt-0.5">
-                        {elim ? (
-                          <span className="text-[6px] font-black px-1 rounded-sm"
-                            style={{ background: "color-mix(in srgb, var(--color-error) 20%, transparent)", color: "var(--color-error)" }}>
-                            0 Pts
-                          </span>
-                        ) : (
-                          <span className="text-[7px] font-black" style={{ color: "var(--color-primary)" }}>
-                            {player.fpts?.toFixed(0)}
-                          </span>
-                        )}
-                        <button onClick={e => { e.stopPropagation(); removeFromSlot("xi", slotIndex); }}
-                          className="text-[7px] font-black" style={{ color: "var(--color-muted)" }}>✕</button>
-                      </div>
+                    style={{ opacity: elim ? 0.7 : 1 }}>
+
+                    <PlayerCardLineup
+                      player={vm}
+                      variant="pitch"
+                      isSwapSelected={isSelected}
+                    />
+
+                    {/* Slot-Label wenn leer */}
+                    {!player && (
+                      <p className="text-[8px] font-black text-center mt-1"
+                        style={{ color: "var(--color-border)" }}>
+                        {position}
+                      </p>
+                    )}
+
+                    {/* Remove-Button nur im Edit-Modus */}
+                    {player && !isLineupLocked && (
+                      <button onClick={e => { e.stopPropagation(); removeFromSlot("xi", slotIndex); }}
+                        className="text-[7px] font-black mt-0.5" style={{ color: "var(--color-muted)" }}>✕</button>
+                    )}
+
+                    {/* Eliminiert-Badge */}
+                    {player && elim && (
+                      <span className="text-[6px] font-black px-1 rounded-sm mt-0.5"
+                        style={{ background: "color-mix(in srgb, var(--color-error) 20%, transparent)", color: "var(--color-error)" }}>
+                        0 Pts
+                      </span>
                     )}
                   </div>
                 );
@@ -431,25 +469,36 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
         <div className="flex gap-2">
           {Array.from({ length: maxBench }).map((_, i) => {
             const player = bench[i];
-            const isSelected = selectedSlot?.type === "bench" && selectedSlot.index === i;
+            const isSelected = !isLineupLocked && selectedSlot?.type === "bench" && selectedSlot.index === i;
             const elim = player ? isEliminated(player) : false;
+            const vm = player ? toVM(player, captainId, viceCaptainId) : null;
+
             return (
               <div key={i}
-                onClick={() => setSelectedSlot(isSelected ? null : { type: "bench", index: i })}
-                className="flex-1 flex flex-col items-center p-2 rounded-xl cursor-pointer transition-all"
-                style={{
-                  background: isSelected ? "var(--bg-elevated)" : "var(--bg-card)",
-                  border: `1px solid ${isSelected ? "var(--color-primary)" : elim ? "color-mix(in srgb, var(--color-error) 40%, transparent)" : "var(--color-border)"}`,
-                  opacity: elim ? 0.7 : 1,
-                }}>
-                <PlayerCard player={player ?? null} posColor={player ? (elim ? "var(--color-error)" : (POS_COLOR[player.position] || "var(--color-text)")) : "var(--color-border)"} size={36} selected={isSelected} posLabel={String(i + 1)} />
-                <p className="text-[7px] font-black text-center truncate w-full mt-1"
-                  style={{ color: player ? (elim ? "var(--color-error)" : "var(--color-text)") : "var(--color-border)" }}>
-                  {player ? player.name.split(" ").pop() : "—"}
-                </p>
-                {player && (
+                onClick={() => {
+                  if (isLineupLocked) {
+                    if (player) setSelectedPlayer(player);
+                  } else {
+                    setSelectedSlot(isSelected ? null : { type: "bench", index: i });
+                  }
+                }}
+                className="flex-1 flex flex-col items-center cursor-pointer transition-all"
+                style={{ opacity: elim ? 0.7 : 1 }}>
+                <PlayerCardLineup
+                  player={vm}
+                  variant="bench"
+                  benchNumber={i + 1}
+                  isSwapSelected={isSelected}
+                />
+                {player && !isLineupLocked && (
                   <button onClick={e => { e.stopPropagation(); removeFromSlot("bench", i); }}
-                    className="text-[7px]" style={{ color: "var(--color-muted)" }}>✕</button>
+                    className="text-[7px] mt-0.5" style={{ color: "var(--color-muted)" }}>✕</button>
+                )}
+                {player && elim && (
+                  <span className="text-[6px] font-black px-1 rounded-sm mt-0.5"
+                    style={{ background: "color-mix(in srgb, var(--color-error) 20%, transparent)", color: "var(--color-error)" }}>
+                    Aus
+                  </span>
                 )}
               </div>
             );
@@ -457,8 +506,8 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
         </div>
       </div>
 
-      {/* Spieler-Pool (unassigned) */}
-      {selectedSlot && (
+      {/* Spieler-Pool (nur im Edit-Modus) */}
+      {!isLineupLocked && selectedSlot && (
         <div className="w-full max-w-md">
           <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-primary)" }}>
             Spieler auswählen für {selectedSlot.type === "xi"
@@ -473,6 +522,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
               .map(player => {
                 const posColor = POS_COLOR[player.position] || "var(--color-text)";
                 const elim = isEliminated(player);
+                const gwPts = gwPointsMap[player.id];
                 return (
                   <div key={player.id} onClick={() => assignPlayer(player)}
                     className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
@@ -483,7 +533,10 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                     }}
                     onMouseEnter={e => (e.currentTarget.style.borderColor = elim ? "var(--color-error)" : "var(--color-primary)")}
                     onMouseLeave={e => (e.currentTarget.style.borderColor = elim ? "color-mix(in srgb, var(--color-error) 30%, transparent)" : "var(--color-border)")}>
-                    <PlayerCard player={player} posColor={elim ? "var(--color-error)" : posColor} size={32} />
+                    {nationFlagMap[player.id] && (
+                      <img src={nationFlagMap[player.id]!} className="w-6 h-4 rounded-sm object-cover flex-shrink-0"
+                        style={{ border: "1px solid rgba(0,0,0,0.3)" }} alt="" />
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-black truncate" style={{ color: elim ? "var(--color-error)" : "var(--color-text)" }}>{player.name}</p>
                       <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
@@ -495,7 +548,9 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                           Ausgeschieden
                         </span>
                       ) : (
-                        <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>{player.fpts?.toFixed(0)}</p>
+                        <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>
+                          {gwPts !== undefined ? gwPts.toFixed(1) : "—"}
+                        </p>
                       )}
                       <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
                         style={{ background: posColor + "30", color: posColor }}>
@@ -518,8 +573,8 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
         </div>
       )}
 
-      {/* Kapitän setzen (wenn kein Slot ausgewählt) */}
-      {!selectedSlot && startingXI.filter(Boolean).length > 0 && (
+      {/* Kapitän setzen (nur Edit-Modus) */}
+      {!isLineupLocked && !selectedSlot && startingXI.filter(Boolean).length > 0 && (
         <div className="w-full max-w-md mt-2">
           <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
             Kapitän & Vize-Kapitän
@@ -551,6 +606,150 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
           <p className="text-[8px] mt-1" style={{ color: "var(--color-border)" }}>
             Tippe zweimal für Vize-Kapitän · Kapitän × 2 Punkte · Vize × 1.5
           </p>
+        </div>
+      )}
+
+      {/* GW-Punkte-Übersicht (locked mode) */}
+      {isLineupLocked && Object.keys(gwPointsMap).length > 0 && (
+        <div className="w-full max-w-md mt-2 p-3 rounded-xl"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+          <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
+            GW{gameweek} Gesamt
+          </p>
+          <p className="text-xl font-black" style={{ color: "var(--color-primary)" }}>
+            {(() => {
+              const starters = startingXI.filter(Boolean) as Player[];
+              let total = 0;
+              for (const p of starters) {
+                const pts = gwPointsMap[p.id] ?? 0;
+                total += p.id === captainId ? pts * 2 : p.id === viceCaptainId ? pts * 1.5 : pts;
+              }
+              return total.toFixed(1);
+            })()} Pts
+          </p>
+        </div>
+      )}
+
+      {/* Player Detail Sheet (Bottom Sheet) */}
+      {selectedPlayer && (
+        <div
+          className="fixed inset-0 z-50 flex items-end"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={() => setSelectedPlayer(null)}
+        >
+          <div
+            className="w-full max-w-md mx-auto rounded-t-3xl p-6 pb-8"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)", borderBottom: "none" }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: "var(--color-border)" }} />
+
+            <div className="flex items-start gap-4">
+              {/* Foto */}
+              <div className="relative flex-shrink-0" style={{ width: 72, height: 90 }}>
+                {selectedPlayer.photo_url ? (
+                  <img src={selectedPlayer.photo_url} className="w-full h-full object-cover rounded-xl" alt="" />
+                ) : (
+                  <div className="w-full h-full rounded-xl flex items-center justify-center text-2xl"
+                    style={{ background: "var(--bg-card)" }}>👤</div>
+                )}
+                {nationFlagMap[selectedPlayer.id] && (
+                  <img src={nationFlagMap[selectedPlayer.id]!}
+                    className="absolute -bottom-1 -right-1 rounded-sm object-cover"
+                    style={{ width: 22, height: 14, border: "1px solid rgba(0,0,0,0.5)" }} alt="" />
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-black leading-tight" style={{ color: "var(--color-text)" }}>
+                  {selectedPlayer.name}
+                </p>
+                <p className="text-[10px] mt-0.5" style={{ color: "var(--color-muted)" }}>
+                  {selectedPlayer.team_name}
+                </p>
+                <div className="flex gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[8px] font-black px-2 py-1 rounded-lg"
+                    style={{
+                      background: (POS_COLOR[selectedPlayer.position] ?? "var(--color-text)") + "25",
+                      color: POS_COLOR[selectedPlayer.position] ?? "var(--color-text)",
+                    }}>
+                    {selectedPlayer.position}
+                  </span>
+                  {selectedPlayer.id === captainId && (
+                    <span className="text-[8px] font-black px-2 py-1 rounded-lg"
+                      style={{ background: "rgba(244,196,48,0.22)", color: "rgba(244,196,48,1)" }}>
+                      Kapitän ×2
+                    </span>
+                  )}
+                  {selectedPlayer.id === viceCaptainId && (
+                    <span className="text-[8px] font-black px-2 py-1 rounded-lg"
+                      style={{ background: "rgba(244,196,48,0.12)", color: "rgba(244,196,48,0.8)" }}>
+                      Vize ×1.5
+                    </span>
+                  )}
+                  {isEliminated(selectedPlayer) && (
+                    <span className="text-[8px] font-black px-2 py-1 rounded-lg"
+                      style={{ background: "color-mix(in srgb, var(--color-error) 20%, transparent)", color: "var(--color-error)" }}>
+                      Nation ausgeschieden
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Punkte */}
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl text-center" style={{ background: "var(--bg-card)" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
+                  GW{gameweek} Punkte
+                </p>
+                <p className="text-xl font-black" style={{ color: "var(--color-primary)" }}>
+                  {gwPointsMap[selectedPlayer.id] !== undefined
+                    ? (() => {
+                        const base = gwPointsMap[selectedPlayer.id];
+                        const mult = selectedPlayer.id === captainId ? 2 : selectedPlayer.id === viceCaptainId ? 1.5 : 1;
+                        return (base * mult).toFixed(1);
+                      })()
+                    : "—"}
+                </p>
+                {(selectedPlayer.id === captainId || selectedPlayer.id === viceCaptainId) && gwPointsMap[selectedPlayer.id] !== undefined && (
+                  <p className="text-[7px] mt-0.5" style={{ color: "var(--color-muted)" }}>
+                    Basis: {gwPointsMap[selectedPlayer.id].toFixed(1)}
+                  </p>
+                )}
+              </div>
+              <div className="p-3 rounded-xl text-center" style={{ background: "var(--bg-card)" }}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--color-muted)" }}>
+                  WM Gesamt
+                </p>
+                <p className="text-xl font-black" style={{ color: "var(--color-text)" }}>
+                  {(() => {
+                    // Sum all GW points across all gameweeks for this player
+                    // gwPointsMap only has current GW — for now show same value
+                    return gwPointsMap[selectedPlayer.id] !== undefined
+                      ? gwPointsMap[selectedPlayer.id].toFixed(1)
+                      : "—";
+                  })()}
+                </p>
+                <p className="text-[7px] mt-0.5" style={{ color: "var(--color-muted)" }}>nur aktueller GW</p>
+              </div>
+            </div>
+
+            {gwPointsMap[selectedPlayer.id] === undefined && (
+              <p className="text-center text-[9px] mt-3" style={{ color: "var(--color-muted)" }}>
+                Noch keine Punkte für GW{gameweek} vorhanden
+              </p>
+            )}
+
+            <button
+              onClick={() => setSelectedPlayer(null)}
+              className="w-full mt-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest"
+              style={{ background: "var(--bg-card)", color: "var(--color-muted)", border: "1px solid var(--color-border)" }}>
+              Schließen
+            </button>
+          </div>
         </div>
       )}
 
