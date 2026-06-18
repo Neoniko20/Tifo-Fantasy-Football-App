@@ -13,6 +13,10 @@ const POS_COLOR: Record<string, string> = {
   AB: "var(--color-info)",
   MF: "var(--color-success)",
   ST: "var(--color-error)",
+  // WM position codes
+  GK: "var(--color-accent)",
+  DF: "var(--color-info)",
+  FW: "var(--color-error)",
 };
 
 const CARD_BG = "#090c09";
@@ -166,6 +170,16 @@ function PitchCard({ vm, liveMinutes, isSwapSelected, isSwapTarget, isDimmed }: 
           </span>
         )}
       </div>
+
+      {/* Nation flag — WM mode (bottom-right, above info strip) */}
+      {vm.nationFlagUrl && (
+        <img
+          src={vm.nationFlagUrl}
+          className="absolute z-10 rounded-sm object-cover"
+          style={{ width: 18, height: 12, bottom: 33, right: 4, border: "1px solid rgba(0,0,0,0.45)" }}
+          alt=""
+        />
+      )}
 
       {/* Position badge */}
       <span

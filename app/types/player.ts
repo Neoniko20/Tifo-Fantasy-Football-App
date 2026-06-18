@@ -1,4 +1,4 @@
-export type PositionLabel = "TW" | "AB" | "MF" | "ST";
+export type PositionLabel = "TW" | "AB" | "MF" | "ST" | "GK" | "DF" | "FW";
 export type PlayerSlot   = "starter" | "bench" | "ir" | "taxi";
 export type VisualTier   = "hero" | "standard" | "fallback";
 
@@ -11,6 +11,9 @@ export interface PlayerCardViewModel {
   clubName?:      string;
   clubSlug?:      string;       // key in tsdb-clubs.json
   apiTeamId?:     number;       // api-sports.io team id
+
+  // WM mode — nation flag replaces club logo
+  nationFlagUrl?: string | null;
 
   // Images
   imageUrl?:      string | null;
