@@ -461,12 +461,24 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
         </div>
       </div>
 
+      {/* Locked-Hinweis */}
+      {isLineupLocked && (
+        <div className="w-full max-w-md mb-3 px-3 py-2 rounded-xl flex items-center gap-2"
+          style={{ background: "color-mix(in srgb, var(--color-muted) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--color-muted) 20%, transparent)" }}>
+          <span style={{ fontSize: 12 }}>🔒</span>
+          <p className="text-[9px] font-black" style={{ color: "var(--color-muted)" }}>
+            Aufstellung gesperrt — Änderungen sind für diese Gameweek nicht mehr möglich.
+          </p>
+        </div>
+      )}
+
       {/* Bank */}
       <div className="w-full max-w-md mb-4">
         <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-muted)" }}>
           Bank · {bench.filter(Boolean).length}/{maxBench}
         </p>
-        <div className="flex gap-2">
+        {/* grid-cols-4 wraps 8-slot bench into 2 rows on mobile */}
+        <div className="grid grid-cols-4 gap-2">
           {Array.from({ length: maxBench }).map((_, i) => {
             const player = bench[i];
             const isSelected = !isLineupLocked && selectedSlot?.type === "bench" && selectedSlot.index === i;
@@ -482,7 +494,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
                     setSelectedSlot(isSelected ? null : { type: "bench", index: i });
                   }
                 }}
-                className="flex-1 flex flex-col items-center cursor-pointer transition-all"
+                className="flex flex-col items-center cursor-pointer transition-all"
                 style={{ opacity: elim ? 0.7 : 1 }}>
                 <PlayerCardLineup
                   player={vm}
