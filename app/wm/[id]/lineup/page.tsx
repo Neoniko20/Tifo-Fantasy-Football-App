@@ -41,6 +41,7 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
   const [isLineupLocked, setIsLineupLocked] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pageTab, setPageTab] = useState<"aufstellung" | "kader">("aufstellung");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -355,15 +356,17 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
           </button>
         </div>
         <div className="flex flex-col items-center gap-0.5">
-          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>Aufstellung</p>
-          {isLineupLocked && (
+          <p className="text-sm font-black" style={{ color: "var(--color-primary)" }}>
+            {pageTab === "kader" ? "Kader" : "Aufstellung"}
+          </p>
+          {isLineupLocked && pageTab === "aufstellung" && (
             <span className="text-[8px] font-black px-2 py-0.5 rounded-full"
               style={{ background: "color-mix(in srgb, var(--color-muted) 15%, transparent)", color: "var(--color-muted)" }}>
               🔒 GW{gameweek} gesperrt
             </span>
           )}
         </div>
-        {!isLineupLocked ? (
+        {pageTab === "aufstellung" && !isLineupLocked ? (
           <button onClick={saveLineup} disabled={saving}
             className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50 transition-all"
             style={{ background: saved ? "var(--color-success)" : "var(--color-primary)", color: "var(--bg-page)" }}>
@@ -373,6 +376,94 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
           <div className="w-16" />
         )}
       </div>
+
+      {/* Tab-Switcher */}
+      <div className="w-full max-w-md flex mb-4 rounded-xl overflow-hidden"
+        style={{ background: "var(--bg-card)", border: "1px solid var(--color-border)" }}>
+        {(["aufstellung", "kader"] as const).map(t => (
+          <button key={t} onClick={() => setPageTab(t)}
+            className="flex-1 py-2 text-[10px] font-black uppercase tracking-widest transition-all"
+            style={{
+              background: pageTab === t ? "var(--color-primary)" : "transparent",
+              color: pageTab === t ? "var(--bg-page)" : "var(--color-muted)",
+            }}>
+            {t === "aufstellung" ? "Aufstellung" : "Kader"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── KADER-Ansicht ──────────────────────────────────────────────── */}
+      {pageTab === "kader" && (
+        <div className="w-full max-w-md space-y-1.5">
+          {(["GK", "DF", "MF", "FW"] as const).map(pos => {
+            const posPlayers = draftPicks.filter(p => p.position === pos);
+            if (posPlayers.length === 0) return null;
+            return (
+              <div key={pos}>
+                <p className="text-[8px] font-black uppercase tracking-widest mb-1 mt-2"
+                  style={{ color: POS_COLOR[pos] ?? "var(--color-muted)" }}>
+                  {pos === "GK" ? "Torhüter" : pos === "DF" ? "Abwehr" : pos === "MF" ? "Mittelfeld" : "Sturm"} · {posPlayers.length}
+                </p>
+                {posPlayers.map(player => {
+                  const elim = isEliminated(player);
+                  const gwPts = gwPointsMap[player.id];
+                  const inXI = startingXI.some(p => p?.id === player.id);
+                  const onBench = bench.some(p => p.id === player.id);
+                  const posColor = POS_COLOR[player.position] || "var(--color-text)";
+                  return (
+                    <div key={player.id}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
+                      style={{
+                        background: "var(--bg-card)",
+                        border: `1px solid ${elim ? "color-mix(in srgb, var(--color-error) 25%, transparent)" : "var(--color-border)"}`,
+                        opacity: elim ? 0.7 : 1,
+                      }}>
+                      {nationFlagMap[player.id] && (
+                        <img src={nationFlagMap[player.id]!} className="w-6 h-4 rounded-sm object-cover flex-shrink-0"
+                          style={{ border: "1px solid rgba(0,0,0,0.3)" }} alt="" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black truncate" style={{ color: elim ? "var(--color-error)" : "var(--color-text)" }}>
+                          {player.name}
+                          {player.id === captainId && <span className="ml-1 text-[7px]" style={{ color: "rgba(244,196,48,1)" }}>C</span>}
+                          {player.id === viceCaptainId && <span className="ml-1 text-[7px]" style={{ color: "rgba(244,196,48,0.8)" }}>V</span>}
+                        </p>
+                        <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {inXI && (
+                          <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
+                            style={{ background: "color-mix(in srgb, var(--color-success) 15%, transparent)", color: "var(--color-success)" }}>XI</span>
+                        )}
+                        {onBench && (
+                          <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
+                            style={{ background: "color-mix(in srgb, var(--color-muted) 15%, transparent)", color: "var(--color-muted)" }}>Bank</span>
+                        )}
+                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
+                          style={{ background: posColor + "25", color: posColor }}>
+                          {player.position}
+                        </span>
+                        <p className="text-xs font-black w-8 text-right" style={{ color: elim ? "var(--color-error)" : "var(--color-primary)" }}>
+                          {elim ? "0" : gwPts !== undefined ? gwPts.toFixed(1) : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+          {draftPicks.length === 0 && (
+            <p className="text-center py-8 text-xs" style={{ color: "var(--color-muted)" }}>Kein Kader vorhanden</p>
+          )}
+          <p className="text-center text-[8px] pt-2 pb-1" style={{ color: "var(--color-border)" }}>
+            {draftPicks.length} Spieler · GW{gameweek} Punkte
+          </p>
+        </div>
+      )}
+
+      {/* ── AUFSTELLUNG ─────────────────────────────────────────────────── */}
+      {pageTab === "aufstellung" && <>
 
       {/* Formation-Selector — nur wenn nicht gesperrt */}
       {!isLineupLocked && (
@@ -764,6 +855,8 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
       )}
+
+      </> /* end pageTab === "aufstellung" */}
 
       <BottomNav />
     </main>
