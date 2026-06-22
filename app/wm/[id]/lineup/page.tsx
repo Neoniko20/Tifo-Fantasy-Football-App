@@ -609,69 +609,102 @@ export default function LineupPage({ params }: { params: Promise<{ id: string }>
         </div>
       </div>
 
-      {/* Spieler-Pool (nur im Edit-Modus) */}
+      {/* Spieler-Auswahl Bottom Sheet */}
       {!isLineupLocked && selectedSlot && (
-        <div className="w-full max-w-md">
-          <p className="text-[9px] font-black uppercase tracking-widest mb-2" style={{ color: "var(--color-primary)" }}>
-            Spieler auswählen für {selectedSlot.type === "xi"
-              ? formationConfig?.layout[selectedSlot.index]?.position || "Slot"
-              : `Bank ${selectedSlot.index + 1}`}
-          </p>
-          <div className="space-y-1.5 max-h-56 overflow-y-auto">
-            {unassignedPlayers
-              .filter(p => selectedSlot.type === "bench" ||
-                !formationConfig?.layout[selectedSlot.index] ||
-                p.position === formationConfig.layout[selectedSlot.index].position)
-              .map(player => {
-                const posColor = POS_COLOR[player.position] || "var(--color-text)";
-                const elim = isEliminated(player);
-                const gwPts = gwPointsMap[player.id];
-                return (
-                  <div key={player.id} onClick={() => assignPlayer(player)}
-                    className="flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all"
-                    style={{
-                      background: "var(--bg-card)",
-                      border: `1px solid ${elim ? "color-mix(in srgb, var(--color-error) 30%, transparent)" : "var(--color-border)"}`,
-                      opacity: elim ? 0.7 : 1,
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = elim ? "var(--color-error)" : "var(--color-primary)")}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = elim ? "color-mix(in srgb, var(--color-error) 30%, transparent)" : "var(--color-border)")}>
-                    {nationFlagMap[player.id] && (
-                      <img src={nationFlagMap[player.id]!} className="w-6 h-4 rounded-sm object-cover flex-shrink-0"
-                        style={{ border: "1px solid rgba(0,0,0,0.3)" }} alt="" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-black truncate" style={{ color: elim ? "var(--color-error)" : "var(--color-text)" }}>{player.name}</p>
-                      <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      {elim ? (
-                        <span className="text-[8px] font-black px-1.5 py-0.5 rounded-sm"
-                          style={{ background: "color-mix(in srgb, var(--color-error) 15%, transparent)", color: "var(--color-error)" }}>
-                          Ausgeschieden
-                        </span>
-                      ) : (
-                        <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>
-                          {gwPts !== undefined ? gwPts.toFixed(1) : "—"}
-                        </p>
+        <div className="fixed inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.6)" }}
+          onClick={() => setSelectedSlot(null)}>
+          <div className="w-full max-w-md mx-auto rounded-t-3xl pb-8"
+            style={{ background: "var(--bg-elevated)", border: "1px solid var(--color-border)", borderBottom: "none", maxHeight: "70vh", display: "flex", flexDirection: "column" }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Handle + Header */}
+            <div className="flex-shrink-0 px-5 pt-4 pb-3">
+              <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: "var(--color-border)" }} />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--color-primary)" }}>
+                    {selectedSlot.type === "xi"
+                      ? `${formationConfig?.layout[selectedSlot.index]?.position || "Slot"} auswählen`
+                      : `Bank ${selectedSlot.index + 1} auswählen`}
+                  </p>
+                  <p className="text-[8px] mt-0.5" style={{ color: "var(--color-muted)" }}>
+                    {unassignedPlayers.filter(p =>
+                      selectedSlot.type === "bench" ||
+                      !formationConfig?.layout[selectedSlot.index] ||
+                      p.position === formationConfig.layout[selectedSlot.index].position
+                    ).length} verfügbar
+                  </p>
+                </div>
+                <button onClick={() => setSelectedSlot(null)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs"
+                  style={{ background: "var(--bg-card)", color: "var(--color-muted)" }}>✕</button>
+              </div>
+            </div>
+
+            {/* Scrollbare Spielerliste */}
+            <div className="flex-1 overflow-y-auto px-4 space-y-1.5 pb-4">
+              {unassignedPlayers
+                .filter(p => selectedSlot.type === "bench" ||
+                  !formationConfig?.layout[selectedSlot.index] ||
+                  p.position === formationConfig.layout[selectedSlot.index].position)
+                .map(player => {
+                  const posColor = POS_COLOR[player.position] || "var(--color-text)";
+                  const elim = isEliminated(player);
+                  const gwPts = gwPointsMap[player.id];
+                  return (
+                    <div key={player.id} onClick={() => assignPlayer(player)}
+                      className="flex items-center gap-3 p-3 rounded-xl cursor-pointer active:opacity-70 transition-opacity"
+                      style={{
+                        background: "var(--bg-card)",
+                        border: `1px solid ${elim ? "color-mix(in srgb, var(--color-error) 30%, transparent)" : "var(--color-border)"}`,
+                        opacity: elim ? 0.75 : 1,
+                      }}>
+                      {/* Foto */}
+                      <div className="w-10 h-12 rounded-lg overflow-hidden flex-shrink-0"
+                        style={{ background: "var(--bg-page)" }}>
+                        {player.photo_url ? (
+                          <img src={player.photo_url} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg">👤</div>
+                        )}
+                      </div>
+                      {nationFlagMap[player.id] && (
+                        <img src={nationFlagMap[player.id]!} className="w-6 h-4 rounded-sm object-cover flex-shrink-0"
+                          style={{ border: "1px solid rgba(0,0,0,0.3)" }} alt="" />
                       )}
-                      <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
-                        style={{ background: posColor + "30", color: posColor }}>
-                        {player.position}
-                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black truncate" style={{ color: elim ? "var(--color-error)" : "var(--color-text)" }}>{player.name}</p>
+                        <p className="text-[8px] truncate" style={{ color: "var(--color-muted)" }}>{player.team_name}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                        <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
+                          style={{ background: posColor + "30", color: posColor }}>
+                          {player.position}
+                        </span>
+                        {elim ? (
+                          <span className="text-[7px] font-black px-1.5 py-0.5 rounded-sm"
+                            style={{ background: "color-mix(in srgb, var(--color-error) 15%, transparent)", color: "var(--color-error)" }}>
+                            Ausgeschieden
+                          </span>
+                        ) : (
+                          <p className="text-xs font-black" style={{ color: "var(--color-primary)" }}>
+                            {gwPts !== undefined ? `${gwPts.toFixed(1)} Pts` : "—"}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            {unassignedPlayers.filter(p =>
-              selectedSlot.type === "bench" ||
-              !formationConfig?.layout[selectedSlot.index] ||
-              p.position === formationConfig.layout[selectedSlot.index].position
-            ).length === 0 && (
-              <p className="text-center py-4 text-xs" style={{ color: "var(--color-muted)" }}>
-                Keine verfügbaren Spieler für diese Position
-              </p>
-            )}
+                  );
+                })}
+              {unassignedPlayers.filter(p =>
+                selectedSlot.type === "bench" ||
+                !formationConfig?.layout[selectedSlot.index] ||
+                p.position === formationConfig.layout[selectedSlot.index].position
+              ).length === 0 && (
+                <p className="text-center py-8 text-xs" style={{ color: "var(--color-muted)" }}>
+                  Keine verfügbaren Spieler für diese Position
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
